@@ -33,12 +33,12 @@
       </div>
       <div class="page-head__actions" id="actions"></div>
     </div>
-    <div id="status-note"></div>
+    <div class="card progress-card" id="progress"></div>
 
     <div class="grid2">
-      <section class="card card--pad" aria-labelledby="sched-title">
+      <section aria-labelledby="sched-title">
         <h2 class="sub-title" id="sched-title">Schedule</h2>
-        <form id="sched" novalidate>
+        <form class="card card--pad" id="sched" novalidate>
           <div class="field">
             <label class="label" for="date">Delivery date</label>
             <input class="input" type="date" id="date" aria-describedby="date-error">
@@ -105,8 +105,17 @@
           : d.status === 'Completed' ? CNS.ui.badge('success', 'check-circle', 'Completed')
           : d.status === 'Shipped' ? CNS.ui.badge('info', 'arrow-right-start-on-rectangle', 'Shipped')
           : CNS.ui.badge('neutral', 'clipboard-document-list', 'Scheduled');
-        $('meta').innerHTML = '<a href="../orders/detail.html?id=' + encodeURIComponent(o.id) + '">' + esc(o.order_no) + '</a> · ' +
-          esc(c ? c.store_name + ' · ' + c.address : '') + ' · Requested ' + esc(fmt.date(o.delivery_date));
+        $('meta').innerHTML = '<span><a href="../orders/detail.html?id=' + encodeURIComponent(o.id) + '">' + esc(o.order_no) + '</a></span> · ' +
+          (c ? '<span>' + esc(c.store_name) + '</span> · ' + esc(c.address) + ' · ' : '') + '<span>Requested ' + esc(fmt.date(o.delivery_date)) + '</span>';
+
+        // 2.6 flow: scheduled → shipped (stock deducted) → agent confirms; the line under it says what happened or what's next
+        var at = !d ? 'Approved' : d.status;   // before scheduling, the order is simply Approved
+        var line = !d ? ['arrow-path', 'Next:', 'Choose the date, truck and driver, then save the schedule']
+          : d.status === 'Scheduled' ? ['arrow-path', 'Next:', 'Mark as shipped when the truck leaves on ' + fmt.date(d.schedule_date)]
+          : d.status === 'Shipped' ? ['arrow-path', 'Next:', 'The agent confirms the delivery (shipped ' + fmt.dateTime(d.shipped_at) + ')']
+          : ['check-circle', 'Delivered.', 'Confirmed by ' + userName(d.confirmed_by) + ' on ' + fmt.dateTime(d.completed_at)];
+        $('progress').innerHTML = CNS.ui.steps(['Approved', 'Scheduled', 'Shipped', 'Completed'], at, { label: 'Delivery progress' }) +
+          '<p class="progress-next">' + CNS.icon(line[0]) + '<span><strong>' + esc(line[1]) + '</strong> ' + esc(line[2]) + '</span></p>';
 
         // Form: editable until shipped
         var locked = d && d.status !== 'Scheduled';
@@ -125,10 +134,6 @@
         $('actions').innerHTML = actions;
         if ($('ship')) $('ship').addEventListener('click', ship);
 
-        $('status-note').innerHTML = !d ? '' : d.status === 'Shipped'
-          ? '<p class="alert" data-tone="info">Shipped ' + esc(fmt.dateTime(d.shipped_at)) + '. The agent confirms when it is delivered.</p>'
-          : d.status === 'Completed'
-          ? '<p class="alert" data-tone="success">Delivered. Confirmed by ' + esc(userName(d.confirmed_by)) + ' on ' + esc(fmt.dateTime(d.completed_at)) + '.</p>' : '';
 
         // Pick list: products with the storage area to pick from
         $('pick').innerHTML = '<table class="table"><thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Qty</th><th scope="col">Pick from</th><th scope="col" class="num-col">On hand there</th></tr></thead><tbody>' +
