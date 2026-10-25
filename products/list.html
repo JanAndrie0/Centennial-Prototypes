@@ -30,6 +30,8 @@
       </div>
     </div>
 
+    <div class="tabs" role="group" aria-label="Stock status" id="status-tabs"></div>
+
     <form id="filters" role="search" aria-label="Find products" onsubmit="return false">
       <div class="search">
         <label class="sr-only" for="q">Search by product name or code</label>
@@ -40,19 +42,6 @@
         <div class="field">
           <label class="label" for="f-cat">Category</label>
           <select class="input input--compact" id="f-cat"><option value="">All categories</option></select>
-        </div>
-        <div class="field">
-          <label class="label" for="f-status">Stock status</label>
-          <select class="input input--compact" id="f-status">
-            <option value="">All</option>
-            <option value="needs">Needs reorder</option>
-            <option value="low">Low</option>
-            <option value="below-floor">Below floor</option>
-            <option value="backordered">Backordered</option>
-            <option value="over-ceiling">Over ceiling</option>
-            <option value="unset">Levels not set</option>
-            <option value="ok">OK</option>
-          </select>
         </div>
         <div class="field">
           <label class="label" for="f-mover">Movement</label>
@@ -119,6 +108,9 @@
       var $ = function (id) { return document.getElementById(id); };
       var PAGE_SIZE = 20;   // the real catalog has 10,000+ products, so the list is always paged
       var NEEDS = ['low', 'below-floor', 'backordered'];
+      // Status tabs: the exceptions staff look for, one click each ("Needs reorder" = the reorder list's rule)
+      var TABS = [['', 'All'], ['needs', 'Needs reorder'], ['backordered', 'Backordered'], ['over-ceiling', 'Over ceiling'], ['unset', 'Levels not set']];
+      var status = '';
 
       $('search-icon').outerHTML = CNS.icon('magnifying-glass');
       $('empty-icon').outerHTML = CNS.icon('cube');
@@ -134,7 +126,7 @@
       var params = new URLSearchParams(location.search);
       $('q').value = params.get('q') || '';
       $('f-cat').value = params.get('cat') || '';
-      $('f-status').value = params.get('status') || '';
+      status = params.get('status') || '';
       $('f-mover').value = params.get('mover') || '';
       var page = Number(params.get('page')) || 1;
 
@@ -142,7 +134,7 @@
         var p = new URLSearchParams();
         if ($('q').value.trim()) p.set('q', $('q').value.trim());
         if ($('f-cat').value) p.set('cat', $('f-cat').value);
-        if ($('f-status').value) p.set('status', $('f-status').value);
+        if (status) p.set('status', status);
         if ($('f-mover').value) p.set('mover', $('f-mover').value);
         if (page > 1) p.set('page', page);
         history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : ''));
@@ -166,26 +158,36 @@
 
       function updateAlerts() { CNS.layout.moduleTabs('products', 'list', session); }
 
+      function isStatus(st, want) { return !want || (want === 'needs' ? NEEDS.indexOf(st) >= 0 : st === want); }
+
+      // Search, category and movement first; the status tab then narrows it (and its counts come from the same set)
       function matching() {
         var q = $('q').value.trim().toLowerCase();
         var words = q ? q.split(/\s+/) : [];
-        var cat = $('f-cat').value, status = $('f-status').value, mover = $('f-mover').value;
+        var cat = $('f-cat').value, mover = $('f-mover').value;
         var sc = scope();
         return S.all('products').filter(function (p) {
           var hay = (p.code + ' ' + p.name).toLowerCase();
           if (words.some(function (w) { return hay.indexOf(w) < 0; })) return false;
           if (cat && p.category_id !== cat) return false;
-          if (status) {
-            var st = S.stockStatus(p.id, sc);
-            if (status === 'needs' ? NEEDS.indexOf(st) < 0 : st !== status) return false;
-          }
           if (mover && S.mover(p.id, sc) !== mover) return false;
           return true;
         }).sort(function (a, b) { return a.name.localeCompare(b.name); });
       }
 
+      function renderTabs(base, sc) {
+        var st = base.map(function (p) { return S.stockStatus(p.id, sc); });
+        $('status-tabs').innerHTML = TABS.map(function (t) {
+          var n = st.filter(function (s) { return isStatus(s, t[0]); }).length;
+          return '<button type="button" aria-pressed="' + (t[0] === status) + '" data-status="' + esc(t[0]) + '">' + esc(t[1]) +
+            '<span class="tab-count">' + fmt.number(n) + '</span></button>';
+        }).join('');
+      }
+
       function render() {
-        var rows = matching();
+        var base = matching();
+        renderTabs(base, scope());
+        var rows = base.filter(function (p) { return isStatus(S.stockStatus(p.id, scope()), status); });
         var pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
         page = Math.min(Math.max(1, page), pages);
         var start = (page - 1) * PAGE_SIZE;
@@ -229,12 +231,21 @@
         clearTimeout(timer);
         timer = setTimeout(function () { page = 1; render(); }, 200);
       });
-      ['f-cat', 'f-status', 'f-mover'].forEach(function (id) {
+      ['f-cat', 'f-mover'].forEach(function (id) {
         $(id).addEventListener('change', function () { page = 1; render(); });
+      });
+      $('status-tabs').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-status]');
+        if (!b) return;
+        status = b.getAttribute('data-status');
+        page = 1;
+        render();
+        $('status-tabs').querySelector('[data-status="' + status + '"]').focus();
       });
 
       function clearFilters() {
         $('filters').reset();
+        status = '';
         page = 1;
         render();
         $('q').focus();
