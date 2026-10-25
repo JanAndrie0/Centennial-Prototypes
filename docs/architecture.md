@@ -1,6 +1,6 @@
 # Centennial Sales & Inventory Prototype — Architecture
 
-> Generated on 2026-10-23 | Moment: **validate**. This is a clickable prototype that Centennial reviews in 3 sessions (Modified Waterfall, Phase 2: System Design).
+> Generated on 2026-10-23, updated 2026-10-25 | Moment: **validate**. This is a clickable prototype that Centennial reviews in 3 sessions (Modified Waterfall, Phase 2: System Design). All modules are built; the current step is a visual polish pass before the review sessions (ADR-006).
 
 ## Summary
 
@@ -96,6 +96,7 @@ flowchart LR
 - **A real backend, database or auth service (Supabase, Firebase, Node API)** — the prototype doesn't need persistence beyond one browser. Reconsider never; the target is PHP/MySQL.
 - **Real-time sockets or push notifications** — alerts can show on page load at fewer than 1k users. Reconsider when the real system needs instant alerts across devices.
 - **Charting or UI component libraries** — the few charts (dashboard and reports) can be simple CSS or SVG bars. Reconsider when reports need interactive charts that the team can't build simply.
+- **Animation libraries (Motion / Framer Motion, GSAP, Sonner, Vaul)** — the Emil Kowalski skills often reach for these, but they are React packages or CDN scripts, the agent rules forbid them, and the PHP version can't reuse them. Every effect the polish pass needs (press feedback, enter transitions, toasts, drawers) is doable with CSS transitions, `@starting-style` and the existing tokens. Reconsider never for this prototype; for Phase 3 only if the team moves off plain PHP pages.
 
 ## Architecture Decision Records
 
@@ -129,6 +130,18 @@ flowchart LR
 - **Tradeoff:** one less switch, so a client who rejects approvals means editing four screens instead of flipping a flag.
 - **Revisit when:** the client rejects the approval step in a review session.
 
+### ADR-006: Visual polish pass follows Emil Kowalski's design-engineering rules, in plain CSS
+- **Choice:** before the review sessions, review every shared component and page against the installed `emil-design-eng`, `review-animations`, `improve-animations` and `find-animation-opportunities` skills, and fix what makes the pages feel bland. Changes go into the shared tokens (`assets/css/tokens.css`) and components (`components.css`, `layout.css`) first, so every page improves at once; page-specific CSS only for page-specific details. Findings are reported in the skill's required Before | After | Why table.
+- **Why:** the user finds the pages "a little bland", and every module is built, so this is the right moment. The users are 30–50 and some aren't tech-savvy: polish must make the screens clearer and feel responsive, never slower or busier. Emil's frequency rule fits exactly: screens used 100+ times a day (order lines, lists, approvals) get little or no motion; rare moments (approvals done, receipt issued, first login) can carry a little more.
+- **Tradeoff:** the skills assume React and animation libraries; we translate their principles into CSS only (ADR-001, "Don't Use Now"). Some effects, such as spring physics and drag-to-dismiss, are left out.
+- **Revisit when:** review session feedback says the screens feel slow or distracting (remove motion), or still feel bland (add depth: color, hierarchy, empty states).
+
+### ADR-007: Two teammates, one shared repo and a shared progress file
+- **Choice:** the prototype lives in a private GitHub repo. Each teammate works with their own Claude. `docs/PROGRESS.md` holds the build status, decisions and open questions, and `CLAUDE.md` points to it. Pull before working; commit and push when the user asks.
+- **Why:** Claude's memory is per computer; without a file in the repo, one teammate's decisions are invisible to the other's Claude.
+- **Tradeoff:** someone has to keep PROGRESS.md current; a missed update means repeated or contradicting work.
+- **Revisit when:** a third teammate starts coding, or merge conflicts happen more than once a week (then split work into branches per module).
+
 ## Cost Estimate
 - **Monthly now:** ₱0. It runs from local files or a free static preview.
 - **Monthly at next stage:** ₱0 locally on XAMPP. A small shared host or VPS for remote agent access is about ₱150–₱600 a month. AI order reading is pay per use and should be set with the adviser.
@@ -139,7 +152,17 @@ flowchart LR
 
 ## Agent Rules
 - DO NOT add frameworks, bundlers, npm packages or CDN UI libraries; write plain HTML/CSS/JS.
-- DO NOT add a backend, database server or auth service; all data goes through `shared/store.js` and `localStorage`.
+- DO NOT add a backend, database server or auth service; all data goes through `assets/js/store.js` (`CNS.store`) and `localStorage`.
+- ALWAYS read `docs/PROGRESS.md` at the start of a session and update it when a step or decision changes.
+- DO NOT add animation libraries (Motion, Framer Motion, GSAP, Sonner, Vaul); write motion as CSS transitions, keyframes or `@starting-style`.
+- ALWAYS put motion and visual changes in the shared tokens and components first; DO NOT restyle a component on one page only.
+- ALWAYS animate only `transform` and `opacity` (plus `filter`/`clip-path` when needed); DO NOT use `transition: all`.
+- ALWAYS use ease-out curves for UI motion (`--ease-out: cubic-bezier(0.23, 1, 0.32, 1)`); DO NOT use `ease-in` on interface elements.
+- ALWAYS keep UI animations under 300ms: press feedback 100–160ms, small popovers 125–200ms, dropdowns 150–250ms; modals may go to 350ms.
+- DO NOT animate from `scale(0)`; start enter animations at `scale(0.95)` with `opacity: 0`.
+- DO NOT animate actions that are repeated all day (typing order lines, keyboard navigation, switching filters or status tabs); they must feel instant.
+- ALWAYS give every motion a `prefers-reduced-motion: reduce` fallback that removes movement.
+- ALWAYS report design review findings in a Before | After | Why markdown table.
 - ALWAYS read `docs/modules/00-overview-and-feature-map.md`, `foundation.md`, and the module file before building that module's screens.
 - ALWAYS follow the build order in `00-overview-and-feature-map.md` §4, and finish each module's acceptance checklist before starting the next.
 - ALWAYS label screens and steps with the revised Chapter 3 process numbers (see `docs/revision-plan.md`); DO NOT use the old 2.1–2.5 / 4.1–4.3 / 5.1–5.4 / 6.1–6.3 numbering.
@@ -160,6 +183,7 @@ flowchart LR
 | 2026-10-23 | Chapter 3 §3.3 rewritten to match the new Lucid DFD | Added ADR-005 (approvals always on, new process numbering); added agent rules on numbering and open decisions; added `docs/revision-plan.md` |
 | 2026-10-23 | Team answered D1–D4 | Staff still encode orders (2.1); stock adjustments go through 3.2; Office Manager manages own branch's accounts; Sales Supervisor gets no reports. Plan files updated to match |
 | 2026-10-23 | User reversed D4 | The Sales Supervisor gets Reports for their own branch. Agent rules, CLAUDE.md, 00 and 06 updated. The DFD 6.0 and Chapter 3 text still list only the CEO, Office Manager and staff as report requesters |
+| 2026-10-25 | All modules built; user wants a design review with the Emil Kowalski skills ("the page looks a little bland"); a teammate now codes in the same repo | Added ADR-006 (CSS-only polish pass following Emil's rules) and ADR-007 (shared repo + `docs/PROGRESS.md`); added animation libraries to Don't Use Now; added motion agent rules; fixed the store path (`assets/js/store.js`) |
 
 ---
 To update, run `/planfirst` again.

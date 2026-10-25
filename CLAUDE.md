@@ -389,15 +389,26 @@ Full spec: `./docs/architecture.md` — read before adding any infrastructure.
 
 ### Stack (moment: validate)
 - Pages: plain HTML + CSS + vanilla JS (no build step)
-- Data: `localStorage` mock DB via `shared/store.js`, seeded from `data/seed.js`, ERD table names + `branches`
+- Data: `localStorage` mock DB via `assets/js/store.js` (`CNS.store`), seeded from `assets/js/data.js`, ERD table names + `branches`
 - Styling: shared tokens from the team Figma (Archivo, #b91c1c accent, #111827 sidebar)
+- Motion and polish: CSS only, following the installed Emil Kowalski skills (ADR-006); no animation libraries
+- Collaboration: private GitHub repo + `docs/PROGRESS.md` as shared memory (ADR-007)
 - AI slip reading: mocked (canned results, confirm each line)
 - Approvals (Office Manager): always on, per revised Chapter 3 (ADR-005)
 - Later (after approval): PHP + MySQL on XAMPP
 
 ### Agent Rules
 - DO NOT add frameworks, bundlers, npm packages or CDN UI libraries; write plain HTML/CSS/JS.
-- DO NOT add a backend, database server or auth service; all data goes through `shared/store.js` and `localStorage`.
+- DO NOT add a backend, database server or auth service; all data goes through `assets/js/store.js` (`CNS.store`) and `localStorage`.
+- ALWAYS read `docs/PROGRESS.md` at the start of a session and update it when a step or decision changes.
+- DO NOT add animation libraries (Motion, Framer Motion, GSAP, Sonner, Vaul); write motion as CSS transitions, keyframes or `@starting-style`.
+- ALWAYS put motion and visual changes in the shared tokens and components first; DO NOT restyle a component on one page only.
+- ALWAYS animate only `transform` and `opacity` (plus `filter`/`clip-path` when needed); DO NOT use `transition: all`.
+- ALWAYS use ease-out curves for UI motion (`cubic-bezier(0.23, 1, 0.32, 1)`); DO NOT use `ease-in` on interface elements.
+- ALWAYS keep UI animations under 300ms (press 100–160ms, popovers 125–200ms, dropdowns 150–250ms; modals up to 350ms).
+- DO NOT animate from `scale(0)`; DO NOT animate actions repeated all day (typing order lines, keyboard navigation, switching filters or status tabs).
+- ALWAYS give every motion a `prefers-reduced-motion: reduce` fallback that removes movement.
+- ALWAYS report design review findings in a Before | After | Why markdown table.
 - ALWAYS read `docs/modules/00-overview-and-feature-map.md`, `foundation.md`, and the module file before building that module's screens.
 - ALWAYS follow the build order in `00-overview-and-feature-map.md` §4, and finish each module's acceptance checklist before starting the next.
 - ALWAYS label screens and steps with the revised Chapter 3 process numbers (see `docs/revision-plan.md`); DO NOT use the old 2.1–2.5 / 4.1–4.3 / 5.1–5.4 / 6.1–6.3 numbering.
