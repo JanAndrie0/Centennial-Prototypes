@@ -45,6 +45,8 @@
       var $ = function (id) { return document.getElementById(id); };
 
       $('search-icon').outerHTML = CNS.icon('magnifying-glass');
+      // Coming from the quick search on Home: start with that word
+      $('q').value = new URLSearchParams(location.search).get('q') || '';
       // Agents see their own branch, plus where else the item is available
       CNS.stockCheck.mount({
         input: $('q'), results: $('results'), status: $('status'), linkToDetail: false,

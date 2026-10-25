@@ -11,19 +11,41 @@
   <link rel="stylesheet" href="assets/css/base.css">
   <link rel="stylesheet" href="assets/css/components.css">
   <link rel="stylesheet" href="assets/css/layout.css">
+  <style>
+    .banner-link { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-5); text-decoration: none; }
+    .banner-link .alert { flex: 1; margin: 0; }
+    a.stat { display: block; color: inherit; text-decoration: none; transition: border-color var(--dur-fast); }
+    a.stat:hover { border-color: var(--color-text-secondary); }
+    a.stat:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .trend { font-weight: 600; }
+    .trend--up { color: var(--color-success); }
+    .trend--down { color: var(--color-warning); }
+    .dash-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--space-5); margin-bottom: var(--space-5); }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-5); }
+    .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .card-head h2 { margin: 0; font-size: var(--text-card-title); }
+    .card-head a { font-size: var(--text-small); font-weight: 600; color: var(--color-primary); text-underline-offset: 3px; }
+    .big-num { margin: 0 0 var(--space-2); font-size: var(--text-kpi); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .mini { margin: 0; padding: 0; list-style: none; }
+    .mini li { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border-subtle); font-size: var(--text-note); }
+    .mini li:last-child { border-bottom: 0; }
+    .mini li > :last-child { flex: none; white-space: nowrap; color: var(--color-text-secondary); }
+    .mini a { color: var(--color-text); font-weight: 600; text-decoration: none; }
+    .mini a:hover { color: var(--color-primary); text-decoration: underline; text-underline-offset: 3px; }
+    .approve-list li { align-items: center; }
+    .approve-list .count { min-width: 32px; padding: 2px 8px; font-weight: 700; text-align: center; border-radius: var(--radius-full); background: var(--color-border-subtle); }
+    .approve-list .count.has { color: #fff; background: var(--color-primary); }
+    @media (max-width: 1000px) { .dash-grid { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
+  <!-- Each role's home screen (dashboards.md): management KPIs and charts, or the warehouse work list. Built last; summarises the modules. -->
   <main id="main">
     <nav class="breadcrumb" aria-label="Breadcrumb"><ol><li><span aria-current="page">Home</span></li></ol></nav>
     <h1 class="page-title">Dashboard</h1>
-    <p class="page-desc" id="greeting">Your home screen.</p>
-
-    <!-- Dashboards are built last (plan 00 §4); this placeholder keeps login routing and the shell testable. -->
-    <section class="card empty" aria-labelledby="empty-title">
-      <span id="empty-icon"></span>
-      <h2 class="empty__title" id="empty-title">Dashboard coming soon</h2>
-      <p class="empty__text">Open a module from the menu on the left.</p>
-    </section>
+    <p class="page-desc" id="greeting"></p>
+    <div id="banner"></div>
+    <div id="content"></div>
   </main>
 
   <script src="assets/js/core.js"></script>
@@ -34,12 +56,149 @@
   <script src="assets/js/history.js"></script>
   <script src="assets/js/auth.js"></script>
   <script src="assets/js/layout.js"></script>
+  <script src="assets/js/chart.js"></script>
+  <script src="assets/js/order-actions.js"></script>
+  <script src="assets/js/po-actions.js"></script>
+  <script src="assets/js/payment-actions.js"></script>
   <script>
     (function () {
       var session = CNS.layout.desktop({ active: 'dashboard' });
       if (!session) return;
-      document.getElementById('greeting').textContent = 'Welcome, ' + session.user.full_name + '.';
-      document.getElementById('empty-icon').outerHTML = CNS.icon('squares-2x2');
+      var R = CNS.ROLES, S = CNS.store, fmt = CNS.format, esc = CNS.escape, Pay = CNS.payActions, P = CNS.poActions, A = CNS.orderActions;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var BILLED = ['Approved', 'For delivery', 'Shipped', 'Completed'];   // a sale counts once the order is approved (2.4)
+
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+      function inScope(branchId) { return scope() === 'all' || branchId === scope(); }
+      function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+      function addDays(n) { var d = new Date(); d.setDate(d.getDate() + n); return iso(d); }
+      function salesOn(day) {
+        return S.where('sales_orders', function (o) { return o.order_date === day && BILLED.indexOf(o.status) >= 0 && inScope(o.branch_id); })
+          .reduce(function (t, o) { return t + S.orderTotal(o.id); }, 0);
+      }
+      function banner(tone, text, href, cta) {
+        $('banner').innerHTML = text ? '<a class="banner-link" href="' + href + '"><p class="alert" data-tone="' + tone + '">' + esc(text) + ' <strong>' + esc(cta) + ' →</strong></p></a>' : '';
+      }
+      function card(title, link, linkText, body) {
+        return '<section class="card card--pad" aria-label="' + esc(title) + '"><div class="card-head"><h2>' + esc(title) + '</h2>' +
+          (link ? '<a href="' + link + '">' + esc(linkText) + '</a>' : '') + '</div>' + body + '</section>';
+      }
+      function mini(items, empty) {
+        return items.length ? '<ul class="mini">' + items.join('') + '</ul>' : '<p class="cell-sub" style="margin:0">' + esc(empty) + '</p>';
+      }
+
+      // ---------------- Management: CEO, Office Manager, Sales Supervisor ----------------
+      function management() {
+        var today = S.today(), yesterday = addDays(-1), sc = scope();
+        var salesToday = salesOn(today), salesYesterday = salesOn(yesterday);
+        var ordersToday = S.where('sales_orders', function (o) { return o.order_date === today && o.status !== 'Draft' && inScope(o.branch_id); }).length;
+        var low = S.lowStock(sc);
+        var overdue = Pay.overdueRows(sc);
+        var overdueAmt = overdue.reduce(function (t, x) { return t + (x.schedule.amount_due - x.schedule.amount_paid); }, 0);
+        var overdueStores = overdue.map(function (x) { return x.client.id; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).length;
+
+        // The Office Manager's own queue (their branch)
+        var isOM = me.role === R.OM, ob = me.branch_id;
+        var q = {
+          orders: S.where('sales_orders', function (o) { return o.status === 'For approval' && o.branch_id === ob; }).length,
+          pos: S.where('purchase_orders', function (p) { return p.status === 'For approval' && p.branch_id === ob; }).length,
+          payables: S.where('purchase_orders', function (p) { return p.branch_id === ob && p.payment_status === 'Unpaid' && ['Ordered', 'Partially received', 'Received'].indexOf(p.status) >= 0; }).length,
+          verify: Pay.toVerify(ob).length
+        };
+        var waiting = q.orders + q.pos + q.verify;
+
+        // One banner: the most urgent thing
+        if (isOM && waiting) banner('warning', waiting + (waiting === 1 ? ' item is' : ' items are') + ' waiting for your approval.', q.orders ? 'orders/approvals.html' : q.pos ? 'purchasing/approvals.html' : 'payments/receivables.html', 'Review');
+        else if (overdueStores) banner('error', overdueStores + (overdueStores === 1 ? ' customer is' : ' customers are') + ' overdue (' + fmt.money(overdueAmt) + ').', 'payments/receivables.html', 'Open receivables');
+        else if (low.length) banner('warning', low.length + (low.length === 1 ? ' product is' : ' products are') + ' low on stock.', 'products/reorder.html', 'Open reorder list');
+        else banner();
+
+        var diff = salesToday - salesYesterday;
+        var trend = !salesYesterday && !salesToday ? 'No sales yesterday either'
+          : '<span class="trend trend--' + (diff >= 0 ? 'up' : 'down') + '">' + (diff >= 0 ? '▲ ' : '▼ ') + esc(fmt.money(Math.abs(diff))) + '</span> vs yesterday';
+
+        // Last 14 days and the last 30 days by category
+        var days = [];
+        for (var i = 13; i >= 0; i--) {
+          var d = addDays(-i);
+          // Day number only under each bar (14 bars don't fit full dates); the full date is in the bar's title
+          days.push({ label: i === 0 ? 'Today' : String(fmt.toDate(d).getDate()), value: salesOn(d), hi: i === 0, title: fmt.date(d) + ': ' + fmt.money(salesOn(d)) });
+        }
+        var since = addDays(-30), byCat = {};
+        S.where('sales_orders', function (o) { return o.order_date >= since && BILLED.indexOf(o.status) >= 0 && inScope(o.branch_id); }).forEach(function (o) {
+          S.where('sales_order_items', function (it) { return it.order_id === o.id; }).forEach(function (it) {
+            var c = S.get('categories', S.get('products', it.product_id).category_id);
+            byCat[c.name] = (byCat[c.name] || 0) + it.qty * it.unit_price;
+          });
+        });
+        var cats = Object.keys(byCat).map(function (k) { return { label: k, value: byCat[k] }; }).sort(function (a, b) { return b.value - a.value; });
+
+        $('content').innerHTML =
+          '<section class="stats" aria-label="Key numbers">' +
+            '<a class="stat" href="orders/list.html"><p class="stat__label">Sales today</p><p class="stat__value">' + esc(fmt.money(salesToday)) + '</p><p class="stat__sub">' + trend + '</p></a>' +
+            '<a class="stat" href="orders/list.html"><p class="stat__label">Orders today</p><p class="stat__value">' + ordersToday + '</p><p class="stat__sub">Sent today, all statuses</p></a>' +
+            '<a class="stat' + (low.length ? ' stat--warning' : '') + '" href="products/reorder.html"><p class="stat__label">Low-stock items</p><p class="stat__value">' + low.length + '</p><p class="stat__sub">Open the reorder list</p></a>' +
+            '<a class="stat' + (overdueAmt ? ' stat--error' : '') + '" href="payments/receivables.html"><p class="stat__label">Overdue balances</p><p class="stat__value">' + esc(fmt.money(overdueAmt)) + '</p><p class="stat__sub">' + overdueStores + (overdueStores === 1 ? ' customer' : ' customers') + ' · open receivables</p></a>' +
+          '</section>' +
+          '<div class="dash-grid"><section class="card card--pad" id="chart-days"></section><section class="card card--pad" id="chart-cats"></section></div>' +
+          (isOM ? card('Waiting for your approval', null, '', '<ul class="mini approve-list">' +
+            [['Sales orders (2.3)', q.orders, 'orders/approvals.html'], ['Purchase requests (4.2)', q.pos, 'purchasing/approvals.html'],
+             ['Field payments to verify (5.3)', q.verify, 'payments/receivables.html'], ['Supplier payables to check (4.5)', q.payables, 'purchasing/list.html?payment=Unpaid']]
+              .map(function (r) { return '<li><a href="' + r[2] + '">' + esc(r[0]) + '</a><span class="count' + (r[1] ? ' has' : '') + '">' + r[1] + '</span></li>'; }).join('') + '</ul>') : '');
+
+        CNS.chart.columns($('chart-days'), days, { title: 'Sales each day · ' + fmt.date(addDays(-13)).replace(/, \d{4}$/, '') + ' to today', label: 'Sales per day for the last 14 days', format: fmt.money, empty: 'No sales in the last 14 days.' });
+        CNS.chart.rows($('chart-cats'), cats, { title: 'Sales by category (30 days)', label: 'Sales by category for the last 30 days', format: fmt.money, empty: 'No sales in the last 30 days.' });
+      }
+
+      // ---------------- Admin / Warehouse Staff ----------------
+      function warehouse() {
+        var sc = scope(), today = S.today(), weekEnd = addDays(7);
+        var toPack = S.where('sales_orders', function (o) { return ['Approved', 'For delivery'].indexOf(o.status) >= 0 && inScope(o.branch_id); })
+          .sort(function (a, b) { return a.delivery_date < b.delivery_date ? -1 : 1; });
+        var thisWeek = toPack.filter(function (o) { var d = A.deliveryFor(o.id); return (d ? d.schedule_date : o.delivery_date) <= weekEnd; });
+        var deliveriesToday = S.where('deliveries', function (d) { var o = S.get('sales_orders', d.order_id); return d.schedule_date === today && o && inScope(o.branch_id); });
+        var low = S.lowStock(sc);
+        var incoming = S.where('purchase_orders', function (p) { return ['Ordered', 'Partially received'].indexOf(p.status) >= 0 && inScope(p.branch_id); });
+        var due = Pay.dueSoon(7, sc);
+
+        if (deliveriesToday.length) banner('info', deliveriesToday.length + (deliveriesToday.length === 1 ? ' delivery goes out today.' : ' deliveries go out today.'), 'deliveries/load-list.html?date=' + today, 'Truck load list');
+        else if (low.length) banner('warning', low.length + (low.length === 1 ? ' product is' : ' products are') + ' low on stock.', 'products/reorder.html', 'Open reorder list');
+        else banner();
+
+        function storeName(o) { var c = S.get('clients', o.client_id); return c ? c.store_name : ''; }
+        function sd(d) { return fmt.date(d).replace(/, \d{4}$/, ''); }   // "Oct 27": these lists are all within a week or two
+        $('content').innerHTML = '<div class="cards">' +
+          card('Orders to pack', 'deliveries/list.html', 'Deliveries', '<p class="big-num">' + toPack.length + '</p><p class="cell-sub" style="margin:0 0 var(--space-2)">' + thisWeek.length + ' due this week</p>' +
+            mini(toPack.slice(0, 5).map(function (o) {
+              return '<li><a href="orders/detail.html?id=' + encodeURIComponent(o.id) + '">' + esc(o.order_no) + ' · ' + esc(storeName(o)) + '</a><span>' + esc(sd(o.delivery_date)) + '</span></li>';
+            }), 'Nothing to pack.')) +
+          card('Deliveries today', 'deliveries/load-list.html?date=' + today, 'Truck load list', '<p class="big-num">' + deliveriesToday.length + '</p>' +
+            mini(deliveriesToday.map(function (d) {
+              var o = S.get('sales_orders', d.order_id), t = S.get('trucks', d.truck_id);
+              return '<li><a href="deliveries/detail.html?id=' + encodeURIComponent(d.id) + '">' + esc(o.order_no + ' · ' + storeName(o)) + '</a><span>' + esc((t ? t.name + ' · ' : '') + d.status) + '</span></li>';
+            }), 'No deliveries scheduled today.')) +
+          card('Low stock', 'products/reorder.html', 'Reorder list', '<p class="big-num">' + low.length + '</p>' +
+            mini(low.slice(0, 5).map(function (p) {
+              return '<li><a href="products/detail.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.name) + '</a>' + CNS.ui.stockBadge(S.stockStatus(p.id, sc)) + '</li>';
+            }), 'Everything is above its reorder point.')) +
+          card('Supplier deliveries to receive', 'purchasing/receive.html', 'Receive', '<p class="big-num">' + incoming.length + '</p>' +
+            mini(incoming.map(function (p) {
+              return '<li><a href="purchasing/receive.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.po_no + ' · ' + S.get('suppliers', p.supplier_id).company_name) + '</a><span>' + esc('Expected ' + sd(p.expected_date)) + '</span></li>';
+            }), 'Nothing on the way from suppliers.')) +
+          card('Due-date reminders (7 days)', 'payments/receivables.html', 'Receivables', '<p class="big-num">' + due.length + '</p>' +
+            mini(due.slice(0, 5).map(function (x) {
+              return '<li><a href="customers/detail.html?id=' + encodeURIComponent(x.client.id) + '#view=installments">' + esc(x.client.store_name) + '</a><span>' + esc(fmt.money(x.schedule.amount_due - x.schedule.amount_paid) + ' · ' + sd(x.schedule.due_date)) + '</span></li>';
+            }), 'No installments due this week.')) +
+          '</div>';
+      }
+
+      function render() {
+        $('greeting').textContent = 'Welcome, ' + me.full_name + ' · ' + S.branchName(scope());
+        if (me.role === R.STAFF) warehouse(); else management();
+      }
+      document.addEventListener('cns:branchchange', function (e) { session.branchView = e.detail.branchView; render(); });
+      render();
     })();
   </script>
 </body>

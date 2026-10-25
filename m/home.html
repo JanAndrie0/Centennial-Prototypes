@@ -29,7 +29,14 @@
     <p class="page-desc">Your orders and deliveries.</p>
     <a class="btn btn--primary btn--block" href="new-order.html" id="new-order"></a>
     <a class="confirm-card" href="deliveries.html" id="confirm-card" hidden></a>
+    <form class="search" action="stock.html" role="search" aria-label="Quick stock check" style="margin-top:var(--space-4)">
+      <label class="sr-only" for="quick-stock">Check stock: product name</label>
+      <span id="search-icon"></span>
+      <input class="input" type="search" id="quick-stock" name="q" placeholder="Check stock, e.g. epoxy" autocomplete="off" enterkeyhint="search">
+    </form>
     <div id="groups"></div>
+    <h2 class="section-title" id="cust-title" hidden>My customers to follow up</h2>
+    <ul class="order-cards" id="customers"></ul>
   </main>
 
   <script src="../assets/js/core.js"></script>
@@ -79,6 +86,19 @@
             (o.internal_note && (o.status === 'Rejected' || o.status === 'Draft') ? '<p class="order-card__meta">' + esc(o.internal_note) + '</p>' : '') + '</li>';
         }).join('') + '</ul>';
       }).join('') || '<div class="card empty"><p class="empty__title">No orders yet.</p><p class="empty__text">Tap New order to send your first one.</p></div>';
+
+      $('search-icon').outerHTML = CNS.icon('magnifying-glass');
+
+      // My stores with a balance, overdue first (5.4 Provide Customer Balance)
+      var owing = S.where('clients', function (c) { return c.agent_id === me.id && S.clientBalance(c.id) > 0; })
+        .sort(function (a, b) { return (S.clientOverdue(b.id) - S.clientOverdue(a.id)) || (S.clientBalance(b.id) - S.clientBalance(a.id)); });
+      $('cust-title').hidden = !owing.length;
+      $('customers').innerHTML = owing.slice(0, 5).map(function (c) {
+        var od = S.clientOverdue(c.id);
+        return '<li class="order-card"><a href="customers.html?id=' + encodeURIComponent(c.id) + '" style="color:inherit;text-decoration:none;display:block">' +
+          '<div class="order-card__top"><strong>' + esc(c.store_name) + '</strong>' + (od ? CNS.ui.badge('error', 'exclamation-circle', 'Overdue') : '') + '</div>' +
+          '<p class="order-card__meta">Balance ' + esc(fmt.money(S.clientBalance(c.id))) + (od ? ' · overdue ' + esc(fmt.money(od)) : '') + ' · limit ' + esc(fmt.money(c.credit_limit)) + '</p></a></li>';
+      }).join('');
     })();
   </script>
 </body>

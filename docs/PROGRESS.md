@@ -20,9 +20,10 @@ Build order (from `docs/modules/00-overview-and-feature-map.md` §4): foundation
 | 5 | 04 Purchasing & Suppliers | Done, browser-tested | `purchasing/list, suppliers, new, approvals, detail, receive` |
 | 6 | 05 Customer Accounts, part 2 | Done, browser-tested (Oct 25) | `payments/record, receipt, receivables`, installment plan modal in `customers/detail.html`, `m/customers, payments` |
 | 7 | 06 Reports | Done, browser-tested (Oct 25) | `reports/index.html`, `reports/view.html?type=…` (9 reports) |
-| 8 | **Dashboards** | **Next** (placeholders exist) | `dashboard.html`, `m/home.html` (agent home is partly built) |
+| 8 | Dashboards | Done, browser-tested (Oct 25) | `dashboard.html` (management: banner, 4 KPIs, sales per day 14 days, sales by category 30 days, OM approval card; staff: orders to pack, deliveries today, low stock, supplier deliveries, due-date reminders), `m/home.html` (agent: New order, deliveries to confirm, quick stock check, orders by status, customers to follow up) |
+| 9 | **End-to-end walkthrough** | **Next** | Walk each role through a full day to prepare the 3 review sessions (00 §4) |
 
-After dashboards: the end-to-end walkthrough (00 §4).
+Dashboard notes (Oct 25): "Sales" counts an order once it is approved (2.4 Record Sales Transaction), by order date. The banner shows one item only, most urgent first: OM approvals → overdue customers → low stock (staff: deliveries today → low stock).
 
 ## 2. Decisions (with dates and reasons)
 
