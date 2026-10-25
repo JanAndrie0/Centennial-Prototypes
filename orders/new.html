@@ -15,7 +15,7 @@
     .wide { max-width: none; }
     .customer-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-5); align-items: start; }
     .customer-card { padding: var(--space-4); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-    .customer-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); margin: 0; }
+    .customer-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); margin: var(--space-4) 0 0; padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
     .customer-card dt { font-size: var(--text-small); color: var(--color-text-secondary); }
     .customer-card dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
     .customer-card .is-bad { color: var(--color-error); }
@@ -90,6 +90,7 @@
           <span><span id="line-count"></span> · Total <strong id="total"></strong></span>
         </div>
         <div class="alert" id="warnings" data-tone="warning" role="status" style="margin-top:var(--space-4)"></div>
+        <div class="alert" id="notes" data-tone="info" role="status"></div>
       </section>
 
       <!-- 6–7. Delivery and note -->
@@ -185,7 +186,7 @@
           '<td class="num-col"><label class="sr-only" for="lq-' + n + '">Quantity</label>' +
             '<input class="input input--cell input--qty" id="lq-' + n + '" name="line_qty_' + n + '" type="number" inputmode="numeric" min="1" step="1"></td>' +
           '<td class="num-col" data-price></td><td class="num-col" data-avail></td><td class="num-col cell-main" data-amount></td>' +
-          '<td class="actions"><button type="button" class="btn btn--secondary" data-remove>' + CNS.icon('x-mark') + '<span class="sr-only">Remove line</span></button></td>';
+          '<td class="actions"><button type="button" class="btn btn--quiet" data-remove>' + CNS.icon('x-mark') + '<span class="sr-only">Remove line</span></button></td>';
         $('lines').appendChild(tr);
         if (data) {
           var p = S.get('products', data.product_id);
@@ -254,13 +255,19 @@
           var bal = S.clientBalance(c.id), overdue = S.clientOverdue(c.id);
           var agent = S.get('users', c.agent_id);
           overCredit = Math.max(0, bal + total - c.credit_limit);
-          $('customer-card').innerHTML = '<dl>' +
-            '<div><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
-            '<div><dt>Current balance</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
+          var after = bal + total;
+          // Balance after this order on the credit limit; the sentence says the same as the bar
+          $('customer-card').innerHTML = CNS.ui.meter({
+            value: after, max: c.credit_limit,
+            tone: overCredit ? 'warning' : after > c.credit_limit * 0.8 ? 'info' : 'success',
+            label: 'Balance after this order: ' + fmt.money(after),
+            say: overCredit ? 'Over the credit limit by ' + fmt.money(overCredit) : fmt.money(c.credit_limit - after) + ' credit left',
+            aria: 'Balance after this order ' + fmt.money(after) + ' of a ' + fmt.money(c.credit_limit) + ' credit limit. Balance now ' + fmt.money(bal) + '.',
+            marks: [['Credit limit', c.credit_limit, fmt.money(c.credit_limit)]]
+          }) + '<dl>' +
+            '<div><dt>Balance now</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
             '<div><dt>Overdue</dt><dd' + (overdue ? ' class="is-bad"' : '') + '>' + esc(fmt.money(overdue)) + (overdue ? ' · ' + S.clientOverdueDays(c.id) + ' days' : '') + '</dd></div>' +
             '<div><dt>Agent · branch</dt><dd>' + esc((agent ? agent.full_name : '—') + ' · ' + S.branchName(c.branch_id)) + '</dd></div>' +
-            '<div><dt>Balance after this order</dt><dd' + (overCredit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal + total)) + '</dd></div>' +
-            '<div><dt>Credit left after this order</dt><dd' + (overCredit ? ' class="is-warn"' : '') + '>' + esc(overCredit ? 'Over by ' + fmt.money(overCredit) : fmt.money(c.credit_limit - bal - total)) + '</dd></div>' +
             '</dl>';
         } else {
           $('customer-card').innerHTML = '<p class="cell-sub" style="margin:0">Choose a store to see its credit and balance.</p>';
@@ -269,9 +276,10 @@
         var items = [];
         if (overCredit) items.push('Over credit limit by ' + fmt.money(overCredit) + '. The order still goes to the Office Manager, with a flag.');
         if (c && S.clientOverdue(c.id)) items.push('This store has an overdue balance of ' + fmt.money(S.clientOverdue(c.id)) + '.');
-        if (backordered) items.push(backordered + (backordered === 1 ? ' line is' : ' lines are') + ' backordered. That is normal; the order still goes through.');
         if (belowMin) items.push(belowMin + (belowMin === 1 ? ' line is' : ' lines are') + ' below the minimum order.');
         $('warnings').innerHTML = items.length ? '<div><strong>Check before sending</strong><ul>' + items.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' : '';
+        // Backordered is normal, so it gets an info note of its own, not a warning
+        $('notes').innerHTML = backordered ? esc(backordered + (backordered === 1 ? ' line is' : ' lines are') + ' backordered. That is normal; the order still goes through.') : '';
       }
 
       // ---- Keyboard flow: Enter on product → qty; Enter on qty → next (new) line ----

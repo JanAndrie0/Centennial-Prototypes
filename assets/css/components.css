@@ -61,6 +61,16 @@
 
 .btn--secondary:hover:not([aria-disabled="true"]) { background: var(--color-border-subtle); }
 
+/* Quiet: an icon action repeated on every row (remove line); no box until hovered, still 44px to tap */
+.btn--quiet {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0 var(--space-2);
+  color: var(--color-text-secondary);
+  background: transparent;
+}
+.btn--quiet:hover:not([aria-disabled="true"]) { color: var(--color-text); background: var(--color-border-subtle); }
+
 /* After a successful submit the button reads e.g. "Logged in" and can't be pressed again */
 .is-success .btn--primary { cursor: default; color: var(--color-text); background: var(--color-border); }
 
@@ -275,6 +285,8 @@
 .alert:empty::before { content: none; }
 /* Alerts in a row read as one group: 8px apart instead of a full section gap */
 .alert:not(:empty):has(+ .alert:not(:empty)) { margin-bottom: var(--space-2); }
+/* Last thing in a card: the card's own padding is the gap */
+.card > .alert:last-child { margin-bottom: 0; }
 
 .alert[data-tone="error"] { color: var(--color-error); background: var(--color-error-bg); --alert-icon: var(--icon-exclamation-circle); }
 .alert[data-tone="success"] { color: var(--color-success); background: var(--color-success-bg); --alert-icon: var(--icon-check-circle); }
@@ -404,7 +416,7 @@
 .input--qty { width: 96px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Inline warning under an order line: warns, never blocks (2.2 Review and Validate Order) */
-.line-warn { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: var(--text-small); font-weight: 600; }
+.line-warn { display: flex; align-items: center; gap: 6px; margin: 4px 0 0; font-size: var(--text-small); font-weight: 600; }
 .line-warn .icon { width: 16px; height: 16px; }
 .line-warn--info { color: var(--color-info); }
 .line-warn--warning { color: var(--color-warning); }
