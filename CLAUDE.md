@@ -1,5 +1,7 @@
 # CLAUDE.md: Centennial Sales and Inventory System (web prototype)
 
+> **Start every session with `docs/PROGRESS.md`.** Two teammates build this together, each with their own Claude. That file is the shared memory: what's built, the decisions made since this file was written (they win over the text below), the open questions, and how the code is organized. Run `git pull` before working, update PROGRESS.md when a step or decision changes, and commit and push when the user asks.
+
 > **Module plans live in `docs/modules/`.** Before building any module, read in this order:
 > 1. `docs/modules/00-overview-and-feature-map.md`: the module list, where each Chapter 2 related-system feature goes, the **build order (§4)** and the open decisions (§5)
 > 2. `docs/modules/foundation.md`: shared layout, tokens, mock data store, helpers
