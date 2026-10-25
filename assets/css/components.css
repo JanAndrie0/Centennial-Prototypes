@@ -489,6 +489,20 @@
 .page-head > :first-child { flex: 1 1 28rem; min-width: 0; }
 .page-head__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 
+/* Detail pages: the record's facts under the title ("Store · Ordered Oct 22 · …"); each fact is a <span> that never breaks */
+.meta { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
+.meta a { color: var(--color-primary); text-underline-offset: 3px; }
+.meta > span { white-space: nowrap; }
+/* A staff note on the record, under the facts (a note is not an alert) */
+.head-note { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-2) 0 0; color: var(--color-text-secondary); }
+.head-note .icon { flex: none; width: 20px; height: 20px; margin-top: 1px; }
+
+/* Status stepper card under the page head, with what happens next */
+.progress-card { margin-bottom: var(--space-4); padding: var(--space-4) var(--space-5); }
+.progress-next { display: flex; gap: var(--space-2); align-items: center; margin: var(--space-4) 0 0; padding-top: var(--space-3); color: var(--color-text-secondary); border-top: 1px solid var(--color-border-subtle); }
+.progress-next strong { color: var(--color-text); }
+.progress-next .icon { flex: none; width: 20px; height: 20px; }
+
 /* ---- Page tabs (links between sibling screens of one module) ---- */
 
 .tabs {

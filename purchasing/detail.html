@@ -14,7 +14,6 @@
   <style>
     .title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .title-row .page-title { margin: 0 var(--space-2) 0 0; }
-    .meta { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
     .po-doc-head { display: flex; justify-content: space-between; margin-bottom: var(--space-4); }
     .po-doc-head img { height: 36px; width: auto; }
     .po-doc-head p { margin: 0; text-align: right; }
@@ -35,10 +34,11 @@
       <div>
         <div class="title-row"><h1 class="page-title" id="title"></h1><span id="status"></span><span id="payment"></span></div>
         <p class="meta" id="meta"></p>
+        <p class="head-note" id="note" hidden></p>
       </div>
       <div class="page-head__actions" id="actions"></div>
     </div>
-    <div id="notes" class="no-print"></div>
+    <div class="card progress-card no-print" id="progress"></div>
 
     <!-- The purchase order document; prints on its own -->
     <article class="card card--pad" aria-label="Purchase order document">
@@ -79,7 +79,26 @@
         $('title').textContent = po.po_no;
         $('status').innerHTML = P.statusBadge(po.status);
         $('payment').innerHTML = P.paymentBadge(po.payment_status);
-        $('meta').textContent = s.company_name + ' · ' + S.branchName(po.branch_id) + ' · Requested ' + fmt.date(po.date) + ' by ' + userName(po.requested_by) + ' · Expected ' + fmt.date(po.expected_date);
+        $('meta').innerHTML = '<span>' + esc(s.company_name) + '</span>' +
+          (CNS.auth.canSwitchBranch(me) ? ' · <span>' + esc(S.branchName(po.branch_id)) + '</span>' : '') +   // others see it in the top bar
+          ' · <span>Requested ' + esc(fmt.date(po.date)) + ' by ' + esc(userName(po.requested_by)) + '</span> · <span>Expected ' + esc(fmt.date(po.expected_date)) + '</span>';
+        $('note').hidden = !po.note;
+        $('note').innerHTML = po.note ? CNS.icon('pencil-square') + '<span><strong>Note:</strong> ' + esc(po.note) + '</span>' : '';
+
+        // 4.2 → 4.4 flow; "Partially received" only appears as a step while it is true
+        var flow = ['For approval', 'Approved', 'Ordered', 'Received'];
+        if (po.status === 'Partially received') flow.splice(3, 0, 'Partially received');
+        var next = {
+          'For approval': 'Office Manager approval',
+          'Approved': 'Issue the purchase order and send it to the supplier',
+          'Ordered': 'Receive the delivery (expected ' + fmt.date(po.expected_date) + ')',
+          'Partially received': 'Receive the rest of the delivery',
+          'Received': po.payment_status === 'Unpaid' ? 'Office Manager checks the invoice and marks it paid' : ''
+        }[po.status];
+        $('progress').innerHTML = (po.status === 'Rejected'
+          ? CNS.ui.steps(['For approval', 'Rejected'], 'Rejected', { stopped: true, label: 'Purchase order progress' })
+          : CNS.ui.steps(flow, po.status, { label: 'Purchase order progress' })) +
+          (next ? '<p class="progress-next">' + CNS.icon('arrow-path') + '<span><strong>Next:</strong> ' + esc(next) + '</span></p>' : '');
         $('doc-no').textContent = 'No. ' + po.po_no;
         $('doc-date').textContent = 'Date: ' + fmt.date(po.date);
 
@@ -89,17 +108,14 @@
         if (po.status === 'Approved') a += '<button type="button" class="btn btn--primary" id="issue">' + CNS.icon('printer') + 'Issue purchase order</button>';
         if (['Ordered', 'Partially received', 'Received'].indexOf(po.status) >= 0) a = '<button type="button" class="btn btn--secondary" id="print">' + CNS.icon('printer') + 'Print</button>' + a;
         if (me.role === R.OM && po.branch_id === me.branch_id && po.payment_status === 'Unpaid' && ['Ordered', 'Partially received', 'Received'].indexOf(po.status) >= 0)
-          a += '<button type="button" class="btn btn--secondary" id="pay">' + CNS.icon('banknotes') + 'Mark paid</button>';
+          // Primary once the goods are all in: paying is then the only step left (4.5)
+          a += '<button type="button" class="btn ' + (po.status === 'Received' ? 'btn--primary' : 'btn--secondary') + '" id="pay">' + CNS.icon('banknotes') + 'Mark paid</button>';
         if (['Ordered', 'Partially received'].indexOf(po.status) >= 0) a += '<a class="btn btn--primary" href="receive.html?id=' + encodeURIComponent(po.id) + '">' + CNS.icon('arrow-down-tray') + 'Receive delivery</a>';
         $('actions').innerHTML = a;
 
-        var notes = [];
-        if (po.note) notes.push(['info', 'Note: ' + po.note]);
-        if (po.status === 'Approved') notes.push(['info', 'Approved by ' + userName(po.approved_by) + '. Issue the purchase order to send it to the supplier.']);
-        $('notes').innerHTML = notes.map(function (n) { return '<p class="alert" data-tone="' + n[0] + '">' + esc(n[1]) + '</p>'; }).join('');
 
-        $('parties').innerHTML = '<p><span class="cell-sub">Supplier</span><br><strong>' + esc(s.company_name) + '</strong><br>' + esc(s.address) + '<br>' + esc(s.contact_person + ' · ' + s.contact_no) + '</p>' +
-          '<p><span class="cell-sub">Deliver to</span><br><strong>' + esc(b ? b.name : '') + '</strong><br>Expected ' + esc(fmt.date(po.expected_date)) + '</p>';
+        $('parties').innerHTML = '<p><span class="cell-sub">Supplier</span><strong>' + esc(s.company_name) + '</strong><br>' + esc(s.address) + '<br>' + esc(s.contact_person + ' · ' + s.contact_no) + '</p>' +
+          '<p><span class="cell-sub">Deliver to</span><strong>' + esc(b ? b.name : '') + '</strong><br>Expected ' + esc(fmt.date(po.expected_date)) + '</p>';
         var items = P.items(po.id);
         $('lines').innerHTML = '<thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Ordered</th><th scope="col">= Selling units</th>' +
           '<th scope="col" class="num-col">Received</th><th scope="col" class="num-col">Unit cost</th><th scope="col" class="num-col">Amount</th></tr></thead><tbody>' +
@@ -107,7 +123,7 @@
             var p = S.get('products', it.product_id), l = P.link(p.id, po.supplier_id), unit = l ? l.purchase_unit : 'unit';
             return '<tr><td class="cell-main">' + esc(p.name) + '</td><td class="num-col nowrap">' + esc(fmt.count(it.qty_ordered, unit)) + '</td>' +
               '<td class="nowrap">' + esc(fmt.qty(it.qty_ordered * (l ? l.conversion : 1), p.unit_id)) + '</td>' +
-              '<td class="num-col nowrap">' + fmt.number(it.qty_received) + ' of ' + fmt.number(it.qty_ordered) + '</td>' +
+              '<td class="num-col nowrap">' + esc(fmt.number(it.qty_received) + ' of ' + fmt.count(it.qty_ordered, unit)) + '</td>' +
               '<td class="num-col">' + esc(fmt.money(it.unit_cost)) + '</td><td class="num-col">' + esc(fmt.money(it.qty_ordered * it.unit_cost)) + '</td></tr>';
           }).join('') + '<tr class="sum-row"><td colspan="5">Total</td><td class="num-col">' + esc(fmt.money(P.total(po.id))) + '</td></tr></tbody>';
         $('sign-prepared').textContent = 'Prepared by: ' + userName(po.requested_by);

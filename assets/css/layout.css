@@ -329,11 +329,11 @@
    Print (reports, receipts, load lists): only the page content, no app shell
    ========================================================================== */
 
-.print-only { display: none; }
+/* Hidden on screen even when a page gives the element its own display (e.g. flex); on paper it keeps that display */
+@media screen { .print-only { display: none !important; } }
 
 @media print {
   .app-header, .app-sidebar, .app-scrim, .app-footer, .skip-link, .breadcrumb, .tabs, .no-print, .toast-region { display: none !important; }
-  .print-only { display: block; }
   body, .app-main { background: #fff; }
   .app-body { display: block; }
   .app-main { padding: 0; }
