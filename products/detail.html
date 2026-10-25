@@ -16,6 +16,9 @@
     .title-row .page-title { margin: 0; }
     .meta { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
     .panel-card { max-width: 760px; }
+    .overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); align-items: start; }
+    .levels-details { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--color-border-subtle); }
+    @media (max-width: 1000px) { .overview-grid { grid-template-columns: 1fr; } }
     .table tfoot td { font-weight: 700; border-top: 1px solid var(--color-border); }
     .qty-pos { color: var(--color-success); font-weight: 600; }
     .qty-out { font-weight: 600; }
@@ -59,7 +62,10 @@
       </div>
 
       <section class="tab-panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
-        <div class="card card--pad panel-card"><dl class="details" id="overview"></dl></div>
+        <div class="overview-grid">
+          <div class="card card--pad"><h2 class="card__title">Product</h2><dl class="details" id="overview"></dl></div>
+          <div class="card card--pad"><h2 class="card__title">Stock level</h2><div id="levels"></div><dl class="details levels-details" id="reorder"></dl></div>
+        </div>
       </section>
 
       <section class="tab-panel" role="tabpanel" id="panel-locations" aria-labelledby="tab-locations" tabindex="0" hidden>
@@ -211,19 +217,28 @@
             : '<div class="stat"><p class="stat__label">Floor</p><p class="stat__value"><small>Not set</small></p><p class="stat__sub">The Office Manager sets it</p></div>' +
               '<div class="stat"><p class="stat__label">Ceiling</p><p class="stat__value"><small>Not set</small></p><p class="stat__sub">The Office Manager sets it</p></div>');
 
-        // ---- Overview ----
-        var rows = [
+        // ---- Overview: product facts left, stock level right (the status badge is already in the title) ----
+        function dl(rows) {
+          return rows.map(function (r) { return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>'; }).join('');
+        }
+        $('overview').innerHTML = dl([
           ['Selling price', fmt.money(p.selling_price) + ' per ' + fmt.unit(p.unit_id, 1)],
           ['Minimum order', qty(p.min_order_qty)],
           ['Main supplier', supplier ? supplier.company_name : '—'],
-          ['Stock status', CNS.ui.stockBadge(status), true],
-          ['Suggested reorder', suggested() ? qty(suggested()) : 'None needed'],
-          ['On order from suppliers', qty(S.onOrder(p.id, sc))],
           ['Sold in the last 30 days', qty(S.soldQty(p.id, sc, 30)) + (mover ? ' · ' + (mover === 'fast' ? 'Fast-moving' : 'Slow-moving') : '')]
-        ];
-        $('overview').innerHTML = rows.map(function (r) {
-          return '<dt>' + esc(r[0]) + '</dt><dd>' + (r[2] ? r[1] : esc(r[1])) + '</dd>';
-        }).join('');
+        ]);
+        $('reorder').innerHTML = dl([
+          ['Suggested reorder', suggested() ? qty(suggested()) : 'None needed'],
+          ['On order from suppliers', qty(S.onOrder(p.id, sc))]
+        ]);
+        // Levels are judged per branch, so "All branches" shows one meter per branch
+        var meterBranches = sc === 'all' ? branchesInScope() : [sc];
+        $('levels').innerHTML = p.ceiling_qty
+          ? meterBranches.map(function (b, i) {
+              var h = S.onHand(p.id, b);
+              return CNS.ui.levelMeter({ product: p, available: h - S.allocated(p.id, b), hand: h, status: S.stockStatus(p.id, b), label: sc === 'all' ? S.branchName(b) : '', noLabels: i < meterBranches.length - 1 });
+            }).join('')
+          : '<p class="level-meter__say">Stock levels are not set yet. The Office Manager sets the floor, reorder point and ceiling.</p>';
 
         // ---- Stock by location (on hand per storage area, from movements) ----
         var locs = S.where('stock_locations', function (l) { return l.product_id === p.id; })

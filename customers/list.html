@@ -114,7 +114,7 @@
 
       function overdueBadge(c) {
         var amount = S.clientOverdue(c.id);
-        if (!amount) return '<span class="cell-sub">None</span>';
+        if (!amount) return CNS.ui.none();
         var days = S.clientOverdueDays(c.id);
         return CNS.ui.badge('error', 'exclamation-circle', 'Overdue · ' + days + (days === 1 ? ' day' : ' days')) +
           '<span class="cell-sub">' + esc(fmt.money(amount)) + '</span>';

@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="../assets/css/base.css">
   <link rel="stylesheet" href="../assets/css/components.css">
   <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>.table .name-col { max-width: 36ch; }</style>
 </head>
 <body>
   <!-- 4.0 purchase orders, with 4.5 Verify Supplier Payables (Payment: Unpaid) -->
@@ -109,7 +110,7 @@
         $('po-body').innerHTML = rows.map(function (p) {
           var s = S.get('suppliers', p.supplier_id);
           return '<tr data-id="' + esc(p.id) + '"><td class="nowrap"><a class="row-link" href="detail.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.po_no) + '</a></td>' +
-            '<td><span class="truncate cell-main">' + esc(s ? s.company_name : '') + '</span><span class="cell-sub">' + esc(S.branchName(p.branch_id)) + '</span></td>' +
+            '<td><span class="truncate cell-main name-col" title="' + esc(s ? s.company_name : '') + '">' + esc(s ? s.company_name : '') + '</span>' + (sc === 'all' ? '<span class="cell-sub">' + esc(S.branchName(p.branch_id)) + '</span>' : '') + '</td>' +
             '<td class="nowrap">' + esc(fmt.date(p.date)) + '</td>' + (payables ? '' : '<td class="num-col">' + P.items(p.id).length + '</td>') +
             '<td class="num-col">' + esc(fmt.money(P.total(p.id))) + '</td><td>' + P.statusBadge(p.status) + '</td><td>' + P.paymentBadge(p.payment_status) + '</td>' +
             (payables ? '<td class="nowrap">' + esc(age(p.date)) + '</td><td class="actions">' +

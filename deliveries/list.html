@@ -72,6 +72,8 @@
       var today = new Date(); today.setHours(0, 0, 0, 0);
       var monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
       var dayIndex = (today.getDay() + 6) % 7;
+      // On Sunday, also skip ahead to next week's first day that has deliveries (once, on first render)
+      var pickFirstBusy = dayIndex === 6;
       if (dayIndex === 6) { monday.setDate(monday.getDate() + 7); dayIndex = 0; }
 
       $('prev-week').innerHTML = CNS.icon('chevron-left') + 'Previous week';
@@ -108,6 +110,11 @@
         // Week and day
         var dates = DAYS.map(function (_, i) { var d = new Date(monday); d.setDate(monday.getDate() + i); return iso(d); });
         var all = S.all('deliveries').filter(function (d) { var o = S.get('sales_orders', d.order_id); return o && inScope(o); });
+        if (pickFirstBusy) {
+          pickFirstBusy = false;
+          var busy = dates.findIndex(function (dt) { return all.some(function (d) { return d.schedule_date === dt; }); });
+          if (busy >= 0) dayIndex = busy;
+        }
         $('week-label').textContent = 'Week of ' + fmt.date(dates[0]);
         $('days').innerHTML = DAYS.map(function (name, i) {
           var n = all.filter(function (d) { return d.schedule_date === dates[i]; }).length;

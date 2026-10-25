@@ -15,8 +15,9 @@
     .rcv { display: grid; gap: var(--space-4); margin-bottom: var(--space-5); }
     .rcv-line { padding: var(--space-4) var(--space-5); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
     .rcv-line h2 { margin: 0; font-size: 18px; }
-    .rcv-grid { display: grid; grid-template-columns: 150px minmax(0, 2fr) minmax(0, 1fr) auto; gap: var(--space-4); align-items: end; margin-top: var(--space-3); }
+    .rcv-grid { display: grid; grid-template-columns: minmax(150px, max-content) minmax(0, 2fr) minmax(0, 1fr) auto; gap: var(--space-4); align-items: end; margin-top: var(--space-3); }
     .rcv-grid .field { margin: 0; }
+    .rcv-grid .label { white-space: nowrap; }
     .adds { display: block; font-size: 22px; font-weight: 800; color: var(--color-success); font-variant-numeric: tabular-nums; }
     .adds--split { font-size: 18px; }
     .split { margin-top: var(--space-3); padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
@@ -43,8 +44,9 @@
           <label class="check-row"><input type="radio" name="paid" value="no" checked> Unpaid (the Office Manager verifies it later)</label>
           <label class="check-row"><input type="radio" name="paid" value="yes"> Already paid</label>
         </fieldset>
-        <div class="field" style="margin-top:var(--space-3)"><label class="label" for="invoice">Supplier invoice photo <span class="main-tag">(optional)</span></label>
-          <input type="file" id="invoice" accept="image/*,.pdf"></div>
+        <div class="field" style="margin-top:var(--space-3)"><span class="label" id="invoice-label">Supplier invoice photo <span class="main-tag">(optional)</span></span>
+          <div class="file-pick"><input class="file-input" type="file" id="invoice" accept="image/*,.pdf" aria-labelledby="invoice-label invoice-btn">
+            <label class="btn btn--secondary" for="invoice" id="invoice-btn"></label><span class="cell-sub" id="invoice-name" aria-live="polite"></span></div></div>
       </section>
       <div class="save-bar" style="max-width:none">
         <span class="cell-sub" id="summary" aria-live="polite"></span>
@@ -72,6 +74,12 @@
       var me = session.user;
       CNS.layout.moduleTabs('purchasing', 'receive', session);
       $('post').innerHTML = CNS.icon('arrow-down-tray') + 'Post receipt';
+      $('invoice-btn').innerHTML = CNS.icon('arrow-up-circle') + 'Attach invoice';
+      $('invoice').addEventListener('change', function () {
+        var f = this.files[0];
+        $('invoice-name').textContent = f ? f.name : '';
+        $('invoice-btn').innerHTML = CNS.icon('arrow-up-circle') + (f ? 'Change invoice' : 'Attach invoice');
+      });
 
       function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
       var po = S.get('purchase_orders', new URLSearchParams(location.search).get('id'));
@@ -82,7 +90,7 @@
         $('pick').innerHTML = open.length
           ? '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">PO no.</th><th scope="col">Supplier</th><th scope="col">Expected</th><th scope="col">Status</th><th scope="col" class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
             open.map(function (p) {
-              return '<tr><td class="cell-main nowrap">' + esc(p.po_no) + '</td><td>' + esc(S.get('suppliers', p.supplier_id).company_name) + '<span class="cell-sub">' + esc(S.branchName(p.branch_id)) + '</span></td>' +
+              return '<tr><td class="cell-main nowrap">' + esc(p.po_no) + '</td><td>' + esc(S.get('suppliers', p.supplier_id).company_name) + (scope() === 'all' ? '<span class="cell-sub">' + esc(S.branchName(p.branch_id)) + '</span>' : '') + '</td>' +
                 '<td class="nowrap">' + esc(fmt.date(p.expected_date)) + '</td><td>' + P.statusBadge(p.status) + '</td>' +
                 '<td class="actions"><a class="btn btn--secondary" href="receive.html?id=' + encodeURIComponent(p.id) + '">' + CNS.icon('arrow-down-tray') + 'Receive<span class="sr-only"> ' + esc(p.po_no) + '</span></a></td></tr>';
             }).join('') + '</tbody></table></div>'
@@ -114,7 +122,7 @@
         var others = supplierProducts.filter(function (x) { return x && x.id !== p.id && x.unit_id === p.unit_id; });
         return '<section class="rcv-line" data-item="' + esc(it.id) + '" data-conv="' + conv + '" aria-labelledby="h-' + esc(it.id) + '">' +
           '<h2 id="h-' + esc(it.id) + '">' + esc(p.name) + '</h2>' +
-          '<p class="cell-sub" style="margin:2px 0 0">Ordered ' + fmt.number(it.qty_ordered) + ' ' + esc(unit) + ' · received so far ' + fmt.number(it.qty_received) + ' · 1 ' + esc(unit) + ' = ' + esc(fmt.qty(conv, p.unit_id)) + '</p>' +
+          '<p class="cell-sub" style="margin:2px 0 0">Ordered ' + esc(fmt.count(it.qty_ordered, unit)) + ' · received so far ' + fmt.number(it.qty_received) + ' · 1 ' + esc(unit) + ' = ' + esc(fmt.qty(conv, p.unit_id)) + '</p>' +
           '<div class="rcv-grid">' +
             '<div class="field"><label class="label" for="q-' + esc(it.id) + '">Received (' + esc(unit) + ')</label><input class="input input--qty" id="q-' + esc(it.id) + '" type="number" min="0" max="' + left + '" step="1" value="' + left + '"></div>' +
             '<div><span class="label">Adds to stock</span><span class="adds" data-adds></span></div>' +

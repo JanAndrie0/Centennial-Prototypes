@@ -45,7 +45,7 @@
           <label class="label" for="f-status">Stock status</label>
           <select class="input input--compact" id="f-status">
             <option value="">All</option>
-            <option value="needs">Needs reorder (Low, Below floor, Backordered)</option>
+            <option value="needs">Needs reorder</option>
             <option value="low">Low</option>
             <option value="below-floor">Below floor</option>
             <option value="backordered">Backordered</option>
@@ -201,11 +201,11 @@
           return '<tr data-id="' + esc(p.id) + '">' +
             '<td class="nowrap">' + esc(p.code) + '</td>' +
             '<td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(p.id) + '" title="' + esc(p.name) + '">' + esc(p.name) + '</a></td>' +
-            '<td class="nowrap">' + esc(cat ? cat.name : '') + '</td>' +
+            '<td>' + esc(cat ? cat.name : '') + '</td>' +
             '<td class="nowrap">' + esc(fmt.unit(p.unit_id, 2)) + '</td>' +
             '<td class="num-col">' + fmt.number(hand) + '</td>' +
             '<td class="num-col">' + fmt.number(alloc) + '</td>' +
-            '<td class="num-col' + (avail < 0 ? ' qty-neg' : '') + '">' + fmt.number(avail) + '</td>' +
+            '<td class="num-col cell-main' + (avail < 0 ? ' qty-neg' : '') + '">' + fmt.number(avail) + '</td>' +
             '<td>' + CNS.ui.stockBadge(S.stockStatus(p.id, sc)) + '</td>' +
             '<td><span class="truncate" title="' + esc(where) + '">' + esc(where) + '</span></td>' +
             '</tr>';

@@ -33,8 +33,6 @@
     .methods label:has(input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .methods input { position: absolute; opacity: 0; width: 1px; height: 1px; }
     .proof-thumb { display: block; width: 100%; max-height: 220px; object-fit: cover; margin-bottom: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-    .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-    .file-input:focus-visible + label { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .left-line { display: flex; justify-content: space-between; margin: 0 0 var(--space-3); font-size: 18px; font-weight: 700; }
     .section-title { margin: var(--space-6) 0 var(--space-2); font-size: 18px; font-weight: 700; }
     .rows { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
@@ -182,7 +180,7 @@
 
       // ---- Form view ----
       $('save').innerHTML = CNS.icon('check') + 'Save payment';
-      $('proof-btn').innerHTML = CNS.icon('arrow-up-circle') + 'Take photo';
+      $('proof-btn').innerHTML = CNS.icon('camera') + 'Take photo';
       var stores = S.where('clients', function (c) { return c.agent_id === me.id; }).sort(function (a, b) { return a.store_name.localeCompare(b.store_name); });
       stores.forEach(function (c) { $('customer').insertAdjacentHTML('beforeend', '<option value="' + esc(c.id) + '">' + esc(c.store_name) + '</option>'); });
 
@@ -231,7 +229,7 @@
         $('proof-photo').value = v || '';
         $('proof-img').hidden = !v;
         if (v) $('proof-img').src = v;
-        $('proof-btn').innerHTML = CNS.icon('arrow-up-circle') + (v ? 'Retake photo' : 'Take photo');
+        $('proof-btn').innerHTML = CNS.icon('camera') + (v ? 'Retake photo' : 'Take photo');
       }
       $('proof-file').addEventListener('change', function () {
         var file = this.files[0];

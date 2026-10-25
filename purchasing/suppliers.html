@@ -66,7 +66,7 @@
             '<td class="nowrap">' + esc(s.contact_person) + '<span class="cell-sub">' + esc(s.contact_no) + '</span></td>' +
             '<td><span class="truncate" title="' + esc(s.address) + '">' + esc(s.address) + '</span></td>' +
             '<td class="num-col">' + links(s.id).length + '</td>' +
-            '<td class="num-col">' + (unpaid ? '<a class="row-link" href="list.html?payment=Unpaid">' + esc(fmt.money(unpaid)) + '</a>' : '<span class="cell-sub">None</span>') + '</td>' +
+            '<td class="num-col">' + (unpaid ? '<a class="row-link" href="list.html?payment=Unpaid">' + esc(fmt.money(unpaid)) + '</a>' : CNS.ui.none()) + '</td>' +
             '<td class="actions"><button type="button" class="btn btn--secondary" data-edit="' + esc(s.id) + '">' + CNS.icon('pencil-square') + 'Edit<span class="sr-only"> ' + esc(s.company_name) + '</span></button></td></tr>';
         }).join('');
       }

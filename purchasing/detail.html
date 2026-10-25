@@ -105,7 +105,7 @@
           '<th scope="col" class="num-col">Received</th><th scope="col" class="num-col">Unit cost</th><th scope="col" class="num-col">Amount</th></tr></thead><tbody>' +
           items.map(function (it) {
             var p = S.get('products', it.product_id), l = P.link(p.id, po.supplier_id), unit = l ? l.purchase_unit : 'unit';
-            return '<tr><td class="cell-main">' + esc(p.name) + '</td><td class="num-col nowrap">' + fmt.number(it.qty_ordered) + ' ' + esc(unit) + '</td>' +
+            return '<tr><td class="cell-main">' + esc(p.name) + '</td><td class="num-col nowrap">' + esc(fmt.count(it.qty_ordered, unit)) + '</td>' +
               '<td class="nowrap">' + esc(fmt.qty(it.qty_ordered * (l ? l.conversion : 1), p.unit_id)) + '</td>' +
               '<td class="num-col nowrap">' + fmt.number(it.qty_received) + ' of ' + fmt.number(it.qty_ordered) + '</td>' +
               '<td class="num-col">' + esc(fmt.money(it.unit_cost)) + '</td><td class="num-col">' + esc(fmt.money(it.qty_ordered * it.unit_cost)) + '</td></tr>';

@@ -46,6 +46,13 @@
       return CNS.format.number(n) + ' ' + unit(unitId, n);
     },
 
+    // A number with a free-text unit such as a supplier's "case" or "mother box": 1 case, 5 cases, 2 mother boxes
+    count: function (n, word) {
+      word = word || '';
+      if (Math.abs(n) === 1 || !word || /s$/i.test(word)) return CNS.format.number(n) + ' ' + word;
+      return CNS.format.number(n) + ' ' + word + (/(x|ch|sh)$/i.test(word) ? 'es' : 's');
+    },
+
     date: function (value) {
       return toDate(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     },
@@ -74,9 +81,63 @@
       return '<span class="badge badge--' + tone + '">' + CNS.icon(icon) + '<span>' + CNS.escape(label) + '</span></span>';
     },
 
+    // Empty table cell: a quiet dash on screen, "None" for screen readers
+    none: function () {
+      return '<span class="cell-sub"><span aria-hidden="true">—</span><span class="sr-only">None</span></span>';
+    },
+
     stockBadge: function (status) {
       var b = STOCK_BADGES[status] || STOCK_BADGES.ok;
       return CNS.ui.badge(b[0], b[1], b[2]);
+    },
+
+    // Horizontal meter: a value on a 0..max track, with tick marks labelled under it.
+    // o: { value, max, tone (success|warning|error|info), say, aria, marks: [[label, value, shown?]], label?, noLabels? }
+    // The fill takes the tone; the sentence above it says the same thing in words (color is never the only signal).
+    meter: function (o) {
+      var esc = CNS.escape;
+      var max = Math.max(o.max, o.value, 1);
+      function pct(n) { return Math.max(0, Math.min(100, n / max * 100)); }
+      // Marks below the track; a label that would touch the previous one drops to a second row
+      var last = -100, ticks = '', labels = '';
+      (o.marks || []).forEach(function (m) {
+        var at = pct(m[1]);
+        var low = at - last < 24;
+        last = low ? last : at;
+        var edge = at < 8 ? ' is-start' : at > 75 ? ' is-end' : ''; // keep long captions inside the card
+        ticks += '<span class="level-meter__tick" style="--at:' + at + '%"></span>';
+        labels += '<span class="level-meter__label' + edge + (low ? ' is-row2' : '') + '" style="--at:' + at + '%">' + esc(m[0]) + ' <b>' + esc(m[2] || CNS.format.number(m[1])) + '</b></span>';
+      });
+      return '<div class="level-meter level-meter--' + (o.tone || 'success') + '">' +
+        (o.label ? '<p class="level-meter__title">' + esc(o.label) + '</p>' : '') +
+        '<p class="level-meter__say">' + esc(o.say) + '</p>' +
+        '<div class="level-meter__track" role="img" aria-label="' + esc(o.aria) + '">' +
+          '<span class="level-meter__fill" style="--fill:' + pct(o.value) + '%"></span>' + ticks +
+        '</div>' +
+        (o.noLabels ? '' : '<div class="level-meter__labels" aria-hidden="true">' + labels + '</div>') +
+      '</div>';
+    },
+
+    // Available stock against the product's floor, reorder point and ceiling (3.0 stock rules).
+    // o: { product, available, hand, status, label?, noLabels? }. Returns '' when levels aren't set.
+    // noLabels hides the Floor / Reorder point / Ceiling captions (stacked meters label only the last one).
+    levelMeter: function (o) {
+      var p = o.product, n = CNS.format.number;
+      if (!p.ceiling_qty) return '';
+      function q(v) { return CNS.format.qty(v, p.unit_id); }
+      var avail = o.available;
+      return CNS.ui.meter({
+        value: avail, max: p.ceiling_qty, tone: (STOCK_BADGES[o.status] || STOCK_BADGES.ok)[0], label: o.label, noLabels: o.noLabels,
+        say: {
+          'backordered': 'Backordered by ' + q(-avail),
+          'below-floor': q(p.floor_qty - avail) + ' below the floor',
+          'low': avail === p.critical_qty ? 'At the reorder point' : q(p.critical_qty - avail) + ' below the reorder point',
+          'over-ceiling': 'On hand is ' + q(o.hand - p.ceiling_qty) + ' over the ceiling',
+          'ok': q(avail - p.critical_qty) + ' above the reorder point'
+        }[o.status] || '',
+        aria: 'Available ' + q(avail) + '. Floor ' + n(p.floor_qty) + ', reorder point ' + n(p.critical_qty) + ', ceiling ' + n(p.ceiling_qty) + '.',
+        marks: [['Floor', p.floor_qty], ['Reorder point', p.critical_qty], ['Ceiling', p.ceiling_qty]]
+      });
     },
 
     // Sales order status → badge (02 plan statuses; words, never color alone; Backordered is info)

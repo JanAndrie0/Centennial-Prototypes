@@ -273,6 +273,8 @@
 /* Collapse when empty but stay rendered, so screen readers keep watching the live region */
 .alert:empty { margin: 0; padding: 0; border: 0; }
 .alert:empty::before { content: none; }
+/* Alerts in a row read as one group: 8px apart instead of a full section gap */
+.alert:not(:empty):has(+ .alert:not(:empty)) { margin-bottom: var(--space-2); }
 
 .alert[data-tone="error"] { color: var(--color-error); background: var(--color-error-bg); --alert-icon: var(--icon-exclamation-circle); }
 .alert[data-tone="success"] { color: var(--color-success); background: var(--color-success-bg); --alert-icon: var(--icon-check-circle); }
@@ -471,6 +473,8 @@
 }
 
 .page-head .page-desc { margin-bottom: 0; }
+/* Title side shrinks and wraps its meta line first, so the actions stay on the right on desktop */
+.page-head > :first-child { flex: 1 1 28rem; min-width: 0; }
 .page-head__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 
 /* ---- Page tabs (links between sibling screens of one module) ---- */
@@ -569,6 +573,27 @@ a.stat:hover { border-top-color: var(--color-primary); }
 
 @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
+/* ---- Stock level meter (CNS.ui.levelMeter): available vs floor / reorder point / ceiling ---- */
+
+.level-meter { --tone: var(--color-success); }
+.level-meter--warning { --tone: var(--color-warning); }
+.level-meter--error { --tone: var(--color-error); }
+.level-meter--info { --tone: var(--color-info); }
+.level-meter + .level-meter { margin-top: var(--space-4); }
+.level-meter__title { margin: 0 0 var(--space-1); font-size: var(--text-small); font-weight: 600; color: var(--color-text-secondary); }
+.level-meter__say { margin: 0 0 var(--space-3); font-weight: 600; color: var(--tone); }
+.level-meter__track { position: relative; height: 14px; background: var(--color-border-subtle); border-radius: var(--radius-full); box-shadow: var(--shadow-inset); }
+.level-meter__fill { position: absolute; inset: 0 auto 0 0; width: var(--fill); background: var(--tone); border-radius: inherit; }
+.level-meter__tick { position: absolute; top: -4px; bottom: -4px; left: var(--at); width: 2px; margin-left: -1px; background: var(--color-text); border-radius: 1px; }
+.level-meter__labels { position: relative; height: 22px; margin-top: var(--space-2); font-size: var(--text-small); color: var(--color-text-secondary); }
+.level-meter__labels:has(.is-row2) { height: 44px; }
+.level-meter__label { position: absolute; top: 0; left: var(--at); white-space: nowrap; transform: translateX(-50%); }
+.level-meter__label b { color: var(--color-text); font-variant-numeric: tabular-nums; }
+.level-meter__label.is-start { transform: none; }
+.level-meter__label.is-end { transform: translateX(-100%); }
+.level-meter__label.is-row2 { top: 22px; }
+@media print { .level-meter__fill, .level-meter__tick { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
 /* ---- Definition list for record details (label left, value right) ---- */
 
 .details { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-3) var(--space-6); margin: 0; }
@@ -598,12 +623,21 @@ a.stat:hover { border-top-color: var(--color-primary); }
 /* One-line "nothing here" inside a table card, for small secondary lists */
 .empty-line { margin: 0; padding: var(--space-4) var(--space-5); color: var(--color-text-secondary); }
 
+/* ---- File picker: the real input stays focusable but invisible; the label next to it is a .btn ---- */
+
+.file-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file-input:focus-visible + label, .file-input:focus-visible + .btn, .btn:has(+ .file-input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.file-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+
 /* ---- Search box: big input with a magnifier inside ---- */
 
 .search { position: relative; max-width: 640px; margin-bottom: var(--space-4); }
 .search .icon { position: absolute; top: 50%; left: var(--space-4); width: 22px; height: 22px; color: var(--color-text-secondary); transform: translateY(-50%); pointer-events: none; }
 .search .input { padding-left: 48px; }
-.search .input::-webkit-search-cancel-button { cursor: pointer; }
+/* Clear button: Heroicons x-mark in secondary grey instead of the browser's blue default */
+.search .input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; margin-left: var(--space-2); cursor: pointer;
+  background: var(--color-text-secondary); -webkit-mask: var(--icon-x-mark) center / contain no-repeat; mask: var(--icon-x-mark) center / contain no-repeat; }
+.search .input::-webkit-search-cancel-button:hover { background: var(--color-text); }
 
 /* ---- Stock check result cards (3.3; desktop and agent mobile) ---- */
 
@@ -742,9 +776,10 @@ a.stat:hover { border-top-color: var(--color-primary); }
 .chart__col:hover .chart__bar { opacity: .85; }
 .chart__labels { grid-column: 2; display: flex; gap: 4px; font-size: var(--text-caption); color: var(--color-text-secondary); }
 .chart__labels span { flex: 1 1 0; min-width: 4px; overflow: hidden; text-align: center; white-space: nowrap; }
-.chart__labels .is-hi { color: var(--color-primary); font-weight: 700; }
-.chart--rows { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.chart__hrow { display: grid; grid-template-columns: minmax(120px, 30%) minmax(0, 1fr) max-content; align-items: center; gap: var(--space-3); font-size: var(--text-small); }
+.chart__labels .is-hi { overflow: visible; color: var(--color-primary); font-weight: 700; } /* bold label may be wider than its bar */
+/* Rows share one grid (subgrid) so every track starts and ends at the same x, whatever the label or value length */
+.chart--rows { display: grid; grid-template-columns: fit-content(40%) minmax(80px, 1fr) max-content; column-gap: var(--space-3); row-gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.chart__hrow { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; font-size: var(--text-small); }
 .chart__hlabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chart__htrack { height: 18px; background: var(--color-border-subtle); border-radius: 3px; }
 .chart__hfill { height: 100%; min-width: 2px; background: var(--color-chart-bar); border-radius: 3px; }
@@ -755,7 +790,7 @@ a.stat:hover { border-top-color: var(--color-primary); }
   .chart__labels span.is-edge, .chart__labels span.is-hi { overflow: visible; }
   .chart__labels span.is-edge:first-child { text-align: left; }
   .chart__labels span.is-edge:last-child { text-align: right; }
-  .chart__hrow { grid-template-columns: minmax(90px, 35%) minmax(0, 1fr) max-content; }
+  .chart--rows { grid-template-columns: fit-content(45%) minmax(60px, 1fr) max-content; }
 }
 @media print {
   .chart__bar, .chart__hfill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

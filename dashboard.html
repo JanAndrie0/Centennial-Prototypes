@@ -29,12 +29,21 @@
     .mini { margin: 0; padding: 0; list-style: none; }
     .mini li { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border-subtle); font-size: var(--text-note); }
     .mini li:last-child { border-bottom: 0; }
-    .mini li > :last-child { flex: none; white-space: nowrap; color: var(--color-text-secondary); }
+    .mini li > :last-child { flex: none; white-space: nowrap; }
+    .mini li > :last-child:not(.badge) { color: var(--color-text-secondary); } /* badges keep their tone color */
     .mini a { color: var(--color-text); font-weight: 600; text-decoration: none; }
     .mini a:hover { color: var(--color-primary); text-decoration: underline; text-underline-offset: 3px; }
-    .approve-list li { align-items: center; }
-    .approve-list .count { min-width: 32px; padding: 2px 8px; font-weight: 700; text-align: center; border-radius: var(--radius-full); background: var(--color-border-subtle); }
-    .approve-list .count.has { color: #fff; background: var(--color-primary); }
+    /* Whole row is the link: 48px tap target, count + chevron on the right */
+    .approve-list li { display: block; padding: 0; }
+    .mini.approve-list li > a { color: var(--color-text); }
+    .approve-list a { display: flex; align-items: center; gap: var(--space-3); min-height: 48px; padding: 0 var(--space-2); margin: 0 calc(-1 * var(--space-2)); border-radius: var(--radius-sm); }
+    .approve-list a:hover { background: var(--color-bg); text-decoration: none; }
+    .approve-list a:hover .approve-list__label { text-decoration: underline; text-underline-offset: 3px; }
+    .approve-list a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+    .approve-list__label { flex: 1; }
+    .approve-list .count { min-width: 32px; padding: 2px 8px; font-weight: 700; text-align: center; border-radius: var(--radius-full); color: var(--color-text-secondary); background: var(--color-border-subtle); }
+    .approve-list .count.has { color: var(--color-surface); background: var(--color-primary); }
+    .approve-list .icon { width: 18px; height: 18px; color: var(--color-text-secondary); }
     @media (max-width: 1000px) { .dash-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -145,7 +154,7 @@
           (isOM ? card('Waiting for your approval', null, '', '<ul class="mini approve-list">' +
             [['Sales orders (2.3)', q.orders, 'orders/approvals.html'], ['Purchase requests (4.2)', q.pos, 'purchasing/approvals.html'],
              ['Field payments to verify (5.3)', q.verify, 'payments/receivables.html'], ['Supplier payables to check (4.5)', q.payables, 'purchasing/list.html?payment=Unpaid']]
-              .map(function (r) { return '<li><a href="' + r[2] + '">' + esc(r[0]) + '</a><span class="count' + (r[1] ? ' has' : '') + '">' + r[1] + '</span></li>'; }).join('') + '</ul>') : '');
+              .map(function (r) { return '<li><a href="' + r[2] + '"><span class="approve-list__label">' + esc(r[0]) + '</span><span class="count' + (r[1] ? ' has' : '') + '">' + r[1] + '<span class="sr-only"> waiting</span></span>' + CNS.icon('chevron-right') + '</a></li>'; }).join('') + '</ul>') : '');
 
         CNS.chart.columns($('chart-days'), days, { title: 'Sales each day · ' + fmt.date(addDays(-13)).replace(/, \d{4}$/, '') + ' to today', label: 'Sales per day for the last 14 days', format: fmt.money, empty: 'No sales in the last 14 days.' });
         CNS.chart.rows($('chart-cats'), cats, { title: 'Sales by category (30 days)', label: 'Sales by category for the last 30 days', format: fmt.money, empty: 'No sales in the last 30 days.' });

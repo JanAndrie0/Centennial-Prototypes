@@ -225,7 +225,7 @@
           var label = recordLabel(h);
           return '<tr>' +
             '<td class="nowrap">' + esc(fmt.dateTime(h.datetime)) + '</td>' +
-            '<td class="nowrap"><span class="cell-main">' + esc(u ? u.full_name : 'Unknown user') + '</span>' +
+            '<td><span class="cell-main">' + esc(u ? u.full_name : 'Unknown user') + '</span>' +
               // With All branches selected, the branch rides under the role instead of taking its own column
               (u ? '<span class="cell-sub">' + esc(u.role) + (showBranch ? ' · ' + esc(CNS.store.branchName(h.branch_id)) : '') + '</span>' : '') + '</td>' +
             '<td class="nowrap" title="' + esc(h.module) + '">' + esc(MODULE_SHORT[h.module] || h.module) + '</td>' +

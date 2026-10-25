@@ -13,10 +13,10 @@
   <link rel="stylesheet" href="../assets/css/layout.css">
   <style>
     .flags { display: flex; flex-wrap: wrap; gap: 4px; }
-    .note-line { display: flex; align-items: center; gap: 4px; max-width: 30ch; }
+    .note-line { display: flex; align-items: center; gap: 4px; max-width: 20ch; }
     .note-line .icon { width: 14px; height: 14px; flex: none; }
     .note-line span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #orders-table .truncate { max-width: 24ch; }
+    #orders-table .truncate { max-width: 30ch; }
   </style>
 </head>
 <body>
@@ -144,7 +144,7 @@
         if (f.backordered.length) out.push(CNS.ui.badge('info', 'information-circle', 'Backordered'));
         if (f.overCredit) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Over credit'));
         if (f.belowMin.length) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Below minimum'));
-        return out.length ? '<div class="flags">' + out.join('') + '</div>' : '<span class="cell-sub">None</span>';
+        return out.length ? '<div class="flags">' + out.join('') + '</div>' : CNS.ui.none();
       }
 
       function renderTabs(rows) {

@@ -17,7 +17,7 @@
     .verify-list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
     .verify-card { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: var(--space-4); align-items: start; padding: var(--space-4); }
     .verify-card__proof { width: 120px; height: 120px; object-fit: cover; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-    .verify-card__noproof { display: grid; place-items: center; width: 120px; height: 120px; font-size: var(--text-small); color: var(--color-text-secondary); text-align: center; background: var(--color-bg); border: 1px dashed var(--color-input-border); border-radius: var(--radius-md); }
+    .verify-card__noproof { display: grid; place-content: center; justify-items: center; gap: var(--space-1); width: 120px; height: 120px; padding: var(--space-2); font-size: var(--text-small); color: var(--color-text-secondary); text-align: center; background: var(--color-bg); border: 1px dashed var(--color-input-border); border-radius: var(--radius-md); }
     .verify-card__top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); }
     .verify-card__store { margin: 0; font-size: 18px; font-weight: 700; }
     .verify-card__amount { margin: 0; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -145,7 +145,7 @@
             var mine = canVerify(p);
             return '<li class="card verify-card">' +
               (p.proof_photo ? '<button type="button" class="proof-btn" data-proof="' + esc(p.id) + '"><img class="verify-card__proof" src="' + esc(p.proof_photo) + '" alt="Proof of payment, ' + esc(P.receiptNo(p)) + '. Open larger."></button>'
-                : '<div class="verify-card__noproof">No photo attached</div>') +
+                : '<div class="verify-card__noproof">' + CNS.icon('photo') + '<span>No photo</span></div>') +
               '<div><div class="verify-card__top"><p class="verify-card__store">' + esc(c.store_name) + '</p><p class="verify-card__amount">' + esc(fmt.money(p.amount)) + '</p></div>' +
                 '<dl class="details"><dt>Receipt</dt><dd>' + esc(P.receiptNo(p)) + ' · ' + esc(fmt.date(p.date)) + '</dd>' +
                 '<dt>Method</dt><dd>' + esc(p.method + (p.reference_no ? ' · ' + p.reference_no : '')) + '</dd>' +

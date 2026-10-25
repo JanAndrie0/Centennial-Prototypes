@@ -14,7 +14,9 @@
   <style>
     .meta { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
     .panel-card { max-width: 760px; }
-    .credit-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); align-items: start; }
+    .credit-actions { margin-top: var(--space-4); }
+    @media (max-width: 1000px) { .overview-grid { grid-template-columns: 1fr; } }
     .plan { margin-bottom: var(--space-5); }
     .plan__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-3); }
     .plan__title { margin: 0; font-size: var(--text-card-title); font-weight: 700; }
@@ -66,7 +68,10 @@
       </div>
 
       <section class="tab-panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
-        <div class="card card--pad panel-card"><dl class="details" id="overview"></dl></div>
+        <div class="overview-grid">
+          <div class="card card--pad"><h2 class="card__title">Contact</h2><dl class="details" id="overview"></dl></div>
+          <div class="card card--pad"><h2 class="card__title">Credit</h2><div id="credit"></div></div>
+        </div>
       </section>
 
       <section class="tab-panel" role="tabpanel" id="panel-orders" aria-labelledby="tab-orders" tabindex="0" hidden>
@@ -144,7 +149,7 @@
         document.title = c.store_name + ' · Centennial Sales & Inventory';
         $('crumb-name').textContent = c.store_name;
         $('c-name').textContent = c.store_name;
-        $('c-meta').textContent = c.address + ' · ' + S.branchName(c.branch_id) + ' · Agent: ' + userName(c.agent_id);
+        $('c-meta').textContent = S.branchName(c.branch_id) + ' · Agent: ' + userName(c.agent_id);
 
         // ---- Tiles ----
         $('stats').innerHTML =
@@ -159,17 +164,20 @@
             '<p class="stat__value">' + esc(fmt.money(overdue)) + '</p>' +
             '<p class="stat__sub">' + (overdue ? 'Oldest is ' + days + (days === 1 ? ' day' : ' days') + ' late' : 'Nothing overdue') + '</p></div>';
 
-        // ---- Overview ----
-        var creditCell = '<div class="credit-row"><span>' + esc(fmt.money(c.credit_limit)) + '</span>' +
-          (availableCredit < 0 ? CNS.ui.badge('warning', 'exclamation-triangle', 'Over limit') : '') +
-          (canSetCredit ? '<button type="button" class="btn btn--secondary" id="credit-btn">' + CNS.icon('pencil-square') + 'Change credit limit</button>' : '') + '</div>';
+        // ---- Overview: contact left, credit used right (branch and agent are already under the name) ----
+        $('credit').innerHTML = (c.credit_limit
+          ? CNS.ui.meter({
+              value: bal, max: c.credit_limit, tone: availableCredit < 0 ? 'warning' : 'success',
+              say: availableCredit < 0 ? fmt.money(-availableCredit) + ' over the credit limit' : fmt.money(availableCredit) + ' left before the limit',
+              aria: 'Balance ' + fmt.money(bal) + ' of a ' + fmt.money(c.credit_limit) + ' credit limit.',
+              marks: [['Credit limit', c.credit_limit, fmt.money(c.credit_limit)]]
+            })
+          : '<p class="level-meter__say">No credit limit set yet.</p>') +
+          (canSetCredit ? '<div class="credit-actions"><button type="button" class="btn btn--secondary" id="credit-btn">' + CNS.icon('pencil-square') + 'Change credit limit</button></div>' : '');
         $('overview').innerHTML = [
           ['Contact person', esc(c.contact_person)],
           ['Contact no.', '<a href="tel:' + esc(c.contact_no.replace(/\s/g, '')) + '">' + esc(c.contact_no) + '</a>'],
-          ['Address', esc(c.address)],
-          ['Branch', esc(S.branchName(c.branch_id))],
-          ['Sales agent', esc(userName(c.agent_id))],
-          ['Credit limit', creditCell]
+          ['Address', esc(c.address)]
         ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
         if ($('credit-btn')) $('credit-btn').addEventListener('click', openCredit);
 

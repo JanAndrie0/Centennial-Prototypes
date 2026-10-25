@@ -33,7 +33,9 @@
     .detail-head h2 { margin: 0; font-size: 22px; }
     .detail-total { text-align: right; }
     .detail-total strong { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
-    .detail-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-5); }
+    /* Stays in view at the bottom while scrolling a long order (about 100 lines) */
+    .detail-actions { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-5); padding: var(--space-3) 0; background: var(--color-surface); border-top: 1px solid var(--color-border-subtle); }
+    .detail-head + .sub-title, .alert + .sub-title { margin-top: 0; }
     .sub-title { margin: var(--space-5) 0 var(--space-3); font-size: var(--text-card-title); font-weight: 700; }
     .slip-img { max-width: 320px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
     @media (max-width: 1100px) { .approvals { grid-template-columns: 1fr; } .record { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -180,6 +182,8 @@
             (o.internal_note ? '<p class="cell-sub">Note: ' + esc(o.internal_note) + '</p>' : '') + '</div>' +
             '<div class="detail-total"><span class="cell-sub">Order total</span><strong>' + esc(fmt.money(S.orderTotal(o.id))) + '</strong></div></div>' +
           (f.overCredit ? '<p class="alert" data-tone="warning">Over credit limit by ' + esc(fmt.money(f.overCredit)) + ' if approved.</p>' : '') +
+          (c ? paymentRecord(c) : '') +
+          '<h3 class="sub-title">Items · ' + A.items(o.id).length + ' lines</h3>' +
           '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Qty</th>' +
             '<th scope="col" class="num-col">Unit price</th><th scope="col" class="num-col">Amount</th><th scope="col">Stock</th></tr></thead><tbody>' +
             A.items(o.id).map(function (it) {
@@ -189,7 +193,6 @@
                 '<td class="num-col">' + esc(fmt.money(it.qty * it.unit_price)) + '</td>' +
                 '<td>' + (short[p.id] ? CNS.ui.badge('info', 'information-circle', 'Backordered ' + fmt.number(short[p.id])) : CNS.ui.badge('success', 'check-circle', 'In stock')) + '</td></tr>';
             }).join('') + '</tbody></table></div>' +
-          (c ? paymentRecord(c) : '') +
           (o.slip_photo && o.slip_photo.indexOf('data:image') === 0 ? '<h3 class="sub-title">Order slip</h3><img class="slip-img" src="' + esc(o.slip_photo) + '" alt="Order slip photo">' : '') +
           (canDecide(o)
             ? '<div class="detail-actions"><button type="button" class="btn btn--secondary" id="send-back">Send back with a note</button>' +
