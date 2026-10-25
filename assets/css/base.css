@@ -53,6 +53,9 @@ h1, h2, h3 { text-wrap: balance; }
 /* Shared motion (motion-foundations: tokens only, transform/opacity only) */
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
+/* Dialogs grow in slightly from the center; nothing appears from scale(0) */
+@keyframes pop-in { from { opacity: 0; transform: scale(0.96); } }
+@keyframes leave-down { to { opacity: 0; transform: translateY(6px); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Gentle shake when a submit fails; added and removed from JS */

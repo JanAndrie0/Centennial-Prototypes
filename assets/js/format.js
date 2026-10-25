@@ -137,7 +137,11 @@
       t.className = 'toast';
       t.innerHTML = CNS.icon('check-circle') + '<span>' + CNS.escape(message) + '</span>';
       region.appendChild(t);
-      setTimeout(function () { t.remove(); }, 4000);
+      // Fade out, then remove (the CSS animation is skipped under reduced motion, so remove right after)
+      setTimeout(function () {
+        t.classList.add('is-leaving');
+        setTimeout(function () { t.remove(); }, 180);
+      }, 4000);
     },
 
     // Confirm a destructive action in a modal (UX rule 9). Resolves true when confirmed.

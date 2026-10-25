@@ -191,13 +191,13 @@
     height: auto;
     visibility: hidden;
     transform: translateX(-100%);
-    transition: transform var(--dur-normal) var(--ease-smooth), visibility 0s linear var(--dur-normal);
+    transition: transform var(--dur-drawer) var(--ease-drawer), visibility 0s linear var(--dur-drawer);
   }
 
   .app-sidebar.is-open {
     visibility: visible;
     transform: none;
-    transition: transform var(--dur-normal) var(--ease-smooth), visibility 0s;
+    transition: transform var(--dur-drawer) var(--ease-drawer), visibility 0s;
   }
 
   .app-scrim {

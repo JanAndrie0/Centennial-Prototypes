@@ -381,7 +381,8 @@
   box-shadow: var(--shadow-lg);
 }
 
-.modal[open] { animation: rise-in var(--dur-normal) var(--ease-smooth); }
+.modal[open] { animation: pop-in var(--dur-modal) var(--ease-out); }
+.modal[open]::backdrop { animation: fade-in var(--dur-modal) var(--ease-out); }
 .modal::backdrop { background: var(--color-scrim); }
 
 .modal__icon { width: 28px; height: 28px; margin-bottom: var(--space-3); color: var(--color-info); }
@@ -776,8 +777,24 @@
   background: var(--color-text);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  animation: rise-in var(--dur-normal) var(--ease-smooth);
+  animation: rise-in var(--dur-toast) var(--ease-out);
 }
+
+/* Toasts leave softly instead of vanishing (CNS.ui.toast adds .is-leaving before removing) */
+.toast.is-leaving { animation: leave-down 160ms var(--ease-out) forwards; }
+
+/* ---- Clickable cards (KPI tiles, stock cards, queue items): a small lift on hover ----
+   The shadow sits on ::after and fades with opacity, so only transform and opacity animate. */
+a.stat, .stock-card, .queue button { position: relative; transition: transform var(--dur-press) var(--ease-out); }
+a.stat::after, .stock-card::after, .queue button::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: var(--shadow-md); opacity: 0; transition: opacity var(--dur-press) var(--ease-out);
+}
+@media (hover: hover) {
+  a.stat:hover, .queue button:hover { transform: translateY(-2px); }
+  a.stat:hover::after, .stock-card:hover::after, .queue button:hover::after { opacity: 1; }
+}
+a.stat:active, .queue button:active { transform: scale(var(--scale-press)); transition-duration: 80ms; }
 
 .toast .icon { color: var(--color-success-bg); }
 
@@ -788,7 +805,9 @@
 /* ---- Reduced motion: no movement, only a short fade remains ---- */
 
 @media (prefers-reduced-motion: reduce) {
-  .modal[open], .toast { animation: none; }
+  .modal[open], .modal[open]::backdrop, .toast, .toast.is-leaving { animation: none; }
+  a.stat, .stock-card, .queue button, a.stat::after, .stock-card::after, .queue button::after { transition: none; }
+  a.stat:hover, .queue button:hover, a.stat:active, .queue button:active { transform: none; }
   .btn:active:not([aria-disabled="true"]),
   .input-action:active:not(:disabled) { transform: none; }
   .spinner { animation-duration: 2.4s; }

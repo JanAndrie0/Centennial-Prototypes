@@ -22,7 +22,8 @@ Build order (from `docs/modules/00-overview-and-feature-map.md` §4): foundation
 | 7 | 06 Reports | Done, browser-tested (Oct 25) | `reports/index.html`, `reports/view.html?type=…` (9 reports) |
 | 8 | Dashboards | Done, browser-tested (Oct 25) | `dashboard.html` (management: banner, 4 KPIs, sales per day 14 days, sales by category 30 days, OM approval card; staff: orders to pack, deliveries today, low stock, supplier deliveries, due-date reminders), `m/home.html` (agent: New order, deliveries to confirm, quick stock check, orders by status, customers to follow up) |
 | 9 | End-to-end walkthrough | Done (Oct 25): no broken links, every page opened per role with no script errors; demo script written | `docs/WALKTHROUGH.md` (3 review sessions, steps per role, questions for the client, feature checklist, feedback table) |
-| 10 | **Review sessions with Centennial** | **Next** | Run `docs/WALKTHROUGH.md`; record feedback here, then revise |
+| 10 | **Design polish pass (ADR-006)** | **In progress** — shared motion done (Oct 25): new tokens `--ease-out`, `--ease-drawer`, `--dur-press/modal/toast/drawer`; dialogs pop in + backdrop fade; toasts fade out; KPI tiles, stock cards and queue items lift on hover; press scale 0.97. **Next:** page-by-page review (dashboard, product page, order page, agent home) for visual depth, not just motion | `assets/css/tokens.css`, `base.css`, `components.css`, `layout.css`, `assets/js/format.js` |
+| 11 | Review sessions with Centennial | After the polish pass | Run `docs/WALKTHROUGH.md`; record feedback here, then revise |
 
 Dashboard notes (Oct 25): "Sales" counts an order once it is approved (2.4 Record Sales Transaction), by order date. The banner shows one item only, most urgent first: OM approvals → overdue customers → low stock (staff: deliveries today → low stock).
 

@@ -85,7 +85,14 @@
   --dur-normal: 350ms;
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-sharp: cubic-bezier(0.4, 0, 0.2, 1);
-  --scale-press: 0.98;
+  --scale-press: 0.97;
+  /* Polish pass (ADR-006, Emil Kowalski): strong ease-out curves, everything under 300ms */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 140ms;      /* hover lift, press feedback */
+  --dur-modal: 240ms;      /* dialogs and their backdrop */
+  --dur-toast: 200ms;
+  --dur-drawer: 300ms;     /* phone/tablet sidebar */
 
   /* Icons used as CSS masks: Heroicons v2.2.0 outline 24 (MIT), same paths as assets/icons/outline/ */
   --icon-exclamation-circle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='black'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z'/%3E%3C/svg%3E");
