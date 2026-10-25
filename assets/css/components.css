@@ -583,6 +583,10 @@
 .stat__value { margin: var(--space-1) 0 0; font-size: var(--text-kpi); font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .stat__value small { font-size: var(--text-body); font-weight: 500; color: var(--color-text-secondary); }
 .stat__sub { margin: var(--space-1) 0 0; font-size: var(--text-small); color: var(--color-text-secondary); }
+.stat__sub .btn-link { padding: 0; }   /* a tile's one action (Change credit limit); keeps the 44px tap height */
+/* A slim meter inside a KPI tile, between the value and its sub line */
+.stat .level-meter { margin-top: var(--space-2); }
+.stat .level-meter__track { height: 8px; }
 .stat--info { border-color: var(--color-info); background: var(--color-info-bg); }
 .stat--info .stat__value { color: var(--color-info); }
 .stat--warning { border-color: var(--color-warning); background: var(--color-warning-bg); }

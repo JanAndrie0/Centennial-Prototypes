@@ -14,7 +14,6 @@
   <style>
     .panel-card { max-width: 760px; }
     .overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); align-items: start; }
-    .credit-actions { margin-top: var(--space-4); }
     @media (max-width: 1000px) { .overview-grid { grid-template-columns: 1fr; } }
     .plan { margin-bottom: var(--space-5); }
     .plan__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-3); }
@@ -69,7 +68,7 @@
       <section class="tab-panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
         <div class="overview-grid">
           <div class="card card--pad"><h2 class="card__title">Contact</h2><dl class="details" id="overview"></dl></div>
-          <div class="card card--pad"><h2 class="card__title">Credit</h2><div id="credit"></div></div>
+          <div class="card card--pad"><h2 class="card__title">Payment record</h2><div id="credit"></div></div>
         </div>
       </section>
 
@@ -153,9 +152,12 @@
         // ---- Tiles ----
         $('stats').innerHTML =
           '<div class="stat"><p class="stat__label">Credit limit</p><p class="stat__value">' + esc(fmt.money(c.credit_limit)) + '</p>' +
-            '<p class="stat__sub">' + (canSetCredit ? 'You can change it in Overview' : 'Set by the Office Manager') + '</p></div>' +
+            '<p class="stat__sub">' + (canSetCredit ? '<button type="button" class="btn-link" id="credit-btn">' + CNS.icon('pencil-square') + 'Change credit limit</button>' : 'Set by the Office Manager') + '</p></div>' +
+          // Balance on the limit: the bar here, the words in the Available credit tile next to it
           '<div class="stat"><p class="stat__label">Current balance</p><p class="stat__value">' + esc(fmt.money(bal)) + '</p>' +
-            '<p class="stat__sub">Billed orders minus verified payments</p></div>' +
+            (c.credit_limit ? CNS.ui.meter({ value: bal, max: c.credit_limit, noLabels: true, tone: availableCredit < 0 ? 'warning' : bal > c.credit_limit * 0.8 ? 'info' : 'success',
+              aria: 'Balance ' + fmt.money(bal) + ' of a ' + fmt.money(c.credit_limit) + ' credit limit.' }) : '') +
+            '<p class="stat__sub">' + (c.credit_limit ? 'Of a ' + esc(fmt.money(c.credit_limit)) + ' credit limit' : 'No credit limit set yet') + '</p></div>' +
           '<div class="stat' + (availableCredit < 0 ? ' stat--warning' : '') + '"><p class="stat__label">Available credit</p>' +
             '<p class="stat__value">' + esc(fmt.money(Math.max(0, availableCredit))) + '</p>' +
             '<p class="stat__sub">' + (availableCredit < 0 ? 'Over the limit by ' + esc(fmt.money(-availableCredit)) : 'Left before the limit') + '</p></div>' +
@@ -163,16 +165,20 @@
             '<p class="stat__value">' + esc(fmt.money(overdue)) + '</p>' +
             '<p class="stat__sub">' + (overdue ? 'Oldest is ' + days + (days === 1 ? ' day' : ' days') + ' late' : 'Nothing overdue') + '</p></div>';
 
-        // ---- Overview: contact left, credit used right (branch and agent are already under the name) ----
-        $('credit').innerHTML = (c.credit_limit
-          ? CNS.ui.meter({
-              value: bal, max: c.credit_limit, tone: availableCredit < 0 ? 'warning' : 'success',
-              say: availableCredit < 0 ? fmt.money(-availableCredit) + ' over the credit limit' : fmt.money(availableCredit) + ' left before the limit',
-              aria: 'Balance ' + fmt.money(bal) + ' of a ' + fmt.money(c.credit_limit) + ' credit limit.',
-              marks: [['Credit limit', c.credit_limit, fmt.money(c.credit_limit)]]
-            })
-          : '<p class="level-meter__say">No credit limit set yet.</p>') +
-          (canSetCredit ? '<div class="credit-actions"><button type="button" class="btn btn--secondary" id="credit-btn">' + CNS.icon('pencil-square') + 'Change credit limit</button></div>' : '');
+        // ---- Overview: contact left, payment record right (the same facts the Office Manager checks before approving, 2.3) ----
+        var orderIds = S.where('sales_orders', function (o) { return o.client_id === c.id; }).map(function (o) { return o.id; });
+        var planIds = S.where('installment_plans', function (p) { return orderIds.indexOf(p.order_id) >= 0; }).map(function (p) { return p.id; });
+        var sched = S.where('installment_schedules', function (s) { return planIds.indexOf(s.plan_id) >= 0; });
+        var openRows = sched.filter(function (s) { return s.amount_paid < s.amount_due; }).length;
+        var lateRows = sched.filter(function (s) { return s.due_date < S.today() && s.amount_paid < s.amount_due; }).length;
+        var allPays = S.where('payments', function (p) { return p.client_id === c.id; }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        var lastPay = allPays.filter(function (p) { return p.verified_by && !p.bounced; })[0];
+        var bounced = allPays.filter(function (p) { return p.bounced; }).length;
+        $('credit').innerHTML = '<dl class="details">' +
+          '<dt>Last payment</dt><dd>' + (lastPay ? esc(fmt.money(lastPay.amount) + ' · ' + fmt.date(lastPay.date) + ' · ' + lastPay.method) : 'None yet') + '</dd>' +
+          '<dt>Installments</dt><dd>' + (sched.length ? esc(openRows + ' open') + (lateRows ? ' · ' + CNS.ui.badge('error', 'exclamation-circle', lateRows + ' late') : ' · none late') : 'No plan') + '</dd>' +
+          '<dt>Bounced or rejected</dt><dd>' + (bounced ? CNS.ui.badge('error', 'x-mark', bounced + (bounced === 1 ? ' payment' : ' payments')) : 'None') + '</dd>' +
+          '</dl>';
         $('overview').innerHTML = [
           ['Contact person', esc(c.contact_person)],
           ['Contact no.', '<a href="tel:' + esc(c.contact_no.replace(/\s/g, '')) + '">' + esc(c.contact_no) + '</a>'],

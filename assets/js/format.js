@@ -110,7 +110,7 @@
       });
       return '<div class="level-meter level-meter--' + (o.tone || 'success') + '">' +
         (o.label ? '<p class="level-meter__title">' + esc(o.label) + '</p>' : '') +
-        '<p class="level-meter__say">' + esc(o.say) + '</p>' +
+        (o.say ? '<p class="level-meter__say">' + esc(o.say) + '</p>' : '') +   // optional when the words sit next to it already
         '<div class="level-meter__track" role="img" aria-label="' + esc(o.aria) + '">' +
           '<span class="level-meter__fill" style="--fill:' + pct(o.value) + '%"></span>' + ticks +
         '</div>' +
