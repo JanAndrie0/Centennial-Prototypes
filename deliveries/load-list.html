@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Truck load list · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .sheet-head { margin-bottom: var(--space-4); }
+    .sheet-head p { margin: 0; }
+    .sheet-title { font-size: 20px; font-weight: 800; }
+    .check-box { display: inline-block; width: 18px; height: 18px; border: 1.5px solid var(--color-text); border-radius: 3px; vertical-align: middle; }
+    .section-title { margin: var(--space-5) 0 var(--space-3); font-size: var(--text-card-title); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <!-- 2.6: Truck load list. Pick a date and truck → every order's lines, grouped by product, with total qty and storage area -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Deliveries</a></li><li><span aria-current="page">Truck load list</span></li></ol>
+    </nav>
+    <div class="page-head no-print">
+      <div><h1 class="page-title">Truck load list</h1><p class="page-desc">Check the quantities against the receipts before loading.</p></div>
+      <div class="page-head__actions"><button type="button" class="btn btn--primary" id="print"></button></div>
+    </div>
+    <div class="filters no-print">
+      <div class="field"><label class="label" for="date">Date</label><input class="input input--compact" type="date" id="date"></div>
+      <div class="field"><label class="label" for="truck">Truck</label><select class="input input--compact" id="truck"><option value="">All trucks</option></select></div>
+    </div>
+
+    <div class="sheet-head">
+      <p class="sheet-title" id="sheet-title"></p>
+      <p class="cell-sub" id="sheet-meta"></p>
+    </div>
+    <div class="table-wrap" id="by-product"></div>
+    <h2 class="section-title">Orders on this load</h2>
+    <div class="table-wrap" id="by-order"></div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/order-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'orders' });
+      if (!session) return;
+      var S = CNS.store, A = CNS.orderActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var params = new URLSearchParams(location.search);
+
+      S.all('trucks').forEach(function (t) { $('truck').insertAdjacentHTML('beforeend', '<option value="' + esc(t.id) + '">' + esc(t.name + ' · ' + t.plate_no) + '</option>'); });
+      $('date').value = params.get('date') || S.today();
+      $('truck').value = params.get('truck') || '';
+      $('print').innerHTML = CNS.icon('printer') + 'Print load list';
+      $('print').addEventListener('click', function () { window.print(); });
+
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+
+      function render() {
+        var date = $('date').value, truck = $('truck').value, sc = scope();
+        history.replaceState(null, '', location.pathname + '?date=' + date + (truck ? '&truck=' + encodeURIComponent(truck) : ''));
+        var deliveries = S.where('deliveries', function (d) {
+          var o = S.get('sales_orders', d.order_id);
+          return d.schedule_date === date && (!truck || d.truck_id === truck) && o && (sc === 'all' || o.branch_id === sc);
+        });
+        var t = truck && S.get('trucks', truck);
+        $('sheet-title').textContent = 'Truck load list · ' + fmt.date(date) + (t ? ' · ' + t.name + ' (' + t.plate_no + ')' : ' · All trucks');
+        $('sheet-meta').textContent = deliveries.length + (deliveries.length === 1 ? ' order' : ' orders') + ' · ' + S.branchName(sc) + ' · Printed ' + fmt.dateTime(new Date()) + ' by ' + me.full_name;
+
+        // Grouped by product: total qty, unit and where to pick it
+        var byProduct = {};
+        deliveries.forEach(function (d) {
+          var o = S.get('sales_orders', d.order_id);
+          A.items(o.id).forEach(function (it) {
+            var g = byProduct[it.product_id] = byProduct[it.product_id] || { qty: 0, orders: [], branch: o.branch_id };
+            g.qty += it.qty;
+            g.orders.push(o.order_no + ' (' + it.qty + ')');
+          });
+        });
+        var ids = Object.keys(byProduct).sort(function (a, b) {
+          var pa = S.get('products', a), pb = S.get('products', b);
+          var aa = A.areaFor(a, byProduct[a].branch), ab = A.areaFor(b, byProduct[b].branch);
+          return ((aa ? aa.name : '') + pa.name).localeCompare((ab ? ab.name : '') + pb.name);   // by storage area, then name: one walk through the warehouse
+        });
+        $('by-product').innerHTML = ids.length
+          ? '<table class="table"><thead><tr><th scope="col">Loaded</th><th scope="col">Pick from</th><th scope="col">Product</th><th scope="col" class="num-col">Total qty</th><th scope="col">Orders</th></tr></thead><tbody>' +
+            ids.map(function (id) {
+              var p = S.get('products', id), g = byProduct[id], area = A.areaFor(id, g.branch);
+              return '<tr><td><span class="check-box" aria-hidden="true"></span><span class="sr-only">Not checked</span></td><td class="nowrap">' + esc(area ? area.name : '—') + '</td>' +
+                '<td class="cell-main">' + esc(p.name) + '</td><td class="num-col cell-main">' + esc(fmt.qty(g.qty, p.unit_id)) + '</td>' +
+                '<td class="cell-sub">' + esc(g.orders.join(', ')) + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          : '<p class="empty-line">No deliveries for this date and truck.</p>';
+
+        $('by-order').innerHTML = deliveries.length
+          ? '<table class="table"><thead><tr><th scope="col">Order</th><th scope="col">Store</th><th scope="col">Address</th><th scope="col">Driver</th><th scope="col" class="num-col">Lines</th><th scope="col">Status</th></tr></thead><tbody>' +
+            deliveries.map(function (d) {
+              var o = S.get('sales_orders', d.order_id), c = S.get('clients', o.client_id), dr = S.get('drivers', d.driver_id);
+              return '<tr><td class="nowrap cell-main">' + esc(o.order_no) + '</td><td>' + esc(c ? c.store_name : '') + '</td><td>' + esc(c ? c.address : '') + '</td>' +
+                '<td class="nowrap">' + esc(dr ? dr.full_name : '—') + '</td><td class="num-col">' + A.items(o.id).length + '</td><td>' + esc(d.status) + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          : '<p class="empty-line">Nothing to load.</p>';
+      }
+
+      $('date').addEventListener('change', render);
+      $('truck').addEventListener('change', render);
+      document.addEventListener('cns:branchchange', function (e) { session.branchView = e.detail.branchView; render(); });
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock count · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .count-input { width: 120px; height: var(--tap); text-align: right; font-variant-numeric: tabular-nums; }
+    .diff-pos { font-weight: 700; color: var(--color-success); }
+    .diff-neg { font-weight: 700; color: var(--color-warning); }
+    .diff-zero { color: var(--color-text-secondary); }
+    #count-form .save-bar { margin-top: var(--space-4); max-width: none; }
+  </style>
+</head>
+<body>
+  <!-- 3.2 Update Stock Levels: physical stock count (Warehouse and Stockroom Management) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Products &amp; Inventory</a></li><li><span aria-current="page">Stock count</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <h1 class="page-title">Stock count</h1>
+    <p class="page-desc">Count what is on the shelves. Posting the count corrects the system to match.</p>
+
+    <div class="filters">
+      <div class="field">
+        <label class="label" for="area">Storage area</label>
+        <select class="input input--compact" id="area"></select>
+      </div>
+    </div>
+
+    <div id="count-host"></div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'products' });
+      if (!session) return;
+
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var MODULE = 'Products & Inventory';
+      var draft = null;
+
+      function scope() {
+        return CNS.auth.canSwitchBranch(session.user) ? session.branchView : session.user.branch_id;
+      }
+
+      function fillAreas() {
+        var keep = $('area').value;
+        var areas = S.where('storage', function (a) { return scope() === 'all' || a.branch_id === scope(); });
+        $('area').innerHTML = areas.map(function (a) {
+          return '<option value="' + esc(a.id) + '"' + (a.id === keep ? ' selected' : '') + '>' + esc(S.branchName(a.branch_id) + ' · ' + a.name) + '</option>';
+        }).join('');
+      }
+
+      function productsIn(areaId) {
+        return S.where('stock_locations', function (l) { return l.area_id === areaId; })
+          .map(function (l) { return S.get('products', l.product_id); })
+          .filter(Boolean)
+          .sort(function (a, b) { return a.name.localeCompare(b.name); });
+      }
+
+      function diffHtml(d, unitId) {
+        if (d === null) return '<span class="diff-zero">Not counted</span>';
+        if (d === 0) return '<span class="diff-zero">Matches</span>';
+        return '<span class="' + (d > 0 ? 'diff-pos' : 'diff-neg') + '">' + (d > 0 ? '+' : '') + esc(fmt.qty(d, unitId)) + '</span>';
+      }
+
+      // A fresh form per area, so each area keeps its own autosaved draft
+      function render() {
+        CNS.layout.moduleTabs('products', 'counts', session);
+        var area = S.get('storage', $('area').value);
+        var list = productsIn(area.id);
+        $('count-host').innerHTML =
+          '<form id="count-form" novalidate>' +
+            '<p class="result-count" id="summary" aria-live="polite"></p>' +
+            '<div class="table-wrap"><table class="table"><thead><tr>' +
+              '<th scope="col">Code</th><th scope="col">Product</th><th scope="col">Unit</th>' +
+              '<th scope="col" class="num-col">In the system</th><th scope="col" class="num-col">Counted</th><th scope="col" class="num-col">Difference</th>' +
+            '</tr></thead><tbody>' +
+            list.map(function (p) {
+              var sys = S.areaOnHand(p.id, area.id);
+              return '<tr data-id="' + esc(p.id) + '" data-sys="' + sys + '">' +
+                '<td class="nowrap">' + esc(p.code) + '</td>' +
+                '<td><span class="truncate cell-main" title="' + esc(p.name) + '">' + esc(p.name) + '</span></td>' +
+                '<td class="nowrap">' + esc(fmt.unit(p.unit_id, 2)) + '</td>' +
+                '<td class="num-col">' + fmt.number(sys) + '</td>' +
+                '<td class="num-col"><label class="sr-only" for="c-' + esc(p.id) + '">Counted ' + esc(p.name) + '</label>' +
+                  '<input class="input count-input" id="c-' + esc(p.id) + '" name="count_' + esc(p.id) + '" type="number" inputmode="numeric" min="0" step="1"></td>' +
+                '<td class="num-col" data-diff></td></tr>';
+            }).join('') +
+            '</tbody></table></div>' +
+            (list.length ? '' : '<p class="empty-line">No products are kept in this area.</p>') +
+            '<div class="save-bar"><span id="autosave" role="status"></span>' +
+              '<div class="save-bar__actions"><button type="button" class="btn btn--secondary" id="clear-count">Clear counts</button>' +
+              '<button type="submit" class="btn btn--primary">Post count</button></div></div>' +
+          '</form>';
+
+        var form = $('count-form');
+        draft = CNS.autosave.attach(form, { key: 'count-' + area.id, status: $('autosave') });
+        form.addEventListener('input', update);
+        $('clear-count').addEventListener('click', function () {
+          form.reset();
+          draft.clear();
+          update();
+        });
+        form.addEventListener('submit', function (e) { e.preventDefault(); post(area); });
+        update();
+      }
+
+      function rows() {
+        return Array.prototype.map.call(document.querySelectorAll('#count-form tbody tr'), function (tr) {
+          var input = tr.querySelector('input');
+          var v = input.value.trim();
+          var sys = Number(tr.getAttribute('data-sys'));
+          return { tr: tr, input: input, product: S.get('products', tr.getAttribute('data-id')), sys: sys,
+            counted: v === '' ? null : Number(v), valid: v === '' || /^\d+$/.test(v) };
+        });
+      }
+
+      function update() {
+        var all = rows();
+        var counted = 0, differ = 0;
+        all.forEach(function (r) {
+          var d = r.counted === null || !r.valid ? null : r.counted - r.sys;
+          r.tr.querySelector('[data-diff]').innerHTML = r.valid ? diffHtml(d, r.product.unit_id) : '<span class="diff-neg">Whole numbers only</span>';
+          if (r.counted !== null) counted++;
+          if (d) differ++;
+        });
+        $('summary').textContent = counted + ' of ' + all.length + ' products counted · ' + differ + (differ === 1 ? ' difference' : ' differences');
+      }
+
+      function post(area) {
+        var all = rows();
+        var bad = all.filter(function (r) { return !r.valid; })[0];
+        if (bad) { bad.input.focus(); return; }
+        var changes = all.filter(function (r) { return r.counted !== null && r.counted !== r.sys; });
+        var counted = all.filter(function (r) { return r.counted !== null; }).length;
+        if (!counted) {
+          CNS.ui.confirm({ title: 'Nothing counted yet', body: 'Type the counted quantity next to each product you checked.', confirm: 'OK', icon: 'information-circle', alertOnly: true });
+          return;
+        }
+        CNS.ui.confirm({
+          title: 'Post the count for ' + area.name + '?',
+          body: counted + ' products counted. ' + (changes.length ? changes.length + ' will be corrected to match what you counted.' : 'Everything matches; nothing changes.'),
+          confirm: 'Post count', icon: 'clipboard-document-list'
+        }).then(function (ok) {
+          if (!ok) return;
+          var ref = S.nextRef('CNT');
+          changes.forEach(function (r) {
+            var change = r.counted - r.sys;
+            S.insert('stock_movements', {
+              datetime: new Date().toISOString(), product_id: r.product.id, branch_id: area.branch_id, area_id: area.id,
+              type: 'Count', qty_change: change, ref: ref, user_id: session.user.id, reason: 'Physical count'
+            });
+            CNS.history.log({
+              action: 'Stock change', module: MODULE, record_type: 'stock_movements', record_id: ref, field: 'qty_change',
+              old_value: r.product.name + ': ' + fmt.qty(r.sys, r.product.unit_id),
+              new_value: r.product.name + ': ' + fmt.qty(r.counted, r.product.unit_id) + ' (counted)'
+            });
+          });
+          draft.clear();
+          render();
+          CNS.ui.toast(changes.length ? 'Count ' + ref + ' posted: ' + changes.length + ' corrected.' : 'Count posted. Everything matched.');
+        });
+      }
+
+      $('area').addEventListener('change', render);
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        fillAreas();
+        render();
+      });
+
+      fillAreas();
+      render();
+    })();
+  </script>
+</body>
+</html>

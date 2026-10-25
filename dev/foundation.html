@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foundation check · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <style>
+    /* Dev-only page (foundation.md 0.8 acceptance check); not part of the app. */
+    .dev { max-width: 1100px; margin: 0 auto; padding: var(--space-6) var(--space-4); }
+    .dev section { margin-bottom: var(--space-5); }
+    .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); }
+    .swatch { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; font-size: var(--text-caption); }
+    .swatch__chip { height: 48px; }
+    .swatch__meta { padding: var(--space-2); }
+    .swatch__meta code { color: var(--color-text-secondary); }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .stack > * + * { margin-top: var(--space-3); }
+    .dev table { width: 100%; border-collapse: collapse; font-size: var(--text-small); }
+    .dev th, .dev td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border-subtle); }
+    .dev th { color: var(--color-text-secondary); font-weight: 600; }
+    .table-scroll { overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <main id="main" class="dev">
+    <h1 class="page-title">Foundation check</h1>
+    <p class="page-desc">Step 0 acceptance: tokens, components, mock data, history log and autosave.</p>
+
+    <section class="card card--pad" aria-labelledby="colors-title">
+      <h2 class="card__title" id="colors-title">Colors</h2>
+      <div class="swatches" id="swatches"></div>
+    </section>
+
+    <section class="card card--pad stack" aria-labelledby="type-title">
+      <h2 class="card__title" id="type-title">Type (Archivo)</h2>
+      <p style="font-size:var(--text-page-title);font-weight:700;margin:0">Page title 28 bold</p>
+      <p style="font-size:var(--text-kpi);font-weight:700;margin:0">₱128,450.00 KPI 26 bold</p>
+      <p style="font-size:var(--text-card-title);font-weight:700;margin:0">Card title 16 bold</p>
+      <p style="margin:0">Body 16: Common wire nail 2" (box), available −19.</p>
+      <p style="font-size:var(--text-small);color:var(--color-text-secondary);margin:0">Secondary 14</p>
+    </section>
+
+    <section class="card card--pad stack" aria-labelledby="comp-title">
+      <h2 class="card__title" id="comp-title">Components</h2>
+      <div class="row">
+        <button type="button" class="btn btn--primary">Primary</button>
+        <button type="button" class="btn btn--secondary">Secondary</button>
+        <button type="button" class="btn-link">Text button</button>
+      </div>
+      <div class="row" id="badges"></div>
+      <div class="alert" data-tone="error" role="alert">Wrong username or password.</div>
+      <div class="alert" data-tone="success">Saved.</div>
+    </section>
+
+    <section class="card card--pad stack" aria-labelledby="data-title">
+      <h2 class="card__title" id="data-title">Mock data</h2>
+      <p class="page-desc" style="margin:0" id="data-summary"></p>
+      <div class="table-scroll"><table><thead><tr><th scope="col">Table</th><th scope="col">Rows</th></tr></thead><tbody id="data-rows"></tbody></table></div>
+      <div class="row">
+        <button type="button" class="btn btn--secondary" id="reset">Reset demo data</button>
+        <span role="status" id="reset-status"></span>
+      </div>
+    </section>
+
+    <section class="card card--pad stack" aria-labelledby="log-title">
+      <h2 class="card__title" id="log-title">History log (logChange)</h2>
+      <div class="row">
+        <button type="button" class="btn btn--secondary" id="log-test">Write a test entry</button>
+        <span role="status" id="log-status"></span>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th scope="col">Date and time</th><th scope="col">User</th><th scope="col">Action</th><th scope="col">Record</th><th scope="col">Field</th><th scope="col">Old</th><th scope="col">New</th></tr></thead>
+        <tbody id="log-rows"></tbody>
+      </table></div>
+    </section>
+
+    <section class="card card--pad stack" aria-labelledby="auto-title">
+      <h2 class="card__title" id="auto-title">Autosave (test form)</h2>
+      <form id="auto-form" class="stack" novalidate>
+        <div class="field">
+          <label class="label" for="auto-customer">Customer</label>
+          <input class="input" id="auto-customer" name="customer" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="label" for="auto-note">Note</label>
+          <input class="input" id="auto-note" name="note" autocomplete="off">
+        </div>
+      </form>
+      <div class="row">
+        <span id="auto-status" role="status"></span>
+        <button type="button" class="btn-link" id="auto-clear">Clear draft</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script>
+    (function () {
+      var $ = function (id) { return document.getElementById(id); };
+      var esc = CNS.escape;
+
+      // Colors: read straight from tokens.css so this page shows what the app actually uses
+      var css = getComputedStyle(document.documentElement);
+      var tokens = ['bg', 'surface', 'text', 'text-secondary', 'text-muted', 'border', 'border-subtle', 'input-border',
+        'primary', 'primary-hover', 'primary-active', 'success', 'success-bg', 'warning', 'warning-bg',
+        'error', 'error-bg', 'info', 'info-bg', 'sidebar', 'sidebar-text', 'sidebar-muted', 'sidebar-hover',
+        'sidebar-divider', 'chart-bar', 'chart-grid'];
+      $('swatches').innerHTML = tokens.map(function (t) {
+        var v = css.getPropertyValue('--color-' + t).trim();
+        return '<div class="swatch"><div class="swatch__chip" style="background:var(--color-' + t + ')"></div>' +
+          '<div class="swatch__meta"><strong>' + t + '</strong><br><code>' + esc(v) + '</code></div></div>';
+      }).join('');
+
+      $('badges').innerHTML = [
+        ['success', 'check-circle', 'Completed'], ['warning', 'exclamation-triangle', 'Low'],
+        ['info', 'information-circle', 'Backordered −19'], ['error', 'exclamation-circle', 'Overdue'],
+        ['neutral', 'clipboard-document-list', 'Draft']
+      ].map(function (b) {
+        return '<span class="badge badge--' + b[0] + '">' + CNS.icon(b[1]) + b[2] + '</span>';
+      }).join('');
+
+      // Mock data
+      var seed = CNS.seed();
+      var tables = Object.keys(seed).filter(function (k) { return Array.isArray(seed[k]); });
+      function renderData() {
+        $('data-rows').innerHTML = tables.map(function (n) {
+          return '<tr><td>' + n + '</td><td class="num">' + CNS.store.all(n).length + '</td></tr>';
+        }).join('');
+        $('data-summary').textContent = tables.length + ' tables · ' + CNS.store.lowStock('all').length + ' products low on stock (all branches)';
+      }
+      $('reset').addEventListener('click', function () {
+        CNS.store.reset();
+        renderData();
+        renderLog();
+        $('reset-status').textContent = 'Demo data reset.';
+      });
+
+      // History log
+      function renderLog() {
+        var rows = CNS.store.all('history_logs').slice().sort(function (a, b) { return a.datetime < b.datetime ? 1 : -1; }).slice(0, 5);
+        $('log-rows').innerHTML = rows.map(function (h) {
+          var u = h.user_id && CNS.store.get('users', h.user_id);
+          return '<tr><td>' + esc(new Date(h.datetime).toLocaleString('en-PH')) + '</td><td>' + esc(u ? u.full_name : '—') +
+            '</td><td>' + esc(h.action) + '</td><td>' + esc(h.record_type + ' ' + h.record_id) + '</td><td>' + esc(h.field || '—') +
+            '</td><td>' + esc(h.old_value == null ? '—' : h.old_value) + '</td><td>' + esc(h.new_value == null ? '—' : h.new_value) + '</td></tr>';
+        }).join('');
+      }
+      $('log-test').addEventListener('click', function () {
+        var product = CNS.store.all('products')[0];
+        CNS.history.logChange('Products & Inventory', 'products', product.id, 'selling_price', product.selling_price, product.selling_price);
+        renderLog();
+        $('log-status').textContent = 'Entry written.';
+      });
+
+      // Autosave
+      var draft = CNS.autosave.attach($('auto-form'), { key: 'foundation-test', status: $('auto-status') });
+      $('auto-clear').addEventListener('click', function () {
+        $('auto-form').reset();
+        draft.clear();
+      });
+
+      renderData();
+      renderLog();
+    })();
+  </script>
+</body>
+</html>

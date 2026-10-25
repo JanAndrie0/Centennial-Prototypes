@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/login.css">
+</head>
+<body class="login-page">
+  <div class="top-stripe" aria-hidden="true"></div>
+
+  <!-- Stand-in hardware doodles (nail, screw, bolt, nut, washer) until the Figma icons are exported -->
+  <svg class="doodles" aria-hidden="true" focusable="false">
+    <defs>
+      <pattern id="hardware" width="320" height="320" patternUnits="userSpaceOnUse">
+        <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <!-- nail -->
+          <g transform="translate(48 36) rotate(-28)"><path d="M-8 0h16M-2 0v54l2 9 2-9V0"/></g>
+          <!-- screw -->
+          <g transform="translate(160 44) rotate(18)"><path d="M-9 0h18l-5 7h-8zM-4 7v44l4 9 4-9V7M-4 15l8 3M-4 23l8 3M-4 31l8 3M-4 39l8 3M-4 47l8 3"/></g>
+          <!-- hex nut -->
+          <g transform="translate(268 72)"><polygon points="15,0 7.5,13 -7.5,13 -15,0 -7.5,-13 7.5,-13"/><circle r="6.5"/></g>
+          <!-- washer -->
+          <g transform="translate(70 206)"><circle r="16"/><circle r="6.5"/></g>
+          <!-- bolt -->
+          <g transform="translate(196 196) rotate(-16)"><path d="M-11 0h22v9h-22zM-5 9v52h10V9M-5 31h10M-5 37h10M-5 43h10M-5 49h10M-5 55h10"/></g>
+          <!-- small nail -->
+          <g transform="translate(292 228) rotate(38)"><path d="M-6 0h12M-1.5 0v40l1.5 7 1.5-7V0"/></g>
+        </g>
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#hardware)"/>
+  </svg>
+
+  <main class="login">
+    <header class="login__intro">
+      <p class="login__company">Centennial Nail and Screw Construction Corporation</p>
+      <h1 class="login__system">Web-Based Sales and Inventory Management System</h1>
+    </header>
+
+    <section class="card login__card" aria-labelledby="login-title">
+      <img class="logo" src="assets/img/logo.jpg" width="1600" height="310"
+           alt="Centennial N&amp;S Construction Corporation">
+
+      <h2 class="login__title" id="login-title">Log in</h2>
+      <p class="login__lede">Use the username and password from your Office Manager.</p>
+
+      <div class="alert" id="form-alert" aria-live="polite"></div>
+
+      <form id="login-form" aria-labelledby="login-title" novalidate>
+        <div class="field">
+          <label class="label" for="username">Username</label>
+          <input class="input" id="username" name="username" type="text"
+                 autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"
+                 required aria-describedby="username-error">
+          <p class="field-error" id="username-error"></p>
+        </div>
+
+        <div class="field">
+          <div class="label-row">
+            <label class="label" for="password">Password</label>
+            <button type="button" class="btn-link" id="forgot-toggle"
+                    aria-haspopup="dialog" aria-controls="forgot-dialog">Forgot password?</button>
+          </div>
+          <div class="input-group">
+            <input class="input" id="password" name="password" type="password"
+                   autocomplete="current-password" required
+                   aria-describedby="form-alert password-error">
+            <button type="button" class="input-action" id="toggle-password"
+                    aria-controls="password" aria-label="Show password">
+              <!-- Heroicons outline: eye / eye-slash -->
+              <svg class="icon icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+              </svg>
+              <svg class="icon icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/>
+              </svg>
+              <span id="toggle-text">Show</span>
+            </button>
+          </div>
+          <p class="notice notice--warning" id="caps-hint" hidden>
+            <!-- Heroicons outline: exclamation-triangle -->
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+            </svg>
+            Caps Lock is on
+          </p>
+          <p class="field-error" id="password-error"></p>
+        </div>
+
+        <button type="submit" class="btn btn--primary btn--block login__submit" id="submit">
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="submit-label">Log in</span>
+        </button>
+      </form>
+
+      <p class="shared-note">
+        <span class="shared-note__computer">
+          <!-- Heroicons outline: computer-desktop -->
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25"/>
+          </svg>
+          On a shared computer? Log out when you're done.
+        </span>
+        <span class="shared-note__phone">
+          <!-- Heroicons outline: device-phone-mobile -->
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3"/>
+          </svg>
+          On a shared phone? Log out when you're done.
+        </span>
+      </p>
+    </section>
+
+    <!-- Prototype only: demo accounts for the review sessions -->
+    <details class="demo">
+      <summary>Demo: log in as…</summary>
+      <div class="demo__body">
+        <div class="demo__users">
+          <button type="button" class="btn btn--secondary" data-demo-user="ceo">CEO</button>
+          <button type="button" class="btn btn--secondary" data-demo-user="officemgr">Office Manager</button>
+          <button type="button" class="btn btn--secondary" data-demo-user="supervisor">Sales Supervisor</button>
+          <button type="button" class="btn btn--secondary" data-demo-user="warehouse">Administrative / Warehouse Staff</button>
+          <button type="button" class="btn btn--secondary" data-demo-user="agent">Sales Agent</button>
+        </div>
+        <p>Or type a username (<code>ceo</code>, <code>officemgr</code>, <code>supervisor</code>, <code>warehouse</code>, <code>agent</code>) with the password <code>centennial</code>. Use <code>locked</code> for the locked state or <code>offline</code> for a connection error.</p>
+      </div>
+    </details>
+  </main>
+
+  <footer class="login-footer">© 2026 Centennial Nail and Screw Construction Corporation</footer>
+
+  <dialog class="modal" id="forgot-dialog" aria-labelledby="forgot-title" aria-describedby="forgot-body">
+    <!-- Heroicons outline: information-circle -->
+    <svg class="icon modal__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+      <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/>
+    </svg>
+    <h2 class="modal__title" id="forgot-title">Forgot your password?</h2>
+    <p class="modal__body" id="forgot-body">Ask your Office Manager to reset it. There's no email reset.</p>
+    <form method="dialog">
+      <button type="submit" class="btn btn--primary btn--block" autofocus>OK</button>
+    </form>
+  </dialog>
+
+  <div class="sr-only" id="sr-status" aria-live="polite"></div>
+
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/format.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/history.js"></script>
+  <script src="assets/js/auth.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      // Sign-in is mocked in assets/js/auth.js (demo password, "locked", "offline").
+      var DEMO_PASSWORD = CNS.auth.DEMO_PASSWORD;
+      var MESSAGES = {
+        INVALID: 'Wrong username or password.',
+        LOCKED: 'Too many tries. Ask your Office Manager to unlock your account.',
+        NETWORK: 'Can’t reach the server. Check your connection and try again.'
+      };
+      var EMPTY_MESSAGES = {
+        username: 'Enter your username.',
+        password: 'Enter your password.'
+      };
+
+      var form = document.getElementById('login-form');
+      var username = document.getElementById('username');
+      var password = document.getElementById('password');
+      var toggle = document.getElementById('toggle-password');
+      var toggleText = document.getElementById('toggle-text');
+      var forgotToggle = document.getElementById('forgot-toggle');
+      var forgotDialog = document.getElementById('forgot-dialog');
+      var capsHint = document.getElementById('caps-hint');
+      var alertBox = document.getElementById('form-alert');
+      var submit = document.getElementById('submit');
+      var submitLabel = document.getElementById('submit-label');
+      var srStatus = document.getElementById('sr-status');
+      var busy = false;
+      var announceTimer = null;
+      var edited = { username: false, password: false };
+
+      // Screen-reader-only announcements for changes that happen away from focus.
+      // The short delay lets a repeated message be read again.
+      function announce(message) {
+        clearAnnouncement();
+        announceTimer = setTimeout(function () { srStatus.textContent = message; }, 50);
+      }
+
+      function clearAnnouncement() {
+        clearTimeout(announceTimer);
+        srStatus.textContent = '';
+      }
+
+      function setFieldError(input, message) {
+        document.getElementById(input.id + '-error').textContent = message;
+        input.setAttribute('aria-invalid', message ? 'true' : 'false');
+      }
+
+      function showAlert(tone, message) {
+        alertBox.dataset.tone = tone;
+        alertBox.textContent = message;
+      }
+
+      function clearAlert() {
+        alertBox.textContent = '';
+        delete alertBox.dataset.tone;
+      }
+
+      function lockForm(on) {
+        submit.setAttribute('aria-disabled', String(on));
+        toggle.disabled = on;
+        username.readOnly = on;
+        password.readOnly = on;
+      }
+
+      function setLoading(on) {
+        busy = on;
+        form.classList.toggle('is-loading', on);
+        form.setAttribute('aria-busy', String(on));
+        if (!on) clearAnnouncement();
+      }
+
+      function setPasswordVisible(show) {
+        password.type = show ? 'text' : 'password';
+        toggleText.textContent = show ? 'Hide' : 'Show';
+        toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        toggle.classList.toggle('is-shown', show);
+      }
+
+      // Move focus to the field so its error is read; if it's already there, announce instead.
+      function focusWithMessage(input, message) {
+        if (document.activeElement === input) announce(message);
+        else input.focus();
+      }
+
+      function shake() {
+        form.classList.remove('is-shaking');
+        void form.offsetWidth; // restart the animation if it's already running
+        form.classList.add('is-shaking');
+      }
+
+      form.addEventListener('animationend', function (event) {
+        if (event.animationName === 'shake') form.classList.remove('is-shaking');
+      });
+
+      toggle.addEventListener('click', function () {
+        setPasswordVisible(password.type === 'password');
+      });
+
+      // Native <dialog>: showModal() makes the page behind it inert and Escape closes it.
+      forgotToggle.addEventListener('click', function () {
+        forgotDialog.showModal();
+      });
+
+      // Clicking the dimmed backdrop (the dialog element itself, outside its content) also closes it.
+      forgotDialog.addEventListener('click', function (event) {
+        if (event.target === forgotDialog) forgotDialog.close();
+      });
+
+      // Return focus to the link that opened it, whichever way it was closed.
+      forgotDialog.addEventListener('close', function () {
+        forgotToggle.focus();
+      });
+
+      // Prototype only: fill a demo account and log in with one click.
+      Array.prototype.forEach.call(document.querySelectorAll('[data-demo-user]'), function (button) {
+        button.addEventListener('click', function () {
+          if (busy || form.classList.contains('is-success')) return;
+          username.value = button.getAttribute('data-demo-user');
+          password.value = DEMO_PASSWORD;
+          setFieldError(username, '');
+          setFieldError(password, '');
+          form.requestSubmit();
+        });
+      });
+
+      function updateCapsHint(event) {
+        if (typeof event.getModifierState !== 'function') return;
+        var on = event.getModifierState('CapsLock');
+        if (on && capsHint.hidden) announce('Caps Lock is on');
+        capsHint.hidden = !on;
+      }
+
+      password.addEventListener('keydown', updateCapsHint);
+      password.addEventListener('keyup', updateCapsHint);
+      password.addEventListener('blur', function () { capsHint.hidden = true; });
+
+      function isEmpty(input) {
+        return input === username ? !input.value.trim() : !input.value;
+      }
+
+      [username, password].forEach(function (input) {
+        input.addEventListener('input', function () {
+          edited[input.id] = true;
+          if (input.getAttribute('aria-invalid') === 'true') setFieldError(input, '');
+          if (alertBox.dataset.tone === 'error') clearAlert();
+        });
+        // Flag a field the user typed in and then left empty; untouched fields wait for submit.
+        // Moving to the Show button doesn't count as leaving the password field.
+        input.addEventListener('blur', function (event) {
+          if (event.relatedTarget === toggle) return;
+          if (edited[input.id] && !busy && isEmpty(input) && input.getAttribute('aria-invalid') !== 'true') {
+            setFieldError(input, EMPTY_MESSAGES[input.id]);
+            announce(EMPTY_MESSAGES[input.id]);
+          }
+        });
+      });
+
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (busy || form.classList.contains('is-success')) return;
+
+        clearAlert();
+        var user = username.value.trim().toLowerCase();
+        var pass = password.value;
+
+        setFieldError(username, user ? '' : EMPTY_MESSAGES.username);
+        setFieldError(password, pass ? '' : EMPTY_MESSAGES.password);
+        if (!user || !pass) {
+          var target = user ? password : username;
+          focusWithMessage(target, EMPTY_MESSAGES[target.id]);
+          shake();
+          return;
+        }
+
+        lockForm(true);
+        setLoading(true);
+        submitLabel.textContent = 'Logging in…';
+        announce('Logging in…');
+        CNS.auth.login(user, pass).then(function (account) {
+          setLoading(false);
+          setPasswordVisible(false); // never leave a password on screen after login
+          form.classList.add('is-success');
+          submitLabel.textContent = 'Logged in';
+          showAlert('success', 'Welcome, ' + account.full_name + '. Opening your home screen…');
+          // auth.login() already wrote the Login entry to the History Log; now go to the role's home.
+          setTimeout(function () { location.assign(CNS.auth.home(account)); }, 700);
+        }).catch(function (err) {
+          setLoading(false);
+          lockForm(false);
+          submitLabel.textContent = 'Log in';
+          var code = MESSAGES[err && err.code] ? err.code : 'NETWORK';
+          shake();
+          // Keep the password on a connection error so the user can just retry.
+          if (code !== 'NETWORK') {
+            password.value = '';
+            edited.password = false; // cleared by the page, not the user
+          }
+          if (code === 'INVALID') {
+            // Wrong username or password shows under the field, per the Figma error state.
+            setFieldError(password, MESSAGES.INVALID);
+            focusWithMessage(password, MESSAGES.INVALID);
+          } else {
+            showAlert('error', MESSAGES[code]);
+            password.focus();
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

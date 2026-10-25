@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My account · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .account-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-5); max-width: 1000px; align-items: start; }
+    .form-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .check { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--tap); margin-bottom: var(--space-3); font-weight: 500; cursor: pointer; }
+    .check input { width: 20px; height: 20px; accent-color: var(--color-primary); }
+  </style>
+</head>
+<body>
+  <!-- 1.2 Maintain User Accounts: the CEO maintains their own account (user decision, Oct 25) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">User Accounts &amp; History Log</a></li><li><span aria-current="page">My account</span></li></ol>
+    </nav>
+    <nav aria-label="User Accounts and History Log">
+      <ul class="tabs">
+        <li><a href="list.html" id="tab-users"></a></li>
+        <li><a href="history-log.html" id="tab-history"></a></li>
+        <li><a href="account.html" aria-current="page" id="tab-account"></a></li>
+      </ul>
+    </nav>
+
+    <h1 class="page-title">My account</h1>
+    <p class="page-desc">Your name, username and password. Only you can change them.</p>
+
+    <div class="account-grid">
+      <section class="card card--pad" aria-labelledby="details-title">
+        <h2 class="card__title" id="details-title">Account details</h2>
+        <form id="details" novalidate>
+          <div class="field">
+            <label class="label" for="a-name">Full name</label>
+            <input class="input" id="a-name" name="full_name" autocomplete="name" aria-describedby="a-name-error">
+            <p class="field-error" id="a-name-error"></p>
+          </div>
+          <div class="field">
+            <label class="label" for="a-username">Username</label>
+            <input class="input" id="a-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="a-username-error">
+            <p class="field-error" id="a-username-error"></p>
+          </div>
+          <div class="field">
+            <span class="label">Role</span>
+            <div class="static-value" id="a-role"></div>
+          </div>
+          <div class="field">
+            <span class="label">Branch</span>
+            <div class="static-value" id="a-branch"></div>
+          </div>
+          <div class="form-actions">
+            <span id="a-autosave" role="status"></span>
+            <button type="submit" class="btn btn--primary">Save changes</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card card--pad" aria-labelledby="pw-title">
+        <h2 class="card__title" id="pw-title">Change password</h2>
+        <form id="password" novalidate>
+          <!-- Hidden username helps password managers match the account -->
+          <input type="text" name="username" autocomplete="username" id="pw-user" hidden>
+          <div class="field">
+            <label class="label" for="pw-current">Current password</label>
+            <input class="input" id="pw-current" type="password" autocomplete="current-password" aria-describedby="pw-current-error">
+            <p class="field-error" id="pw-current-error"></p>
+          </div>
+          <div class="field">
+            <label class="label" for="pw-new">New password</label>
+            <input class="input" id="pw-new" type="password" autocomplete="new-password" aria-describedby="pw-new-error">
+            <p class="field-error" id="pw-new-error"></p>
+          </div>
+          <div class="field">
+            <label class="label" for="pw-confirm">Type the new password again</label>
+            <input class="input" id="pw-confirm" type="password" autocomplete="new-password" aria-describedby="pw-confirm-error">
+            <p class="field-error" id="pw-confirm-error"></p>
+          </div>
+          <label class="check"><input type="checkbox" id="pw-show"> Show passwords</label>
+          <div class="form-actions">
+            <span></span>
+            <button type="submit" class="btn btn--secondary" id="pw-submit"></button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      var session = CNS.layout.desktop({ active: 'account', roles: [R.CEO] });
+      if (!session) return;
+
+      var $ = function (id) { return document.getElementById(id); };
+      var MODULE = 'User Accounts & History Log';
+      var me = session.user;
+
+      $('tab-users').innerHTML = CNS.icon('user-group') + 'User Accounts';
+      $('tab-history').innerHTML = CNS.icon('clipboard-document-list') + 'History Log';
+      $('tab-account').innerHTML = CNS.icon('user-circle') + 'My account';
+      $('pw-submit').innerHTML = CNS.icon('key') + 'Change password';
+      $('a-role').innerHTML = CNS.icon('lock-closed') + CNS.escape(me.role);
+      $('a-branch').innerHTML = CNS.icon('building-office-2') + 'All branches · based at ' + CNS.escape(CNS.store.branchName(me.branch_id));
+
+      function setError(id, message) {
+        $(id + '-error').textContent = message || '';
+        if (message) $(id).setAttribute('aria-invalid', 'true');
+        else $(id).removeAttribute('aria-invalid');
+        return !message;
+      }
+
+      // ---- Account details (autosaved draft until saved) ----
+      $('a-name').value = me.full_name;
+      $('a-username').value = me.username;
+      $('pw-user').value = me.username;
+      var draft = CNS.autosave.attach($('details'), { key: 'my-account-' + me.id, status: $('a-autosave') });
+
+      $('details').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var name = $('a-name').value.trim().replace(/\s+/g, ' ');
+        var username = $('a-username').value.trim().toLowerCase();
+        var taken = CNS.store.where('users', function (u) { return u.username === username && u.id !== me.id; }).length;
+        var ok = [
+          setError('a-name', name ? '' : 'Enter your full name.'),
+          setError('a-username', !username ? 'Enter a username.'
+            : !/^[a-z0-9.]{3,20}$/.test(username) ? 'Use 3 to 20 lowercase letters, numbers or dots.'
+            : taken ? 'This username is taken.' : '')
+        ];
+        if (ok.indexOf(false) >= 0) {
+          $('details').querySelector('[aria-invalid="true"]').focus();
+          return;
+        }
+
+        var changes = {};
+        if (name !== me.full_name) changes.full_name = name;
+        if (username !== me.username) changes.username = username;
+        var old = CNS.store.update('users', me.id, changes);
+        Object.keys(changes).forEach(function (k) {
+          CNS.history.logChange(MODULE, 'users', me.id, k, old[k], changes[k]);
+        });
+        me = CNS.store.get('users', me.id);
+        draft.clear();
+        $('a-name').value = me.full_name;
+        $('a-username').value = me.username;
+        $('pw-user').value = me.username;
+        document.querySelector('.app-sidebar__name').textContent = me.full_name;
+        CNS.ui.toast(Object.keys(changes).length ? 'Your account is saved.' : 'No changes to save.');
+      });
+
+      // ---- Change password ----
+      $('pw-show').addEventListener('change', function () {
+        ['pw-current', 'pw-new', 'pw-confirm'].forEach(function (id) { $(id).type = $('pw-show').checked ? 'text' : 'password'; });
+      });
+
+      $('password').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var current = $('pw-current').value;
+        var next = $('pw-new').value;
+        var again = $('pw-confirm').value;
+        var ok = [
+          setError('pw-current', !current ? 'Enter your current password.'
+            : !CNS.auth.checkPassword(me, current) ? 'That isn\'t your current password.' : ''),
+          setError('pw-new', next.length < 6 ? 'Use at least 6 characters.'
+            : next === current ? 'Choose a password different from the current one.' : ''),
+          setError('pw-confirm', again !== next ? 'The two new passwords don\'t match.' : '')
+        ];
+        if (ok.indexOf(false) >= 0) {
+          $('password').querySelector('[aria-invalid="true"]').focus();
+          return;
+        }
+        CNS.store.update('users', me.id, { password: next });
+        // Never write a password into the history; only that it changed
+        CNS.history.log({ action: 'Edit', module: MODULE, record_type: 'users', record_id: me.id, field: 'password', new_value: 'Password changed' });
+        me = CNS.store.get('users', me.id);
+        $('password').reset();
+        ['pw-current', 'pw-new', 'pw-confirm'].forEach(function (id) { $(id).type = 'password'; });
+        CNS.ui.toast('Password changed. Use it the next time you log in.');
+      });
+    })();
+  </script>
+</body>
+</html>

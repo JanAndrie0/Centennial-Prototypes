@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .confirm-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: var(--space-4) 0; padding: var(--space-4); text-decoration: none; color: var(--color-info); background: var(--color-info-bg); border: 1px solid var(--color-info); border-radius: var(--radius-lg); font-weight: 700; }
+    .confirm-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .section-title { margin: var(--space-5) 0 var(--space-2); font-size: 18px; font-weight: 700; }
+    .order-cards { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+    .order-card { padding: var(--space-3) var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+    .order-card__top { display: flex; justify-content: space-between; gap: var(--space-2); align-items: center; }
+    .order-card__store { margin: 4px 0 0; font-weight: 700; }
+    .order-card__meta { margin: 2px 0 0; color: var(--color-text-secondary); font-size: var(--text-small); }
+  </style>
+</head>
+<body>
+  <!-- Sales Agent home: my orders by status and a quick New order button (02 plan step 7; the full agent dashboard comes last) -->
+  <main id="main">
+    <h1 class="page-title" id="greeting">Home</h1>
+    <p class="page-desc">Your orders and deliveries.</p>
+    <a class="btn btn--primary btn--block" href="new-order.html" id="new-order"></a>
+    <a class="confirm-card" href="deliveries.html" id="confirm-card" hidden></a>
+    <div id="groups"></div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.mobile({ active: 'home' });
+      if (!session) return;
+      var S = CNS.store, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+
+      $('greeting').textContent = 'Hello, ' + me.full_name.split(' ')[0];
+      $('new-order').innerHTML = CNS.icon('plus-circle') + 'New order';
+
+      var mine = S.where('sales_orders', function (o) { return o.agent_id === me.id; })
+        .sort(function (a, b) { return a.order_date < b.order_date ? 1 : -1; });
+      var toConfirm = mine.filter(function (o) { return o.status === 'Shipped'; }).length;
+      if (toConfirm) {
+        $('confirm-card').hidden = false;
+        $('confirm-card').innerHTML = '<span>' + CNS.icon('arrow-down-tray') + ' ' + toConfirm + (toConfirm === 1 ? ' delivery' : ' deliveries') + ' to confirm</span>' + CNS.icon('chevron-right');
+      }
+
+      // Most actionable first; finished orders last and only the recent ones
+      var GROUPS = [
+        ['Drafts and sent back', ['Draft']],
+        ['Waiting for approval', ['For approval']],
+        ['Approved, being prepared', ['Approved', 'For delivery']],
+        ['On the way', ['Shipped']],
+        ['Done recently', ['Completed', 'Rejected']]
+      ];
+      $('groups').innerHTML = GROUPS.map(function (g) {
+        var list = mine.filter(function (o) { return g[1].indexOf(o.status) >= 0; });
+        if (g[0] === 'Done recently') list = list.slice(0, 5);
+        if (!list.length) return '';
+        return '<h2 class="section-title">' + esc(g[0]) + ' (' + list.length + ')</h2><ul class="order-cards">' + list.map(function (o) {
+          var c = S.get('clients', o.client_id);
+          return '<li class="order-card"><div class="order-card__top"><strong>' + esc(o.order_no) + '</strong>' + CNS.ui.orderBadge(o.status) + '</div>' +
+            '<p class="order-card__store">' + esc(c ? c.store_name : '') + '</p>' +
+            '<p class="order-card__meta">' + esc(fmt.money(S.orderTotal(o.id)) + ' · Delivery ' + fmt.date(o.delivery_date)) + '</p>' +
+            (o.internal_note && (o.status === 'Rejected' || o.status === 'Draft') ? '<p class="order-card__meta">' + esc(o.internal_note) + '</p>' : '') + '</li>';
+        }).join('') + '</ul>';
+      }).join('') || '<div class="card empty"><p class="empty__title">No orders yet.</p><p class="empty__text">Tap New order to send your first one.</p></div>';
+    })();
+  </script>
+</body>
+</html>

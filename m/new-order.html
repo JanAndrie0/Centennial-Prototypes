@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New order · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .step { margin-bottom: var(--space-4); }
+    .step-title { margin: 0 0 var(--space-3); font-size: 18px; font-weight: 700; }
+    .cust-card { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-3); margin: 0; padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
+    .cust-card dt { font-size: var(--text-small); color: var(--color-text-secondary); }
+    .cust-card dd { margin: 0; font-weight: 700; }
+    .cust-card .is-bad { color: var(--color-error); }
+    .cust-card .is-warn { color: var(--color-warning); }
+    .slip-thumb { display: block; width: 100%; max-height: 220px; object-fit: cover; margin-bottom: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .m-lines { display: grid; gap: var(--space-3); margin: 0 0 var(--space-3); padding: 0; list-style: none; }
+    .m-line { padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .m-line__row { display: flex; align-items: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+    .m-line__row .field { margin: 0; }
+    .m-line__qty .input { width: 110px; text-align: right; }
+    .m-line__amount { flex: 1; text-align: right; font-weight: 700; padding-bottom: 12px; }
+    .total-line { display: flex; justify-content: space-between; font-size: 18px; font-weight: 700; margin-bottom: var(--space-3); }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+    #warnings ul { margin: 0; padding-left: var(--space-5); }
+  </style>
+</head>
+<body>
+  <!-- 2.1 Record Sales Order: the agent order form with the order slip photo (2.2 warnings, never blocks) -->
+  <main id="main">
+    <h1 class="page-title">New order</h1>
+    <p class="page-desc">Store, slip photo, products, then send.</p>
+
+    <form id="form" novalidate>
+      <section class="card card--pad step" aria-labelledby="t1">
+        <h2 class="step-title" id="t1">1 · Store</h2>
+        <div class="field">
+          <label class="label" for="customer">Your store</label>
+          <select class="input" id="customer" name="customer" aria-describedby="customer-error"><option value="">Choose a store</option></select>
+          <p class="field-error" id="customer-error"></p>
+        </div>
+        <dl class="cust-card" id="cust-card" hidden></dl>
+      </section>
+
+      <section class="card card--pad step" aria-labelledby="t2">
+        <h2 class="step-title" id="t2">2 · Order slip photo</h2>
+        <img class="slip-thumb" id="slip-thumb" alt="Order slip" hidden>
+        <input type="hidden" name="slip_photo" id="slip-photo">
+        <div class="btn-row">
+          <label class="btn btn--secondary" for="slip-file" id="slip-label"></label>
+          <button type="button" class="btn btn--secondary" id="read-ai"></button>
+        </div>
+        <input class="file-input" type="file" id="slip-file" accept="image/*" capture="environment">
+        <p class="field-error" id="slip-error"></p>
+      </section>
+
+      <section class="card card--pad step" aria-labelledby="t3">
+        <h2 class="step-title" id="t3">3 · Products</h2>
+        <datalist id="products-list"></datalist>
+        <ul class="m-lines" id="lines"></ul>
+        <button type="button" class="btn btn--secondary btn--block" id="add-line"></button>
+      </section>
+
+      <section class="card card--pad step" aria-labelledby="t4">
+        <h2 class="step-title" id="t4">4 · Delivery</h2>
+        <div class="field">
+          <label class="label" for="delivery">Delivery date</label>
+          <input class="input" type="date" id="delivery" name="delivery_date">
+        </div>
+        <div class="field">
+          <label class="label" for="note">Note to the office <span class="main-tag">(optional)</span></label>
+          <input class="input" id="note" name="internal_note" autocomplete="off">
+        </div>
+      </section>
+
+      <div class="total-line"><span>Total</span><span id="total"></span></div>
+      <div class="alert" id="warnings" data-tone="warning" role="status"></div>
+
+      <div class="save-bar">
+        <span id="autosave" role="status" class="sr-only"></span>
+        <button type="submit" class="btn btn--primary" id="send"></button>
+      </div>
+    </form>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script src="../assets/js/slip-reader.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.mobile({ active: 'new-order' });
+      if (!session) return;
+      var S = CNS.store, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var MODULE = 'Sales Orders & Deliveries';
+      var DRAFT_KEY = 'm-order-new';
+
+      $('slip-label').innerHTML = CNS.icon('arrow-up-circle') + 'Take photo';
+      $('read-ai').innerHTML = CNS.icon('clipboard-document-list') + 'Read with AI';
+      $('add-line').innerHTML = CNS.icon('plus-circle') + 'Add product';
+      $('send').innerHTML = CNS.icon('check') + 'Send for approval';
+
+      // The agent's own stores
+      var stores = S.where('clients', function (c) { return c.agent_id === me.id; }).sort(function (a, b) { return a.store_name.localeCompare(b.store_name); });
+      stores.forEach(function (c) { $('customer').insertAdjacentHTML('beforeend', '<option value="' + esc(c.id) + '">' + esc(c.store_name) + '</option>'); });
+      var products = S.all('products').slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+      $('products-list').innerHTML = products.map(function (p) { return '<option value="' + esc(p.name) + '">'; }).join('');
+      function productFrom(v) {
+        v = (v || '').trim().toLowerCase();
+        return v ? products.filter(function (p) { return p.name.toLowerCase() === v || p.code.toLowerCase() === v; })[0] || null : null;
+      }
+
+      var seq = 0;
+      function addLine(data, focus) {
+        var n = seq++;
+        var li = document.createElement('li');
+        li.className = 'm-line';
+        li.innerHTML =
+          '<div class="field" style="margin:0"><label class="label" for="lp-' + n + '">Product</label>' +
+            '<input class="input" id="lp-' + n + '" name="line_product_' + n + '" list="products-list" autocomplete="off" placeholder="Type the product"></div>' +
+          '<div data-warn></div>' +
+          '<div class="m-line__row"><div class="field m-line__qty"><label class="label" for="lq-' + n + '">Qty <span data-unit class="main-tag"></span></label>' +
+            '<input class="input" id="lq-' + n + '" name="line_qty_' + n + '" type="number" inputmode="numeric" min="1" step="1"></div>' +
+            '<span class="m-line__amount" data-amount></span>' +
+            '<button type="button" class="btn btn--secondary" data-remove>' + CNS.icon('x-mark') + '<span class="sr-only">Remove product</span></button></div>';
+        $('lines').appendChild(li);
+        if (data) {
+          var p = S.get('products', data.product_id);
+          li.querySelector('[name^=line_product]').value = p ? p.name : '';
+          li.querySelector('[name^=line_qty]').value = data.qty;
+        }
+        if (focus) li.querySelector('input').focus();
+      }
+      function readLines() {
+        return Array.prototype.map.call($('lines').children, function (li) {
+          var q = Number(li.querySelector('[name^=line_qty]').value);
+          return { li: li, product: productFrom(li.querySelector('[name^=line_product]').value), qty: q > 0 ? Math.round(q) : 0, typed: li.querySelector('[name^=line_product]').value.trim() };
+        });
+      }
+
+      function update() {
+        var c = S.get('clients', $('customer').value);
+        var lines = readLines(), total = 0, per = {}, back = 0, low = 0;
+        lines.forEach(function (l) { if (l.product) per[l.product.id] = (per[l.product.id] || 0) + l.qty; });
+        lines.forEach(function (l) {
+          var p = l.product, w = [];
+          l.li.querySelector('[data-remove]').hidden = lines.length === 1;
+          l.li.querySelector('[data-unit]').textContent = p ? '(' + fmt.unit(p.unit_id, 2) + ')' : '';
+          l.li.querySelector('[data-amount]').textContent = p && l.qty ? fmt.money(l.qty * p.selling_price) : '';
+          if (p && l.qty) {
+            total += l.qty * p.selling_price;
+            var after = S.available(p.id, me.branch_id) - per[p.id];
+            if (after < 0) { back++; w.push('<p class="line-warn line-warn--info">' + CNS.icon('information-circle') + 'Backordered: ' + esc(fmt.qty(Math.min(l.qty, -after), p.unit_id)) + ' will come from the supplier.</p>'); }
+            if (l.qty < p.min_order_qty) { low++; w.push('<p class="line-warn line-warn--warning">' + CNS.icon('exclamation-triangle') + 'Below minimum (' + esc(fmt.qty(p.min_order_qty, p.unit_id)) + ').</p>'); }
+          } else if (l.typed && !p) w.push('<p class="line-warn line-warn--warning">' + CNS.icon('exclamation-triangle') + 'Pick a product from the list.</p>');
+          l.li.querySelector('[data-warn]').innerHTML = w.join('');
+        });
+        $('total').textContent = fmt.money(total);
+
+        var over = 0;
+        $('cust-card').hidden = !c;
+        if (c) {
+          var bal = S.clientBalance(c.id), od = S.clientOverdue(c.id);
+          over = Math.max(0, bal + total - c.credit_limit);
+          $('cust-card').innerHTML = '<div><dt>Balance</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
+            '<div><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
+            '<div><dt>Overdue</dt><dd' + (od ? ' class="is-bad"' : '') + '>' + esc(fmt.money(od)) + '</dd></div>' +
+            '<div><dt>Credit left</dt><dd' + (over ? ' class="is-warn"' : '') + '>' + esc(over ? 'Over by ' + fmt.money(over) : fmt.money(c.credit_limit - bal - total)) + '</dd></div>';
+        }
+        var items = [];
+        if (over) items.push('Over credit limit by ' + fmt.money(over) + '. The office still reviews it.');
+        if (back) items.push(back + ' backordered. The order still goes through.');
+        if (low) items.push(low + ' below the minimum order.');
+        $('warnings').innerHTML = items.length ? '<ul>' + items.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : '';
+      }
+
+      $('lines').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-remove]');
+        if (!b) return;
+        b.closest('li').remove();
+        update();
+        $('form').dispatchEvent(new Event('input'));
+      });
+      $('add-line').addEventListener('click', function () { addLine(null, true); update(); });
+
+      // Slip photo (required for agent orders), shrunk for storage
+      function showSlip(v) {
+        $('slip-photo').value = v || '';
+        $('slip-thumb').hidden = !v;
+        if (v) $('slip-thumb').src = v;
+        $('slip-label').innerHTML = CNS.icon('arrow-up-circle') + (v ? 'Retake photo' : 'Take photo');
+      }
+      $('slip-file').addEventListener('change', function () {
+        var file = this.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          var img = new Image();
+          img.onload = function () {
+            var scale = Math.min(1, 900 / Math.max(img.width, img.height));
+            var cv = document.createElement('canvas');
+            cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+            cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+            showSlip(cv.toDataURL('image/jpeg', 0.7));
+            $('slip-error').textContent = '';
+            $('form').dispatchEvent(new Event('input'));
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+      $('read-ai').addEventListener('click', function () {
+        CNS.slipReader.open({ onAdd: function (found) {
+          found.forEach(function (l) {
+            var empty = readLines().filter(function (x) { return !x.typed; })[0];
+            if (empty) {
+              empty.li.querySelector('[name^=line_product]').value = S.get('products', l.product_id).name;
+              empty.li.querySelector('[name^=line_qty]').value = l.qty;
+            } else addLine(l, false);
+          });
+          update();
+          $('form').dispatchEvent(new Event('input'));
+          CNS.ui.toast(found.length + ' added from the slip. Check them before sending.');
+        } });
+      });
+
+      // Defaults, draft, autosave
+      var nw = new Date(); nw.setDate(nw.getDate() + 7);
+      $('delivery').value = nw.getFullYear() + '-' + String(nw.getMonth() + 1).padStart(2, '0') + '-' + String(nw.getDate()).padStart(2, '0');
+      var draftLines = 0;
+      try {
+        var d = JSON.parse(localStorage.getItem('centennial-draft:' + DRAFT_KEY));
+        if (d && d.data) draftLines = Object.keys(d.data).filter(function (k) { return k.indexOf('line_product_') === 0; }).length;
+      } catch (e) { /* no draft */ }
+      for (var i = 0; i < Math.max(1, draftLines); i++) addLine(null, false);
+      var draft = CNS.autosave.attach($('form'), { key: DRAFT_KEY, status: $('autosave') });
+      if ($('slip-photo').value) showSlip($('slip-photo').value);
+      $('form').addEventListener('input', update);
+      $('form').addEventListener('change', update);
+      update();
+
+      $('form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var c = S.get('clients', $('customer').value);
+        var lines = readLines().filter(function (l) { return l.product && l.qty; });
+        var unmatched = readLines().some(function (l) { return l.typed && !l.product; });
+        $('customer-error').textContent = c ? '' : 'Choose the store.';
+        $('slip-error').textContent = $('slip-photo').value ? '' : 'Take a photo of the order slip.';
+        if (!c) { $('customer').focus(); return; }
+        if (!$('slip-photo').value) { $('slip-label').focus(); return; }
+        if (!lines.length || unmatched) {
+          CNS.ui.confirm({ title: unmatched ? 'Pick each product from the list' : 'Add a product', body: unmatched ? 'One product isn\'t matched yet.' : 'Add at least one product with a quantity.', confirm: 'OK', icon: 'information-circle', alertOnly: true });
+          return;
+        }
+        var max = 0;
+        S.all('sales_orders').forEach(function (x) { var m = /(\d+)$/.exec(x.order_no); if (m) max = Math.max(max, Number(m[1])); });
+        var o = S.insert('sales_orders', {
+          order_no: 'SO-' + new Date().getFullYear() + '-' + String(max + 1).padStart(4, '0'), client_id: c.id, agent_id: me.id, encoded_by: me.id,
+          branch_id: c.branch_id, order_date: S.today(), status: 'For approval', delivery_date: $('delivery').value || S.today(),
+          approved_by: null, internal_note: $('note').value.trim() || null, slip_photo: $('slip-photo').value
+        });
+        lines.forEach(function (l) { S.insert('sales_order_items', { order_id: o.id, product_id: l.product.id, qty: l.qty, unit_price: l.product.selling_price }); });
+        CNS.history.log({ action: 'Create', module: MODULE, record_type: 'sales_orders', record_id: o.id, field: 'status', new_value: o.order_no + ' · For approval · ' + fmt.money(S.orderTotal(o.id)) });
+        draft.clear();
+        CNS.ui.flash(o.order_no + ' sent. The office will review it.');
+        location.href = 'home.html';
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,614 @@
+/* Centennial Sales & Inventory System — shared stylesheet for every prototype page.
+   Token values come from the team's Figma design system (CLAUDE.md §6). */
+
+/* ==========================================================================
+   Tokens
+   ========================================================================== */
+
+:root {
+  /* Color */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-text: #111827;
+  --color-text-secondary: #64748b;
+  --color-text-muted: #94a3b8;       /* decoration only: below 4.5:1 for text */
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f1f5f9;
+  --color-input-border: #7c8799;     /* darker than --color-border so fields meet 3:1 */
+
+  --color-primary: #b91c1c;
+  --color-primary-hover: #991b1b;
+  --color-primary-active: #7f1d1d;
+  --color-focus-ring: rgba(185, 28, 28, 0.35);
+
+  --color-success: #15803d;
+  --color-success-bg: #f0fdf4;
+  --color-warning: #b45309;
+  --color-warning-bg: #fffbeb;
+  --color-error: #b91c1c;
+  --color-error-bg: #fef2f2;
+  --color-info: #1d4ed8;
+  --color-info-bg: #eff6ff;
+
+  --color-sidebar: #111827;
+  --color-sidebar-text: #e5e7eb;
+  --color-sidebar-muted: #9ca3af;
+  --color-sidebar-hover: #1f2937;
+  --color-sidebar-divider: #374151;
+
+  --color-chart-bar: #64748b;
+  --color-chart-grid: #e5e7eb;
+
+  /* Type */
+  --font: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-page-title: 28px;
+  --text-card-title: 16px;
+  --text-kpi: 26px;
+  --text-body: 16px;                 /* plan allows 14; 16 suits the 30–50 audience */
+  --text-small: 14px;
+  --text-note: 15px;                 /* alerts, notices, field errors, one-line page descriptions */
+  --text-input: 17px;                /* above 16px so phones don't zoom in on focus */
+  --text-title: 24px;                /* card/form title, e.g. "Log in" */
+  --text-button: 16px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 999px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
+  --shadow-md: 0 4px 12px rgba(17, 24, 39, 0.08);
+  --shadow-lg: 0 12px 32px rgba(17, 24, 39, 0.12);
+
+  /* Layout */
+  --header-h: 64px;
+  --sidebar-w: 248px;
+  --content-pad: 32px;
+  --mobile-header-h: 60px;
+  --tabbar-h: 72px;
+  --control-h: 52px;                 /* inputs and buttons; leaves room for a 44px inner button */
+
+  /* Motion */
+  --dur-instant: 80ms;
+  --dur-fast: 180ms;
+  --dur-normal: 350ms;
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-sharp: cubic-bezier(0.4, 0, 0.2, 1);
+  --scale-press: 0.98;
+
+  /* Icons used as CSS masks: Heroicons v2.2.0 outline 24 (MIT), same paths as assets/icons/outline/ */
+  --icon-exclamation-circle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='black'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z'/%3E%3C/svg%3E");
+  --icon-check-circle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='black'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'/%3E%3C/svg%3E");
+}
+
+/* Inline Heroicons: 20px by default, inherit the text color */
+.icon { flex: none; width: 20px; height: 20px; }
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  font-family: var(--font);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   Components
+   ========================================================================== */
+
+/* ---- Card ---- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+/* ---- Buttons ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: 0 var(--space-5);
+  font: inherit;
+  font-size: var(--text-button);
+  font-weight: 600;
+  border: 2px solid transparent; /* visible edge in Windows High Contrast */
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease-smooth);
+}
+
+.btn--primary { color: #fff; background: var(--color-primary); }
+.btn--primary:hover:not([aria-disabled="true"]) { background: var(--color-primary-hover); }
+.btn--primary:active:not([aria-disabled="true"]) { background: var(--color-primary-active); }
+
+.btn--block { display: flex; width: 100%; }
+
+/* Secondary: for every action that isn't the screen's one primary action */
+.btn--secondary {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-small);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border-color: var(--color-input-border);
+  border-width: 1px;
+}
+
+.btn--secondary:hover:not([aria-disabled="true"]) { background: var(--color-border-subtle); }
+
+/* After a successful submit the button reads "Logged in" and can't be pressed again */
+.is-success .btn--primary { cursor: default; color: var(--color-text); background: var(--color-border); }
+
+.btn:focus-visible,
+.btn-link:focus-visible,
+.input-action:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--color-focus-ring);
+}
+
+/* Press feedback: snap down fast, ease back out on release */
+.btn:active:not([aria-disabled="true"]),
+.input-action:active:not(:disabled) {
+  transform: scale(var(--scale-press));
+  transition-duration: var(--dur-instant);
+  transition-timing-function: var(--ease-sharp);
+}
+
+/* aria-disabled rather than disabled, so the button keeps keyboard focus while busy */
+.btn[aria-disabled="true"] { cursor: progress; }
+
+/* Text button styled as a red link */
+.btn-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-1);
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--color-primary);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.btn-link:hover { color: var(--color-primary-hover); }
+
+.spinner {
+  display: none;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.is-loading .spinner { display: block; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Form fields ---- */
+
+.field { margin-bottom: var(--space-5); }
+
+.label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.label-row .label { margin-bottom: 0; }
+
+.input {
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  font: inherit;
+  font-size: var(--text-input);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-input-border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.input:hover { border-color: var(--color-text-secondary); }
+
+.input:focus {
+  /* transparent outline shows up in Windows High Contrast, where box-shadow is dropped */
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.input[aria-invalid="true"] { border-color: var(--color-error); background: var(--color-error-bg); }
+.input[readonly] { background: var(--color-bg); }
+
+/* Input with a button inside it (e.g. show/hide password) */
+.input-group { position: relative; }
+.input-group .input { padding-right: 104px; }
+
+.input-action {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 88px;
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  /* Concentric with the input: input radius (8) minus the 4px inset */
+  border-radius: calc(var(--radius-md) - 4px);
+  cursor: pointer;
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease-smooth);
+}
+
+.input-action:hover { background: var(--color-border-subtle); }
+.input-action:disabled { cursor: default; opacity: 0.6; }
+.input-action svg { flex: none; }
+
+/* Two icons in the toggle; .is-shown swaps them */
+.input-action .icon-hide,
+.input-action.is-shown .icon-show { display: none; }
+.input-action.is-shown .icon-hide { display: block; }
+
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-note);
+  text-wrap: pretty;
+  font-weight: 600;
+  color: var(--color-error);
+}
+
+.field-error:empty { display: none; }
+
+.field-error::before {
+  content: "";
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  background: currentColor;
+  -webkit-mask: var(--icon-exclamation-circle) center / contain no-repeat;
+  mask: var(--icon-exclamation-circle) center / contain no-repeat;
+}
+
+/* Small inline notice under a field (Caps Lock, help) */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-note);
+  text-wrap: pretty;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+}
+
+.notice[hidden] { display: none; }
+.notice svg { flex: none; margin-top: 2px; }
+.notice--warning { color: var(--color-warning); background: var(--color-warning-bg); }
+.notice--info { color: var(--color-info); background: var(--color-info-bg); }
+
+/* ---- Alert ---- */
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-note);
+  text-wrap: pretty;
+  font-weight: 500;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-md);
+}
+
+/* Icon comes from --alert-icon, so every tone has an icon and words, not just a color */
+.alert::before {
+  content: "";
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  background: currentColor;
+  -webkit-mask: var(--alert-icon) center / contain no-repeat;
+  mask: var(--alert-icon) center / contain no-repeat;
+}
+
+/* Collapse when empty but stay rendered, so screen readers keep watching the live region */
+.alert:empty { margin: 0; padding: 0; border: 0; }
+.alert:empty::before { content: none; }
+
+.alert[data-tone="error"] {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  --alert-icon: var(--icon-exclamation-circle);
+}
+
+.alert[data-tone="success"] {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  --alert-icon: var(--icon-check-circle);
+}
+
+/* ---- Modal (native <dialog> opened with showModal()) ---- */
+
+.modal {
+  width: calc(100% - 2 * var(--space-4));
+  max-width: 400px;
+  padding: var(--space-6);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal[open] { animation: rise-in var(--dur-normal) var(--ease-smooth); }
+.modal::backdrop { background: rgba(17, 24, 39, 0.45); }
+
+.modal__icon { width: 28px; height: 28px; margin-bottom: var(--space-3); color: var(--color-info); }
+.modal__title { margin: 0 0 var(--space-2); font-size: var(--text-title); font-weight: 700; line-height: 1.2; }
+.modal__body { margin: 0 0 var(--space-5); font-size: var(--text-body); color: var(--color-text-secondary); text-wrap: pretty; }
+.modal form { margin: 0; }
+
+/* ==========================================================================
+   Motion
+   ========================================================================== */
+
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* Gentle shake when a submit fails; added and removed from JS */
+.is-shaking { animation: shake 320ms var(--ease-sharp); }
+
+@keyframes shake {
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+/* ==========================================================================
+   Page: Login
+   ========================================================================== */
+
+.login-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  animation: fade-in var(--dur-normal) var(--ease-smooth) both;
+}
+
+.top-stripe {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 6px;
+  background: var(--color-primary);
+}
+
+/* Faint hardware line drawings behind everything */
+.doodles {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-muted);
+  opacity: 0.32;
+  pointer-events: none;
+}
+
+.login {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-7) var(--space-4) var(--space-5);
+}
+
+.login__intro { max-width: 640px; text-align: center; }
+
+/* Page-colored halo so the doodles never cut through text that sits on the page background */
+.login__intro,
+.login-footer { text-shadow: 0 0 2px var(--color-bg), 0 0 6px var(--color-bg), 0 0 10px var(--color-bg); }
+
+.login__company {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-small);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-primary);
+}
+
+.login__system {
+  margin: 0;
+  font-size: var(--text-page-title);
+  font-weight: 700;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.login__card {
+  width: 100%;
+  max-width: 440px;
+  padding: var(--space-6);
+  animation: rise-in var(--dur-normal) var(--ease-smooth) both;
+}
+
+/* Company logo (assets/img/logo.jpg); always red, never recolored */
+.logo {
+  display: block;
+  width: 260px;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: var(--space-5);
+}
+
+.login__title { margin: 0 0 var(--space-1); font-size: var(--text-title); font-weight: 700; line-height: 1.2; }
+.login__lede { margin: 0 0 var(--space-5); font-size: var(--text-note); color: var(--color-text-secondary); text-wrap: pretty; }
+
+.login__submit { margin-top: var(--space-1); }
+
+.shared-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.shared-note__computer,
+.shared-note__phone { display: inline-flex; align-items: center; gap: var(--space-2); text-align: left; }
+.shared-note__phone { display: none; }
+
+/* Prototype-only helper for the review sessions; remove for the real system */
+.demo {
+  width: 100%;
+  max-width: 440px;
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px dashed var(--color-input-border);
+  border-radius: var(--radius-md);
+}
+
+.demo summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.demo summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+.demo__body { padding: 0 var(--space-4) var(--space-3); }
+.demo__body p { margin: 0 0 var(--space-2); }
+.demo__users {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.demo__users .btn { text-wrap: balance; line-height: 1.25; padding-block: var(--space-2); }
+.demo__body code { font-size: 14px; font-weight: 600; color: var(--color-text); }
+
+.login-footer {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-4) var(--space-4) var(--space-5);
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .login { justify-content: flex-start; gap: var(--space-4); padding-top: var(--space-6); }
+  .login__company { font-size: 13px; }
+  .login__system { font-size: 22px; }
+  .login__card { padding: var(--space-5) 20px; }
+  /* Plan rule: body text at least 16px on mobile */
+  .login__lede, .alert, .notice, .field-error, .shared-note { font-size: var(--text-body); }
+  .logo { width: 220px; }
+  .shared-note__computer { display: none; }
+  .shared-note__phone { display: inline-flex; }
+}
+
+/* ==========================================================================
+   Reduced motion: no movement, only a short fade remains
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .login-page { animation-duration: 150ms; }
+  .login__card, .is-shaking, .modal[open] { animation: none; }
+  .btn:active:not([aria-disabled="true"]),
+  .input-action:active:not(:disabled) { transform: none; }
+  .spinner { animation-duration: 2.4s; }
+  .btn, .input, .input-action { transition: none; }
+}

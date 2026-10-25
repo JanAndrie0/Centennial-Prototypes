@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transfers · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .section-title { margin: var(--space-6) 0 var(--space-3); font-size: 18px; font-weight: 700; }
+    .page-head + .section-title { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <!-- 3.2 Update Stock Levels: transfers between storage areas and branches (Sent → Received) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Products &amp; Inventory</a></li><li><span aria-current="page">Transfers</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Transfers</h1>
+        <p class="page-desc">Move stock to another storage area or branch. The receiving branch confirms when it arrives.</p>
+      </div>
+      <div class="page-head__actions"><button type="button" class="btn btn--primary" id="new-transfer"></button></div>
+    </div>
+
+    <h2 class="section-title" id="in-title"></h2>
+    <div class="table-wrap" id="in-wrap"></div>
+
+    <h2 class="section-title" id="out-title"></h2>
+    <div class="table-wrap" id="out-wrap"></div>
+
+    <h2 class="section-title">Received</h2>
+    <div class="table-wrap" id="done-wrap"></div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/stock-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'products' });
+      if (!session) return;
+
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+
+      $('new-transfer').innerHTML = CNS.icon('arrow-path') + 'New transfer';
+
+      function scope() {
+        return CNS.auth.canSwitchBranch(session.user) ? session.branchView : session.user.branch_id;
+      }
+      function inScope(branchId) { return scope() === 'all' || branchId === scope(); }
+
+      function userName(id) { var u = S.get('users', id); return u ? u.full_name : '—'; }
+
+      function table(rows, cols, empty) {
+        if (!rows.length) return '<p class="empty-line">' + esc(empty) + '</p>';
+        return '<table class="table"><thead><tr>' + cols.map(function (c) {
+          return '<th scope="col"' + (c.num ? ' class="num-col"' : c.actions ? ' class="actions"' : '') + '>' + (c.actions ? '<span class="sr-only">' + c.label + '</span>' : c.label) + '</th>';
+        }).join('') + '</tr></thead><tbody>' + rows.map(function (t) {
+          return '<tr>' + cols.map(function (c) { return c.cell(t); }).join('') + '</tr>';
+        }).join('') + '</tbody></table>';
+      }
+
+      var COL = {
+        ref: { label: 'Transfer', cell: function (t) { return '<td class="nowrap cell-main">' + esc(t.ref) + '</td>'; } },
+        product: { label: 'Product', cell: function (t) {
+          var p = S.get('products', t.product_id);
+          return '<td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(p.id) + '#view=movements" title="' + esc(p.name) + '">' + esc(p.name) + '</a></td>';
+        } },
+        qty: { label: 'Quantity', num: true, cell: function (t) {
+          return '<td class="num-col">' + esc(fmt.qty(t.qty, S.get('products', t.product_id).unit_id)) + '</td>';
+        } },
+        from: { label: 'From', cell: function (t) {
+          var a = S.get('storage', t.from_area);
+          return '<td class="nowrap">' + esc(S.branchName(t.from_branch) + (a ? ' · ' + a.name : '')) + '</td>';
+        } },
+        to: { label: 'To', cell: function (t) {
+          var a = t.to_area && S.get('storage', t.to_area);
+          return '<td class="nowrap">' + esc(S.branchName(t.to_branch) + (a ? ' · ' + a.name : '')) + '</td>';
+        } },
+        sent: { label: 'Sent', cell: function (t) {
+          return '<td class="nowrap">' + esc(fmt.dateTime(t.sent_at)) + '<span class="cell-sub">' + esc(userName(t.sent_by)) + '</span></td>';
+        } },
+        received: { label: 'Received', cell: function (t) {
+          return '<td class="nowrap">' + esc(fmt.dateTime(t.received_at)) + '<span class="cell-sub">' + esc(userName(t.received_by)) + '</span></td>';
+        } },
+        status: { label: 'Status', cell: function (t) {
+          return '<td>' + (t.status === 'In transit' ? CNS.ui.badge('info', 'arrow-path', 'In transit') : CNS.ui.badge('success', 'check-circle', 'Received')) + '</td>';
+        } },
+        receive: { label: 'Actions', actions: true, cell: function (t) {
+          return '<td class="actions"><button type="button" class="btn btn--secondary" data-receive="' + esc(t.ref) + '">' +
+            CNS.icon('arrow-down-tray') + 'Receive<span class="sr-only"> ' + esc(t.ref) + '</span></button></td>';
+        } }
+      };
+
+      function render() {
+        CNS.layout.moduleTabs('products', 'transfers', session);
+        var all = S.transfers();
+        var sc = scope();
+        var here = S.branchName(sc);
+        var transit = all.filter(function (t) { return t.status === 'In transit'; });
+        // In the company-wide view every in-transit transfer is listed once, under "In transit"
+        var coming = transit.filter(function (t) { return inScope(t.to_branch); });
+        var going = sc === 'all' ? [] : transit.filter(function (t) { return t.from_branch === sc; });
+        var done = all.filter(function (t) { return t.status === 'Received' && (inScope(t.from_branch) || inScope(t.to_branch)); }).slice(0, 20);
+
+        $('in-title').textContent = sc === 'all' ? 'In transit (' + coming.length + ')' : 'Coming in to ' + here + ' (' + coming.length + ')';
+        $('in-wrap').innerHTML = table(coming, [COL.ref, COL.product, COL.qty, COL.from, COL.to, COL.sent, COL.status, COL.receive], 'Nothing on the way.');
+        $('out-title').textContent = 'Sent by ' + here + ', not yet received (' + going.length + ')';
+        $('out-title').hidden = $('out-wrap').hidden = sc === 'all';
+        $('out-wrap').innerHTML = table(going, [COL.ref, COL.product, COL.qty, COL.from, COL.to, COL.sent, COL.status], 'Nothing waiting at the other branches.');
+        $('done-wrap').innerHTML = table(done, [COL.ref, COL.product, COL.qty, COL.from, COL.to, COL.sent, COL.received], 'No transfers yet.');
+      }
+
+      $('in-wrap').addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-receive]');
+        if (!btn) return;
+        var t = S.transfers().filter(function (x) { return x.ref === btn.getAttribute('data-receive'); })[0];
+        if (t) CNS.stockActions.receive({ session: session, transfer: t, onDone: render });
+      });
+      $('new-transfer').addEventListener('click', function () {
+        CNS.stockActions.transfer({ session: session, onDone: render });
+      });
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        render();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

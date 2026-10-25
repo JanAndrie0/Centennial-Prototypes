@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Products &amp; Inventory · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+</head>
+<body>
+  <!-- 3.1 Maintain Product Records + 3.3 Check Stock Availability -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><span aria-current="page">Products &amp; Inventory</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Products &amp; Inventory</h1>
+        <p class="page-desc">Find a product and see its stock.</p>
+      </div>
+      <div class="page-head__actions">
+        <a class="btn btn--primary" href="form.html" id="add-product"></a>
+      </div>
+    </div>
+
+    <form id="filters" role="search" aria-label="Find products" onsubmit="return false">
+      <div class="search">
+        <label class="sr-only" for="q">Search by product name or code</label>
+        <span id="search-icon"></span>
+        <input class="input" type="search" id="q" placeholder="Search by name or code, e.g. tox or PVC-050" autocomplete="off">
+      </div>
+      <div class="filters">
+        <div class="field">
+          <label class="label" for="f-cat">Category</label>
+          <select class="input input--compact" id="f-cat"><option value="">All categories</option></select>
+        </div>
+        <div class="field">
+          <label class="label" for="f-status">Stock status</label>
+          <select class="input input--compact" id="f-status">
+            <option value="">All</option>
+            <option value="needs">Needs reorder (Low, Below floor, Backordered)</option>
+            <option value="low">Low</option>
+            <option value="below-floor">Below floor</option>
+            <option value="backordered">Backordered</option>
+            <option value="over-ceiling">Over ceiling</option>
+            <option value="unset">Levels not set</option>
+            <option value="ok">OK</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label" for="f-mover">Movement</label>
+          <select class="input input--compact" id="f-mover">
+            <option value="">All</option>
+            <option value="fast">Fast-moving</option>
+            <option value="slow">Slow-moving</option>
+          </select>
+        </div>
+        <button type="button" class="btn-link" id="clear">Clear filters</button>
+      </div>
+    </form>
+
+    <p class="result-count" id="count" aria-live="polite" tabindex="-1"></p>
+    <div class="table-wrap">
+      <table class="table table--clickable" id="products-table">
+        <thead>
+          <tr>
+            <th scope="col">Code</th>
+            <th scope="col">Product</th>
+            <th scope="col">Category</th>
+            <th scope="col">Unit</th>
+            <th scope="col" class="num-col">On hand</th>
+            <th scope="col" class="num-col">Allocated</th>
+            <th scope="col" class="num-col">Available</th>
+            <th scope="col">Status</th>
+            <th scope="col">Location</th>
+          </tr>
+        </thead>
+        <tbody id="products-body"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>
+        <span id="empty-icon"></span>
+        <p class="empty__title">No products match.</p>
+        <p class="empty__text">Check the spelling, or clear the filters.</p>
+        <button type="button" class="btn btn--secondary" id="empty-clear">Clear filters</button>
+      </div>
+    </div>
+    <nav class="pager" aria-label="Pages" id="pager">
+      <span id="page-info"></span>
+      <div class="pager__buttons">
+        <button type="button" class="btn btn--secondary" id="prev"></button>
+        <button type="button" class="btn btn--secondary" id="next"></button>
+      </div>
+    </nav>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'products' });
+      if (!session) return;
+
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var PAGE_SIZE = 20;   // the real catalog has 10,000+ products, so the list is always paged
+      var NEEDS = ['low', 'below-floor', 'backordered'];
+
+      $('search-icon').outerHTML = CNS.icon('magnifying-glass');
+      $('empty-icon').outerHTML = CNS.icon('cube');
+      $('add-product').innerHTML = CNS.icon('plus-circle') + 'Add product';
+      $('prev').innerHTML = CNS.icon('chevron-left') + 'Previous';
+      $('next').innerHTML = 'Next' + CNS.icon('chevron-right');
+
+      S.all('categories').forEach(function (c) {
+        $('f-cat').insertAdjacentHTML('beforeend', '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>');
+      });
+
+      // Filters live in the URL, so Back from a product returns to the same search
+      var params = new URLSearchParams(location.search);
+      $('q').value = params.get('q') || '';
+      $('f-cat').value = params.get('cat') || '';
+      $('f-status').value = params.get('status') || '';
+      $('f-mover').value = params.get('mover') || '';
+      var page = Number(params.get('page')) || 1;
+
+      function saveUrl() {
+        var p = new URLSearchParams();
+        if ($('q').value.trim()) p.set('q', $('q').value.trim());
+        if ($('f-cat').value) p.set('cat', $('f-cat').value);
+        if ($('f-status').value) p.set('status', $('f-status').value);
+        if ($('f-mover').value) p.set('mover', $('f-mover').value);
+        if (page > 1) p.set('page', page);
+        history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : ''));
+      }
+
+      function scope() { return session.branchView; }
+
+      function locationText(productId) {
+        var sc = scope();
+        var areas = S.where('stock_locations', function (l) { return l.product_id === productId; })
+          .map(function (l) { return S.get('storage', l.area_id); })
+          .filter(function (a) { return a && (sc === 'all' || a.branch_id === sc); });
+        if (sc === 'all') {
+          // Company-wide: name the branches that keep it
+          var names = [];
+          areas.forEach(function (a) { var n = S.branchName(a.branch_id); if (names.indexOf(n) < 0) names.push(n); });
+          return names.join(', ') || '—';
+        }
+        return areas.map(function (a) { return a.name; }).join(', ') || 'Not stocked here';
+      }
+
+      function updateAlerts() { CNS.layout.moduleTabs('products', 'list', session); }
+
+      function matching() {
+        var q = $('q').value.trim().toLowerCase();
+        var words = q ? q.split(/\s+/) : [];
+        var cat = $('f-cat').value, status = $('f-status').value, mover = $('f-mover').value;
+        var sc = scope();
+        return S.all('products').filter(function (p) {
+          var hay = (p.code + ' ' + p.name).toLowerCase();
+          if (words.some(function (w) { return hay.indexOf(w) < 0; })) return false;
+          if (cat && p.category_id !== cat) return false;
+          if (status) {
+            var st = S.stockStatus(p.id, sc);
+            if (status === 'needs' ? NEEDS.indexOf(st) < 0 : st !== status) return false;
+          }
+          if (mover && S.mover(p.id, sc) !== mover) return false;
+          return true;
+        }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+      }
+
+      function render() {
+        var rows = matching();
+        var pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+        page = Math.min(Math.max(1, page), pages);
+        var start = (page - 1) * PAGE_SIZE;
+        var shown = rows.slice(start, start + PAGE_SIZE);
+        var sc = scope();
+
+        $('products-body').innerHTML = shown.map(function (p) {
+          var hand = S.onHand(p.id, sc);
+          var alloc = S.allocated(p.id, sc);
+          var avail = hand - alloc;
+          var cat = S.get('categories', p.category_id);
+          var where = locationText(p.id);
+          return '<tr data-id="' + esc(p.id) + '">' +
+            '<td class="nowrap">' + esc(p.code) + '</td>' +
+            '<td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(p.id) + '" title="' + esc(p.name) + '">' + esc(p.name) + '</a></td>' +
+            '<td class="nowrap">' + esc(cat ? cat.name : '') + '</td>' +
+            '<td class="nowrap">' + esc(fmt.unit(p.unit_id, 2)) + '</td>' +
+            '<td class="num-col">' + fmt.number(hand) + '</td>' +
+            '<td class="num-col">' + fmt.number(alloc) + '</td>' +
+            '<td class="num-col' + (avail < 0 ? ' qty-neg' : '') + '">' + fmt.number(avail) + '</td>' +
+            '<td>' + CNS.ui.stockBadge(S.stockStatus(p.id, sc)) + '</td>' +
+            '<td><span class="truncate" title="' + esc(where) + '">' + esc(where) + '</span></td>' +
+            '</tr>';
+        }).join('');
+
+        $('products-table').hidden = !rows.length;
+        $('empty').hidden = !!rows.length;
+        $('pager').hidden = rows.length <= PAGE_SIZE;
+        $('count').textContent = rows.length
+          ? 'Showing ' + (start + 1) + '–' + (start + shown.length) + ' of ' + fmt.number(rows.length) + ' products · ' + S.branchName(sc)
+          : '0 products · ' + S.branchName(sc);
+        $('page-info').textContent = 'Page ' + page + ' of ' + pages;
+        $('prev').setAttribute('aria-disabled', String(page <= 1));
+        $('next').setAttribute('aria-disabled', String(page >= pages));
+        saveUrl();
+      }
+
+      // Search as you type (short delay so typing stays smooth on big catalogs)
+      var timer;
+      $('q').addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { page = 1; render(); }, 200);
+      });
+      ['f-cat', 'f-status', 'f-mover'].forEach(function (id) {
+        $(id).addEventListener('change', function () { page = 1; render(); });
+      });
+
+      function clearFilters() {
+        $('filters').reset();
+        page = 1;
+        render();
+        $('q').focus();
+      }
+      $('clear').addEventListener('click', clearFilters);
+      $('empty-clear').addEventListener('click', clearFilters);
+
+      $('prev').addEventListener('click', function () {
+        if (page > 1) { page--; render(); $('count').focus(); }
+      });
+      $('next').addEventListener('click', function () {
+        if (this.getAttribute('aria-disabled') !== 'true') { page++; render(); $('count').focus(); }
+      });
+
+      // Clicking anywhere on a row opens the product (the name link stays the keyboard target)
+      $('products-body').addEventListener('click', function (e) {
+        var tr = e.target.closest('tr[data-id]');
+        if (tr && !e.target.closest('a')) location.href = 'detail.html?id=' + encodeURIComponent(tr.getAttribute('data-id'));
+      });
+
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        updateAlerts();
+        render();
+      });
+
+      updateAlerts();
+      render();
+    })();
+  </script>
+</body>
+</html>

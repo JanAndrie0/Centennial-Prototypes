@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deliveries · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .section-title { margin: var(--space-6) 0 var(--space-3); font-size: 18px; font-weight: 700; }
+    .week-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); }
+    .week-bar strong { min-width: 220px; text-align: center; }
+  </style>
+</head>
+<body>
+  <!-- 2.6 Schedule and Track Delivery: deliveries by day (Mon–Sat) and orders still to schedule -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="../orders/list.html">Sales Orders &amp; Deliveries</a></li><li><span aria-current="page">Deliveries</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Deliveries</h1>
+        <p class="page-desc">Schedule approved orders, print the truck load list, and mark them shipped.</p>
+      </div>
+      <div class="page-head__actions"><a class="btn btn--secondary" id="load-list"></a></div>
+    </div>
+
+    <h2 class="section-title" id="todo-title"></h2>
+    <div class="table-wrap" id="todo"></div>
+
+    <h2 class="section-title">Schedule</h2>
+    <div class="week-bar">
+      <button type="button" class="btn btn--secondary" id="prev-week"></button>
+      <strong id="week-label" aria-live="polite"></strong>
+      <button type="button" class="btn btn--secondary" id="next-week"></button>
+    </div>
+    <div class="tabs" role="group" aria-label="Day" id="days"></div>
+    <div class="table-wrap" id="day-list"></div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/order-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'orders' });
+      if (!session) return;
+      var S = CNS.store, A = CNS.orderActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+      function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+      function inScope(o) { return scope() === 'all' || o.branch_id === scope(); }
+
+      // Week starts on Monday; the day defaults to today. There are no Sunday deliveries, so on Sunday open next Monday.
+      var today = new Date(); today.setHours(0, 0, 0, 0);
+      var monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+      var dayIndex = (today.getDay() + 6) % 7;
+      if (dayIndex === 6) { monday.setDate(monday.getDate() + 7); dayIndex = 0; }
+
+      $('prev-week').innerHTML = CNS.icon('chevron-left') + 'Previous week';
+      $('next-week').innerHTML = 'Next week' + CNS.icon('chevron-right');
+      $('load-list').innerHTML = CNS.icon('printer') + 'Truck load list';
+
+      function areaOf(c) { return c ? c.address.split(',').slice(-1)[0].trim() : ''; }
+      function storeCell(o) {
+        var c = S.get('clients', o.client_id);
+        return '<td><span class="truncate cell-main" title="' + esc(c ? c.store_name : '') + '">' + esc(c ? c.store_name : '—') + '</span><span class="cell-sub">' + esc(areaOf(c)) + '</span></td>';
+      }
+      function statusBadge(st) {
+        return st === 'Completed' ? CNS.ui.badge('success', 'check-circle', 'Completed')
+          : st === 'Shipped' ? CNS.ui.badge('info', 'arrow-right-start-on-rectangle', 'Shipped')
+          : CNS.ui.badge('neutral', 'clipboard-document-list', 'Scheduled');
+      }
+
+      function render() {
+        CNS.layout.moduleTabs('orders', 'deliveries', session);
+
+        // Approved orders with no delivery yet
+        var todo = S.where('sales_orders', function (o) { return o.status === 'Approved' && inScope(o) && !A.deliveryFor(o.id); })
+          .sort(function (a, b) { return a.delivery_date < b.delivery_date ? -1 : 1; });
+        $('todo-title').textContent = 'To schedule (' + todo.length + ')';
+        $('todo').innerHTML = todo.length
+          ? '<table class="table"><thead><tr><th scope="col">Order</th><th scope="col">Store</th><th scope="col">Requested</th><th scope="col" class="num-col">Total</th><th scope="col" class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+            todo.map(function (o) {
+              return '<tr><td class="nowrap"><a class="row-link" href="../orders/detail.html?id=' + encodeURIComponent(o.id) + '">' + esc(o.order_no) + '</a></td>' + storeCell(o) +
+                '<td class="nowrap">' + esc(fmt.date(o.delivery_date)) + '</td><td class="num-col">' + esc(fmt.money(S.orderTotal(o.id))) + '</td>' +
+                '<td class="actions"><a class="btn btn--secondary" href="detail.html?order=' + encodeURIComponent(o.id) + '">' + CNS.icon('arrow-right-start-on-rectangle') + 'Schedule<span class="sr-only"> ' + esc(o.order_no) + '</span></a></td></tr>';
+            }).join('') + '</tbody></table>'
+          : '<p class="empty-line">Every approved order has a delivery.</p>';
+
+        // Week and day
+        var dates = DAYS.map(function (_, i) { var d = new Date(monday); d.setDate(monday.getDate() + i); return iso(d); });
+        var all = S.all('deliveries').filter(function (d) { var o = S.get('sales_orders', d.order_id); return o && inScope(o); });
+        $('week-label').textContent = 'Week of ' + fmt.date(dates[0]);
+        $('days').innerHTML = DAYS.map(function (name, i) {
+          var n = all.filter(function (d) { return d.schedule_date === dates[i]; }).length;
+          return '<button type="button" aria-pressed="' + (i === dayIndex) + '" data-day="' + i + '">' + name + ' ' + esc(fmt.toDate(dates[i]).getDate()) +
+            '<span class="tab-count">' + n + '</span></button>';
+        }).join('');
+        var date = dates[dayIndex];
+        var list = all.filter(function (d) { return d.schedule_date === date; });
+        $('load-list').href = 'load-list.html?date=' + date;
+        $('day-list').innerHTML = list.length
+          ? '<table class="table table--clickable"><thead><tr><th scope="col">Order</th><th scope="col">Store</th><th scope="col">Truck</th><th scope="col">Driver</th><th scope="col">Status</th><th scope="col" class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+            list.map(function (d) {
+              var o = S.get('sales_orders', d.order_id), t = S.get('trucks', d.truck_id), dr = S.get('drivers', d.driver_id);
+              return '<tr><td class="nowrap"><a class="row-link" href="detail.html?id=' + encodeURIComponent(d.id) + '">' + esc(o.order_no) + '</a></td>' + storeCell(o) +
+                '<td class="nowrap">' + esc(t ? t.name : '—') + '<span class="cell-sub">' + esc(t ? t.plate_no : '') + '</span></td>' +
+                '<td class="nowrap">' + esc(dr ? dr.full_name : '—') + '</td><td>' + statusBadge(d.status) + '</td>' +
+                '<td class="actions"><a class="btn btn--secondary" href="detail.html?id=' + encodeURIComponent(d.id) + '">Open<span class="sr-only"> delivery for ' + esc(o.order_no) + '</span></a></td></tr>';
+            }).join('') + '</tbody></table>'
+          : '<p class="empty-line">No deliveries on ' + esc(fmt.date(date)) + '.</p>';
+      }
+
+      $('days').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-day]');
+        if (!b) return;
+        dayIndex = Number(b.getAttribute('data-day'));
+        render();
+        $('days').querySelector('[data-day="' + dayIndex + '"]').focus();
+      });
+      $('prev-week').addEventListener('click', function () { monday.setDate(monday.getDate() - 7); render(); });
+      $('next-week').addEventListener('click', function () { monday.setDate(monday.getDate() + 7); render(); });
+      document.addEventListener('cns:branchchange', function (e) { session.branchView = e.detail.branchView; render(); });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sales Orders · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .flags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .note-line { display: flex; align-items: center; gap: 4px; max-width: 30ch; }
+    .note-line .icon { width: 14px; height: 14px; flex: none; }
+    .note-line span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #orders-table .truncate { max-width: 24ch; }
+  </style>
+</head>
+<body>
+  <!-- 2.0 Order and Sales Management: one order list filtered by status (Turis) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><span aria-current="page">Sales Orders &amp; Deliveries</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Sales Orders</h1>
+        <p class="page-desc">All customer orders and where they are now.</p>
+      </div>
+      <div class="page-head__actions"><a class="btn btn--primary" href="new.html" id="new-order"></a></div>
+    </div>
+
+    <div class="tabs" role="group" aria-label="Order status" id="status-tabs"></div>
+
+    <form id="filters" role="search" aria-label="Find orders" onsubmit="return false">
+      <div class="filters">
+        <div class="field">
+          <label class="label" for="q">Search</label>
+          <input class="input input--compact" type="search" id="q" placeholder="Order no. or store" autocomplete="off" style="min-width:260px">
+        </div>
+        <div class="field">
+          <label class="label" for="f-agent">Agent</label>
+          <select class="input input--compact" id="f-agent"><option value="">All agents</option></select>
+        </div>
+        <div class="field">
+          <label class="label" for="f-delivery">Delivery date</label>
+          <input class="input input--compact" type="date" id="f-delivery">
+        </div>
+        <button type="button" class="btn-link" id="clear">Clear filters</button>
+      </div>
+    </form>
+
+    <p class="result-count" id="count" aria-live="polite"></p>
+    <div class="table-wrap">
+      <table class="table table--clickable" id="orders-table">
+        <thead><tr>
+          <th scope="col">Order no.</th><th scope="col">Store and agent</th>
+          <th scope="col">Delivery</th><th scope="col" class="num-col">Items</th><th scope="col" class="num-col">Total</th>
+          <th scope="col">Status</th><th scope="col">Warnings</th>
+        </tr></thead>
+        <tbody id="orders-body"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>
+        <span id="empty-icon"></span>
+        <p class="empty__title">No orders here.</p>
+        <p class="empty__text">Try another status tab, or clear the filters.</p>
+        <button type="button" class="btn btn--secondary" id="empty-clear">Clear filters</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'orders' });
+      if (!session) return;
+
+      var R = CNS.ROLES;
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var STATUSES = ['All', 'Draft', 'For approval', 'Approved', 'For delivery', 'Shipped', 'Completed', 'Rejected'];
+
+      $('new-order').innerHTML = CNS.icon('plus-circle') + 'New order';
+      $('empty-icon').outerHTML = CNS.icon('clipboard-document-list');
+
+      // Filters live in the URL, so Back from an order returns to the same view
+      var params = new URLSearchParams(location.search);
+      var status = STATUSES.indexOf(params.get('status')) > 0 ? params.get('status') : 'All';
+      $('q').value = params.get('q') || '';
+      $('f-delivery').value = params.get('delivery') || '';
+
+      // Management follows the header branch; everyone else sees their own branch
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+
+      function fillAgents() {
+        var keep = $('f-agent').value || params.get('agent') || '';
+        $('f-agent').innerHTML = '<option value="">All agents</option>' + S.where('users', function (u) {
+          return u.role === R.AGENT && (scope() === 'all' || u.branch_id === scope());
+        }).map(function (u) { return '<option value="' + esc(u.id) + '"' + (u.id === keep ? ' selected' : '') + '>' + esc(u.full_name) + '</option>'; }).join('');
+      }
+
+      function saveUrl() {
+        var p = new URLSearchParams();
+        if (status !== 'All') p.set('status', status);
+        if ($('q').value.trim()) p.set('q', $('q').value.trim());
+        if ($('f-agent').value) p.set('agent', $('f-agent').value);
+        if ($('f-delivery').value) p.set('delivery', $('f-delivery').value);
+        history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : ''));
+      }
+
+      function baseRows() {
+        var q = $('q').value.trim().toLowerCase();
+        var agent = $('f-agent').value, delivery = $('f-delivery').value, sc = scope();
+        return S.where('sales_orders', function (o) {
+          if (sc !== 'all' && o.branch_id !== sc) return false;
+          if (agent && o.agent_id !== agent) return false;
+          if (delivery && o.delivery_date !== delivery) return false;
+          if (q) {
+            var c = S.get('clients', o.client_id);
+            if ((o.order_no + ' ' + (c ? c.store_name : '')).toLowerCase().indexOf(q) < 0) return false;
+          }
+          return true;
+        });
+      }
+
+      function flagsHtml(o) {
+        var f = S.orderFlags(o.id);
+        var out = [];
+        if (f.backordered.length) out.push(CNS.ui.badge('info', 'information-circle', 'Backordered'));
+        if (f.overCredit) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Over credit'));
+        if (f.belowMin.length) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Below minimum'));
+        return out.length ? '<div class="flags">' + out.join('') + '</div>' : '<span class="cell-sub">None</span>';
+      }
+
+      function renderTabs(rows) {
+        $('status-tabs').innerHTML = STATUSES.map(function (s) {
+          var n = s === 'All' ? rows.length : rows.filter(function (o) { return o.status === s; }).length;
+          return '<button type="button" aria-pressed="' + (s === status) + '" data-status="' + esc(s) + '">' + esc(s) +
+            '<span class="tab-count">' + n + '</span></button>';
+        }).join('');
+      }
+
+      function render() {
+        CNS.layout.moduleTabs('orders', 'list', session);
+        var rows = baseRows();
+        renderTabs(rows);
+        var shown = rows.filter(function (o) { return status === 'All' || o.status === status; })
+          .sort(function (a, b) { return a.order_date < b.order_date ? 1 : a.order_date > b.order_date ? -1 : b.order_no.localeCompare(a.order_no); });
+        var sc = scope();
+
+        $('orders-body').innerHTML = shown.map(function (o) {
+          var c = S.get('clients', o.client_id);
+          var agent = S.get('users', o.agent_id);
+          var lines = S.where('sales_order_items', function (it) { return it.order_id === o.id; }).length;
+          return '<tr data-id="' + esc(o.id) + '">' +
+            '<td class="nowrap"><a class="row-link" href="detail.html?id=' + encodeURIComponent(o.id) + '">' + esc(o.order_no) + '</a>' +
+              (o.internal_note ? '<span class="cell-sub note-line" title="' + esc(o.internal_note) + '">' + CNS.icon('clipboard-document-list') +
+                '<span class="sr-only">Note: </span><span>' + esc(o.internal_note) + '</span></span>' : '') + '</td>' +
+            '<td><span class="truncate cell-main" title="' + esc(c ? c.store_name : '') + '">' + esc(c ? c.store_name : '—') + '</span>' +
+              '<span class="cell-sub">' + esc((agent ? agent.full_name : '—') + (sc === 'all' ? ' · ' + S.branchName(o.branch_id) : '')) + '</span></td>' +
+            '<td class="nowrap">' + esc(fmt.date(o.delivery_date)) + '<span class="cell-sub">Ordered ' + esc(fmt.date(o.order_date)) + '</span></td>' +
+            '<td class="num-col">' + lines + '</td>' +
+            '<td class="num-col">' + esc(fmt.money(S.orderTotal(o.id))) + '</td>' +
+            '<td>' + CNS.ui.orderBadge(o.status) + '</td>' +
+            '<td>' + flagsHtml(o) + '</td></tr>';
+        }).join('');
+
+        $('orders-table').hidden = !shown.length;
+        $('empty').hidden = !!shown.length;
+        $('count').textContent = shown.length + (shown.length === 1 ? ' order' : ' orders') + (status === 'All' ? '' : ' · ' + status) + ' · ' + S.branchName(sc);
+        saveUrl();
+      }
+
+      $('status-tabs').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-status]');
+        if (!b) return;
+        status = b.getAttribute('data-status');
+        render();
+        $('status-tabs').querySelector('[data-status="' + status + '"]').focus();
+      });
+      var timer;
+      $('q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(render, 200); });
+      $('f-agent').addEventListener('change', render);
+      $('f-delivery').addEventListener('change', render);
+      function clearFilters() { $('filters').reset(); status = 'All'; render(); $('q').focus(); }
+      $('clear').addEventListener('click', clearFilters);
+      $('empty-clear').addEventListener('click', clearFilters);
+      $('orders-body').addEventListener('click', function (e) {
+        var tr = e.target.closest('tr[data-id]');
+        if (tr && !e.target.closest('a')) location.href = 'detail.html?id=' + encodeURIComponent(tr.getAttribute('data-id'));
+      });
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        fillAgents();
+        render();
+      });
+
+      fillAgents();
+      render();
+    })();
+  </script>
+</body>
+</html>

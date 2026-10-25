@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>User Accounts · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+</head>
+<body>
+  <!-- 1.2 Maintain User Accounts: the Office Manager manages their own branch; the CEO views every branch -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><span aria-current="page">User Accounts &amp; History Log</span></li></ol>
+    </nav>
+    <nav aria-label="User Accounts and History Log" id="tabs-nav" hidden>
+      <ul class="tabs">
+        <li><a href="list.html" aria-current="page" id="tab-users"></a></li>
+        <li><a href="history-log.html" id="tab-history"></a></li>
+        <li><a href="account.html" id="tab-account"></a></li>
+      </ul>
+    </nav>
+
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">User Accounts</h1>
+        <p class="page-desc" id="page-desc">People who can log in, their role and branch.</p>
+      </div>
+      <div class="page-head__actions" id="head-actions"></div>
+    </div>
+
+    <form class="filters" id="filters" aria-label="Filter users" onsubmit="return false">
+      <div class="field">
+        <label class="label" for="f-role">Role</label>
+        <select class="input input--compact" id="f-role"><option value="">All roles</option></select>
+      </div>
+      <div class="field">
+        <label class="label" for="f-status">Status</label>
+        <select class="input input--compact" id="f-status">
+          <option value="">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+    </form>
+
+    <p class="result-count" id="count" aria-live="polite"></p>
+    <div class="table-wrap">
+      <table class="table" id="users-table">
+        <thead><tr id="users-head"></tr></thead>
+        <tbody id="users-body"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>
+        <span id="empty-icon"></span>
+        <p class="empty__title">No users match these filters.</p>
+        <button type="button" class="btn btn--secondary" id="clear-filters">Clear filters</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      // The Office Manager manages their own branch only, so no branch switcher here (user decision, Oct 25)
+      var session = CNS.layout.desktop({ active: 'users', lockBranch: [R.OM] });
+      if (!session) return;
+
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var MODULE = 'User Accounts & History Log';
+      var ROLE_ORDER = [R.CEO, R.OM, R.SS, R.STAFF, R.AGENT];
+      var me = session.user;
+      var canManage = me.role === R.OM;   // 1.2: only the Office Manager adds and edits (own branch)
+
+      // ---- Page chrome per role ----
+      if (me.role === R.CEO) {
+        $('tabs-nav').hidden = false;
+        $('tab-users').innerHTML = CNS.icon('user-group') + 'User Accounts';
+        $('tab-history').innerHTML = CNS.icon('clipboard-document-list') + 'History Log';
+        $('tab-account').innerHTML = CNS.icon('user-circle') + 'My account';
+        $('page-desc').textContent = 'People who can log in, their role and branch. View only.';
+      }
+      if (canManage) {
+        $('head-actions').innerHTML = '<button type="button" class="btn btn--primary" id="add-user">' + CNS.icon('user-plus') + 'Add user</button>';
+        $('add-user').addEventListener('click', function () { openForm(null); });
+      }
+      $('empty-icon').outerHTML = CNS.icon('user-group');
+
+      ROLE_ORDER.forEach(function (r) {
+        $('f-role').insertAdjacentHTML('beforeend', '<option>' + esc(r) + '</option>');
+      });
+
+      var columns = ['Full name', 'Username', 'Role', 'Branch', 'Status', 'Last login'];
+      $('users-head').innerHTML = columns.map(function (c) { return '<th scope="col">' + c + '</th>'; }).join('') +
+        (canManage ? '<th scope="col" class="actions"><span class="sr-only">Actions</span></th>' : '');
+
+      // ---- List ----
+      function branchScope() {
+        // The Office Manager always works on their own branch; the CEO follows the header branch switcher
+        return canManage ? me.branch_id : session.branchView;
+      }
+
+      function statusBadge(u) {
+        return u.is_active ? CNS.ui.badge('success', 'check-circle', 'Active') : CNS.ui.badge('neutral', 'no-symbol', 'Inactive');
+      }
+
+      function render() {
+        var role = $('f-role').value;
+        var status = $('f-status').value;
+        var scope = branchScope();
+        var rows = CNS.store.where('users', function (u) {
+          return (scope === 'all' || u.branch_id === scope) &&
+            (!role || u.role === role) &&
+            (!status || (status === 'active') === u.is_active);
+        }).sort(function (a, b) {
+          return (b.is_active - a.is_active) ||
+            (ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)) ||
+            a.full_name.localeCompare(b.full_name);
+        });
+
+        $('users-body').innerHTML = rows.map(function (u) {
+          var isCeo = u.role === R.CEO;
+          var sub = u.id === me.id ? 'You' : isCeo ? CNS.icon('lock-closed') + 'Managed by the CEO' : '';
+          // The CEO's account is theirs alone (My account); the Office Manager may only reset its password (3a)
+          var action = isCeo
+            ? '<button type="button" class="btn btn--secondary" data-reset="' + esc(u.id) + '">' + CNS.icon('key') +
+                'Reset password<span class="sr-only"> for ' + esc(u.full_name) + '</span></button>'
+            : '<button type="button" class="btn btn--secondary" data-edit="' + esc(u.id) + '">' + CNS.icon('pencil-square') +
+                'Edit<span class="sr-only"> ' + esc(u.full_name) + '</span></button>';
+          return '<tr>' +
+            '<td><span class="cell-main">' + esc(u.full_name) + '</span>' + (sub ? '<span class="cell-sub cell-sub--icon">' + sub + '</span>' : '') + '</td>' +
+            '<td class="nowrap">' + esc(u.username) + '</td>' +
+            '<td class="nowrap">' + esc(u.role) + '</td>' +
+            '<td class="nowrap">' + esc(CNS.store.branchName(u.branch_id)) + '</td>' +
+            '<td>' + statusBadge(u) + '</td>' +
+            '<td class="nowrap">' + (u.last_login ? esc(CNS.format.dateTime(u.last_login)) : 'Never') + '</td>' +
+            (canManage ? '<td class="actions">' + action + '</td>' : '') +
+            '</tr>';
+        }).join('');
+
+        $('users-table').hidden = !rows.length;
+        $('empty').hidden = !!rows.length;
+        $('count').textContent = rows.length + (rows.length === 1 ? ' user' : ' users') + ' · ' + CNS.store.branchName(scope);
+      }
+
+      $('f-role').addEventListener('change', render);
+      $('f-status').addEventListener('change', render);
+      $('clear-filters').addEventListener('click', function () {
+        $('filters').reset();
+        render();
+        $('f-role').focus();
+      });
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        render();
+      });
+      $('users-body').addEventListener('click', function (e) {
+        var edit = e.target.closest('[data-edit]');
+        var reset = e.target.closest('[data-reset]');
+        if (edit) openForm(CNS.store.get('users', edit.getAttribute('data-edit')));
+        if (reset) openCeoReset(CNS.store.get('users', reset.getAttribute('data-reset')));
+      });
+
+      // ---- Add / Edit user modal ----
+      function field(id, label, control) {
+        return '<div class="field"><label class="label" for="' + id + '">' + label + '</label>' + control +
+          '<p class="field-error" id="' + id + '-error"></p></div>';
+      }
+
+      function passwordField() {
+        return '<div class="field"><label class="label" for="uf-password">Temporary password</label>' +
+          '<div class="input-group"><input class="input" id="uf-password" name="password" type="password" autocomplete="new-password" aria-describedby="uf-password-error">' +
+          '<button type="button" class="input-action" id="uf-toggle" aria-pressed="false">' +
+            CNS.icon('eye', 'icon-show') + CNS.icon('eye-slash', 'icon-hide') + '<span>Show</span></button></div>' +
+          '<p class="field-error" id="uf-password-error"></p></div>';
+      }
+
+      function wireToggle(input, toggle) {
+        toggle.addEventListener('click', function () {
+          var show = input.type === 'password';
+          input.type = show ? 'text' : 'password';
+          toggle.classList.toggle('is-shown', show);
+          toggle.setAttribute('aria-pressed', String(show));
+          toggle.querySelector('span').textContent = show ? 'Hide' : 'Show';
+        });
+      }
+
+      // 3a: the CEO forgot their password. The Office Manager can set a temporary one, and nothing else.
+      function openCeoReset(user) {
+        var dialog = document.createElement('dialog');
+        dialog.className = 'modal modal--form';
+        dialog.setAttribute('aria-labelledby', 'cr-title');
+        dialog.innerHTML =
+          CNS.icon('key', 'modal__icon') +
+          '<h2 class="modal__title" id="cr-title">Reset the CEO\'s password</h2>' +
+          '<p class="modal__body">' + esc(user.full_name) + ' manages their own account. You can only set a temporary password; they can change it in My account.</p>' +
+          '<form novalidate>' + passwordField() +
+            '<div class="modal__actions"><button type="button" class="btn btn--secondary" id="uf-cancel">Cancel</button>' +
+            '<button type="submit" class="btn btn--primary">Reset password</button></div>' +
+          '</form>';
+        var opener = document.activeElement;
+        document.body.appendChild(dialog);
+        var q = function (id) { return dialog.querySelector('#' + id); };
+        wireToggle(q('uf-password'), q('uf-toggle'));
+        dialog.addEventListener('close', function () {
+          dialog.remove();
+          if (opener && document.contains(opener)) opener.focus();
+        });
+        dialog.addEventListener('click', function (e) { if (e.target === dialog) dialog.close(); });
+        q('uf-cancel').addEventListener('click', function () { dialog.close(); });
+        dialog.querySelector('form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          var input = q('uf-password');
+          if (input.value.length < 6) {
+            q('uf-password-error').textContent = 'Use at least 6 characters.';
+            input.setAttribute('aria-invalid', 'true');
+            input.focus();
+            return;
+          }
+          CNS.store.update('users', user.id, { password: input.value });
+          CNS.history.log({ action: 'Edit', module: MODULE, record_type: 'users', record_id: user.id, field: 'password', new_value: 'Temporary password set' });
+          dialog.close();
+          CNS.ui.toast('Password reset. Give ' + user.full_name + ' the temporary password.');
+        });
+        dialog.showModal();
+        q('uf-password').focus();
+      }
+
+      function openForm(user) {
+        var isNew = !user;
+        var isSelf = user && user.id === me.id;
+        var dialog = document.createElement('dialog');
+        dialog.className = 'modal modal--form';
+        dialog.setAttribute('aria-labelledby', 'uf-title');
+
+        // The CEO account is set up once at installation and never assigned here (user decision, Oct 25)
+        var roleChoices = ROLE_ORDER.filter(function (r) { return r !== R.CEO; });
+
+        // Your own role is fixed, so an Office Manager can't lock themselves out of 1.2
+        var roleControl = isSelf
+          ? '<div class="static-value" id="uf-role">' + esc(user.role) + '</div>'
+          : '<select class="input" id="uf-role" name="role" aria-labelledby="uf-role-label" aria-describedby="uf-role-error"><option value="">Choose a role</option>' +
+              roleChoices.map(function (r) { return '<option' + (user && user.role === r ? ' selected' : '') + '>' + esc(r) + '</option>'; }).join('') +
+            '</select>';
+
+        var statusAction = isNew || isSelf ? '<span></span>' : user.is_active
+          ? '<button type="button" class="btn-link" id="uf-status">' + CNS.icon('no-symbol') + 'Deactivate user</button>'
+          : '<button type="button" class="btn-link" id="uf-status">' + CNS.icon('arrow-path') + 'Reactivate user</button>';
+
+        dialog.innerHTML =
+          '<h2 class="modal__title" id="uf-title">' + (isNew ? 'Add user' : 'Edit user') + '</h2>' +
+          '<p class="modal__body">' + (isNew ? 'They log in with this username and temporary password.' : esc(user.full_name) + ' · ' + (user.is_active ? 'Active' : 'Inactive')) + '</p>' +
+          '<form id="user-form" novalidate>' +
+            field('uf-name', 'Full name', '<input class="input" id="uf-name" name="full_name" autocomplete="off" aria-describedby="uf-name-error" value="' + esc(user ? user.full_name : '') + '">') +
+            field('uf-username', 'Username', '<input class="input" id="uf-username" name="username" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="uf-username-error" value="' + esc(user ? user.username : '') + '">') +
+            '<div class="field"><span class="label" id="uf-role-label">Role</span>' + roleControl +
+              '<p class="field-error" id="uf-role-error"></p></div>' +
+            '<div class="field"><span class="label">Branch</span><div class="static-value">' + CNS.icon('building-office-2') +
+              esc(CNS.store.branchName(user ? user.branch_id : me.branch_id)) + '</div></div>' +
+            (isNew ? passwordField()
+              : '<div class="field" id="uf-reset-wrap"><button type="button" class="btn btn--secondary" id="uf-reset">' + CNS.icon('key') + 'Reset password</button></div>') +
+            '<div class="modal__actions modal__actions--split">' +
+              (isNew ? '<span id="uf-autosave" role="status"></span>' : statusAction) +
+              '<div><button type="button" class="btn btn--secondary" id="uf-cancel">Cancel</button>' +
+              '<button type="submit" class="btn btn--primary">' + (isNew ? 'Add user' : 'Save changes') + '</button></div>' +
+            '</div>' +
+          '</form>';
+
+        var opener = document.activeElement;
+        document.body.appendChild(dialog);
+        var form = dialog.querySelector('form');
+        var q = function (id) { return dialog.querySelector('#' + id); };
+        var draft = isNew ? CNS.autosave.attach(form, { key: 'user-new', status: q('uf-autosave') }) : null;
+
+        function wirePassword() { wireToggle(q('uf-password'), q('uf-toggle')); }
+        if (isNew) wirePassword();
+        if (q('uf-reset')) {
+          q('uf-reset').addEventListener('click', function () {
+            q('uf-reset-wrap').outerHTML = passwordField();
+            wirePassword();
+            q('uf-password').focus();
+          });
+        }
+
+        function close() { dialog.close(); }
+        dialog.addEventListener('close', function () {
+          dialog.remove();
+          if (opener && document.contains(opener)) opener.focus();
+        });
+        dialog.addEventListener('click', function (e) { if (e.target === dialog) close(); });
+        q('uf-cancel').addEventListener('click', close);
+
+        if (q('uf-status')) {
+          q('uf-status').addEventListener('click', function () {
+            var deactivate = user.is_active;
+            CNS.ui.confirm(deactivate
+              ? { title: 'Deactivate ' + user.full_name + '?', body: 'They can\'t log in until you reactivate the account. Their records and history stay.', confirm: 'Deactivate', icon: 'no-symbol' }
+              : { title: 'Reactivate ' + user.full_name + '?', body: 'They can log in again with their username and password.', confirm: 'Reactivate', icon: 'arrow-path' }
+            ).then(function (ok) {
+              if (!ok) return;
+              CNS.store.update('users', user.id, { is_active: !deactivate });
+              CNS.history.logChange(MODULE, 'users', user.id, 'is_active', deactivate ? 'Active' : 'Inactive', deactivate ? 'Inactive' : 'Active');
+              close();
+              render();
+              CNS.ui.toast(user.full_name + (deactivate ? ' deactivated.' : ' reactivated.'));
+            });
+          });
+        }
+
+        function setError(id, message) {
+          var input = q(id);
+          q(id + '-error').textContent = message || '';
+          if (message) input.setAttribute('aria-invalid', 'true');
+          else input.removeAttribute('aria-invalid');
+          return !message;
+        }
+
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var name = q('uf-name').value.trim().replace(/\s+/g, ' ');
+          var username = q('uf-username').value.trim().toLowerCase();
+          var role = isSelf ? user.role : q('uf-role').value;
+          var pw = q('uf-password') ? q('uf-password').value : null;
+          var taken = CNS.store.where('users', function (u) { return u.username === username && (!user || u.id !== user.id); }).length;
+
+          var ok = [
+            setError('uf-name', name ? '' : 'Enter the full name.'),
+            setError('uf-username', !username ? 'Enter a username.'
+              : !/^[a-z0-9.]{3,20}$/.test(username) ? 'Use 3 to 20 lowercase letters, numbers or dots.'
+              : taken ? 'This username is taken.' : ''),
+            isSelf ? true : setError('uf-role', !role ? 'Choose a role.'
+              : role === R.CEO ? 'The CEO account can\'t be assigned here.' : ''),
+            pw === null ? true : setError('uf-password', pw.length >= 6 ? '' : 'Use at least 6 characters.')
+          ];
+          if (ok.indexOf(false) >= 0) {
+            form.querySelector('[aria-invalid="true"]').focus();
+            return;
+          }
+
+          if (isNew) {
+            var created = CNS.store.insert('users', {
+              username: username, full_name: name, role: role, branch_id: me.branch_id,
+              is_active: true, last_login: null, password: pw
+            });
+            CNS.history.log({ action: 'Create', module: MODULE, record_type: 'users', record_id: created.id, new_value: name + ' · ' + role });
+            draft.clear();
+            close();
+            render();
+            CNS.ui.toast(name + ' added. Give them their username and temporary password.');
+            return;
+          }
+
+          var changes = {};
+          if (name !== user.full_name) changes.full_name = name;
+          if (username !== user.username) changes.username = username;
+          if (role !== user.role) changes.role = role;
+          if (pw !== null) changes.password = pw;
+          var old = CNS.store.update('users', user.id, changes);
+          Object.keys(changes).forEach(function (k) {
+            if (k === 'password') {
+              // Never write a password into the history; only that it was reset
+              CNS.history.log({ action: 'Edit', module: MODULE, record_type: 'users', record_id: user.id, field: 'password', new_value: 'Temporary password set' });
+            } else {
+              CNS.history.logChange(MODULE, 'users', user.id, k, old[k], changes[k]);
+            }
+          });
+          close();
+          render();
+          CNS.ui.toast(Object.keys(changes).length ? name + ' saved.' : 'No changes to save.');
+        });
+
+        dialog.showModal();
+        q('uf-name').focus();
+      }
+
+      render();
+    })();
+  </script>
+</body>
+</html>

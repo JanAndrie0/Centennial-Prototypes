@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Purchase orders · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+</head>
+<body>
+  <!-- 4.0 purchase orders, with 4.5 Verify Supplier Payables (Payment: Unpaid) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><span aria-current="page">Purchasing &amp; Suppliers</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Purchase orders</h1>
+        <p class="page-desc">Orders to suppliers, from request to delivery and payment.</p>
+      </div>
+      <div class="page-head__actions"><a class="btn btn--primary" href="new.html" id="new-po"></a></div>
+    </div>
+
+    <div class="tabs" role="group" aria-label="Purchase order status" id="status-tabs"></div>
+    <div class="filters">
+      <div class="field">
+        <label class="label" for="f-payment">Payment</label>
+        <select class="input input--compact" id="f-payment">
+          <option value="">All</option><option value="Unpaid">Unpaid (supplier payables)</option><option value="Paid">Paid</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="label" for="f-supplier">Supplier</label>
+        <select class="input input--compact" id="f-supplier"><option value="">All suppliers</option></select>
+      </div>
+    </div>
+    <div class="alert" data-tone="warning" id="payables" role="status"></div>
+
+    <p class="result-count" id="count" aria-live="polite"></p>
+    <div class="table-wrap">
+      <table class="table table--clickable" id="po-table">
+        <thead><tr id="po-head"></tr></thead>
+        <tbody id="po-body"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>
+        <span id="empty-icon"></span>
+        <p class="empty__title">No purchase orders here.</p>
+        <p class="empty__text">Try another status tab or payment filter.</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/po-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'purchasing' });
+      if (!session) return;
+      var R = CNS.ROLES, S = CNS.store, P = CNS.poActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var STATUSES = ['All', 'For approval', 'Approved', 'Ordered', 'Partially received', 'Received', 'Rejected'];
+      var params = new URLSearchParams(location.search);
+      var status = STATUSES.indexOf(params.get('status')) > 0 ? params.get('status') : 'All';
+      $('f-payment').value = params.get('payment') || '';
+
+      $('new-po').innerHTML = CNS.icon('plus-circle') + 'New purchase order';
+      $('empty-icon').outerHTML = CNS.icon('shopping-cart');
+      S.all('suppliers').forEach(function (s) { $('f-supplier').insertAdjacentHTML('beforeend', '<option value="' + esc(s.id) + '">' + esc(s.company_name) + '</option>'); });
+
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+      // 4.5: the Office Manager verifies payables for their own branch
+      function canPay(po) { return me.role === R.OM && po.branch_id === me.branch_id && po.payment_status === 'Unpaid' && ['Ordered', 'Partially received', 'Received'].indexOf(po.status) >= 0; }
+      function age(d) { var n = Math.round((new Date(S.today()) - new Date(d)) / 86400000); return n <= 0 ? 'Today' : n + (n === 1 ? ' day' : ' days'); }
+
+      function render() {
+        CNS.layout.moduleTabs('purchasing', 'list', session);
+        var sc = scope(), pay = $('f-payment').value, sup = $('f-supplier').value;
+        var OWED = ['Ordered', 'Partially received', 'Received'];   // nothing is owed before the PO is issued
+        var base = S.where('purchase_orders', function (p) {
+          return (sc === 'all' || p.branch_id === sc) && (!pay || p.payment_status === pay) && (!sup || p.supplier_id === sup) &&
+            (pay !== 'Unpaid' || OWED.indexOf(p.status) >= 0);
+        });
+        $('status-tabs').innerHTML = STATUSES.map(function (s) {
+          var n = s === 'All' ? base.length : base.filter(function (p) { return p.status === s; }).length;
+          return '<button type="button" aria-pressed="' + (s === status) + '" data-status="' + esc(s) + '">' + esc(s) + '<span class="tab-count">' + n + '</span></button>';
+        }).join('');
+        var rows = base.filter(function (p) { return status === 'All' || p.status === status; })
+          .sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        var payables = pay === 'Unpaid';
+
+        $('po-head').innerHTML = '<th scope="col">PO no.</th><th scope="col">Supplier</th><th scope="col">Date</th>' + (payables ? '' : '<th scope="col" class="num-col">Items</th>') +
+          '<th scope="col" class="num-col">Total</th><th scope="col">Status</th><th scope="col">Payment</th>' +
+          (payables ? '<th scope="col">Age</th><th scope="col" class="actions"><span class="sr-only">Actions</span></th>' : '');
+        $('po-body').innerHTML = rows.map(function (p) {
+          var s = S.get('suppliers', p.supplier_id);
+          return '<tr data-id="' + esc(p.id) + '"><td class="nowrap"><a class="row-link" href="detail.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.po_no) + '</a></td>' +
+            '<td><span class="truncate cell-main">' + esc(s ? s.company_name : '') + '</span><span class="cell-sub">' + esc(S.branchName(p.branch_id)) + '</span></td>' +
+            '<td class="nowrap">' + esc(fmt.date(p.date)) + '</td>' + (payables ? '' : '<td class="num-col">' + P.items(p.id).length + '</td>') +
+            '<td class="num-col">' + esc(fmt.money(P.total(p.id))) + '</td><td>' + P.statusBadge(p.status) + '</td><td>' + P.paymentBadge(p.payment_status) + '</td>' +
+            (payables ? '<td class="nowrap">' + esc(age(p.date)) + '</td><td class="actions">' +
+              (canPay(p) ? '<button type="button" class="btn btn--secondary" data-pay="' + esc(p.id) + '">' + CNS.icon('check-circle') + 'Mark paid<span class="sr-only"> ' + esc(p.po_no) + '</span></button>' : '') + '</td>' : '') + '</tr>';
+        }).join('');
+        $('po-table').hidden = !rows.length;
+        $('empty').hidden = !!rows.length;
+        $('count').textContent = rows.length + (rows.length === 1 ? ' purchase order' : ' purchase orders') + ' · ' + S.branchName(sc);
+
+        var owed = base.filter(function (p) { return p.payment_status === 'Unpaid' && ['Ordered', 'Partially received', 'Received'].indexOf(p.status) >= 0; });
+        $('payables').textContent = payables && owed.length
+          ? 'Unpaid to suppliers: ' + fmt.money(owed.reduce(function (t, p) { return t + P.total(p.id); }, 0)) + ' on ' + owed.length + (owed.length === 1 ? ' purchase order.' : ' purchase orders.') +
+            (me.role === R.OM ? ' Check each against the supplier\'s invoice, then mark it paid.' : '')
+          : '';
+
+        var q = new URLSearchParams();
+        if (status !== 'All') q.set('status', status);
+        if (pay) q.set('payment', pay);
+        history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
+      }
+
+      $('status-tabs').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-status]');
+        if (!b) return;
+        status = b.getAttribute('data-status');
+        render();
+        $('status-tabs').querySelector('[data-status="' + status + '"]').focus();
+      });
+      $('f-payment').addEventListener('change', render);
+      $('f-supplier').addEventListener('change', render);
+      $('po-body').addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-pay]');
+        if (btn) {
+          var po = S.get('purchase_orders', btn.getAttribute('data-pay'));
+          CNS.ui.confirm({ title: 'Mark ' + po.po_no + ' as paid?', body: fmt.money(P.total(po.id)) + ' to ' + S.get('suppliers', po.supplier_id).company_name + '. Only do this after checking the supplier\'s invoice and the payment.', confirm: 'Mark paid', icon: 'banknotes' })
+            .then(function (ok) { if (!ok) return; P.markPaid(po, session); render(); CNS.ui.toast(po.po_no + ' marked paid.'); });
+          return;
+        }
+        var tr = e.target.closest('tr[data-id]');
+        if (tr && !e.target.closest('a, button')) location.href = 'detail.html?id=' + encodeURIComponent(tr.getAttribute('data-id'));
+      });
+      document.addEventListener('cns:branchchange', function (e) { session.branchView = e.detail.branchView; render(); });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

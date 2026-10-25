@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .title-row .page-title { margin: 0; }
+    .meta { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
+    .meta a { color: var(--color-primary); text-underline-offset: 3px; }
+    .panel-card { max-width: 760px; }
+    .items-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .items-total { font-size: 18px; }
+    .items-total strong { font-variant-numeric: tabular-nums; }
+    .slip-img { max-width: 520px; width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .add-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; margin-top: var(--space-3); }
+    .add-row .field { margin: 0; }
+  </style>
+</head>
+<body>
+  <!-- 2.4 Record Sales Transaction: the order, its items, status timeline, slip, payments and delivery -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html" id="crumb-list">Sales Orders &amp; Deliveries</a></li><li><span aria-current="page" id="crumb-no"></span></li></ol>
+    </nav>
+
+    <div id="not-found" class="card empty" hidden>
+      <span id="nf-icon"></span>
+      <h1 class="empty__title">Order not found</h1>
+      <p class="empty__text">The link may be wrong.</p>
+      <a class="btn btn--secondary" href="list.html">Back to orders</a>
+    </div>
+
+    <div id="order" hidden>
+      <div class="page-head">
+        <div>
+          <div class="title-row"><h1 class="page-title" id="o-no"></h1><span id="o-badge"></span></div>
+          <p class="meta" id="o-meta"></p>
+        </div>
+        <div class="page-head__actions" id="actions"></div>
+      </div>
+      <div id="flags"></div>
+
+      <div class="tabs" role="tablist" aria-label="Order details" id="tablist">
+        <button type="button" role="tab" id="tab-items" aria-controls="panel-items">Items</button>
+        <button type="button" role="tab" id="tab-timeline" aria-controls="panel-timeline">Timeline</button>
+        <button type="button" role="tab" id="tab-slip" aria-controls="panel-slip">Slip photo</button>
+        <button type="button" role="tab" id="tab-payments" aria-controls="panel-payments">Payments</button>
+        <button type="button" role="tab" id="tab-delivery" aria-controls="panel-delivery">Delivery</button>
+        <button type="button" role="tab" id="tab-history" aria-controls="panel-history">History</button>
+      </div>
+
+      <section class="tab-panel" role="tabpanel" id="panel-items" aria-labelledby="tab-items" tabindex="0"><div id="items"></div></section>
+      <section class="tab-panel" role="tabpanel" id="panel-timeline" aria-labelledby="tab-timeline" tabindex="0" hidden>
+        <div class="card card--pad panel-card"><ol class="timeline" id="timeline"></ol></div>
+      </section>
+      <section class="tab-panel" role="tabpanel" id="panel-slip" aria-labelledby="tab-slip" tabindex="0" hidden><div id="slip"></div></section>
+      <section class="tab-panel" role="tabpanel" id="panel-payments" aria-labelledby="tab-payments" tabindex="0" hidden><div id="payments"></div></section>
+      <section class="tab-panel" role="tabpanel" id="panel-delivery" aria-labelledby="tab-delivery" tabindex="0" hidden><div id="delivery"></div></section>
+      <section class="tab-panel" role="tabpanel" id="panel-history" aria-labelledby="tab-history" tabindex="0" hidden><div class="table-wrap" id="history"></div></section>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/order-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'orders' });
+      if (!session) return;
+
+      var R = CNS.ROLES;
+      var S = CNS.store;
+      var A = CNS.orderActions;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var EDITABLE = ['Draft', 'For approval', 'Approved', 'For delivery'];   // items editable until Shipped
+      var editing = false;
+
+      var id = new URLSearchParams(location.search).get('id');
+      var o = id && S.get('sales_orders', id);
+      if (!o) {
+        $('not-found').hidden = false;
+        $('nf-icon').outerHTML = CNS.icon('clipboard-document-list');
+        $('crumb-no').textContent = 'Not found';
+        return;
+      }
+      if (document.referrer.indexOf('/orders/list.html') >= 0) $('crumb-list').href = document.referrer;
+
+      function userName(uid) { var u = uid && S.get('users', uid); return u ? u.full_name : '—'; }
+      function emptyLine(t) { return '<p class="empty-line">' + esc(t) + '</p>'; }
+      function paidOnOrder() {
+        return S.where('payments', function (p) { return p.order_id === o.id && p.verified_by && !p.bounced; })
+          .reduce(function (t, p) { return t + p.amount; }, 0);
+      }
+
+      // ---- Header and actions (one primary, depending on the status) ----
+      function renderHead() {
+        var c = S.get('clients', o.client_id);
+        document.title = o.order_no + ' · Centennial Sales & Inventory';
+        $('crumb-no').textContent = o.order_no;
+        $('o-no').textContent = o.order_no;
+        $('o-badge').innerHTML = CNS.ui.orderBadge(o.status);
+        $('o-meta').innerHTML = (c ? '<a href="../customers/detail.html?id=' + encodeURIComponent(c.id) + '">' + esc(c.store_name) + '</a>' : '—') +
+          ' · Ordered ' + esc(fmt.date(o.order_date)) + ' · Delivery ' + esc(fmt.date(o.delivery_date)) +
+          ' · Agent: ' + esc(userName(o.agent_id)) + ' · ' + esc(S.branchName(o.branch_id));
+
+        var delivery = A.deliveryFor(o.id);
+        var receiptOk = ['Approved', 'For delivery', 'Shipped', 'Completed'].indexOf(o.status) >= 0;
+        var html = receiptOk ? '<a class="btn btn--secondary" href="receipt.html?id=' + encodeURIComponent(o.id) + '">' + CNS.icon('printer') + 'Receipt</a>' : '';
+        if (o.status === 'Draft') html += '<button type="button" class="btn btn--primary" id="send">' + CNS.icon('check') + 'Send for approval</button>';
+        else if (o.status === 'For approval' && me.role === R.OM && o.branch_id === me.branch_id)
+          html += '<a class="btn btn--primary" href="approvals.html?id=' + encodeURIComponent(o.id) + '">' + CNS.icon('check-circle') + 'Review for approval</a>';
+        else if (o.status === 'Approved')
+          html += '<a class="btn btn--primary" href="../deliveries/detail.html?order=' + encodeURIComponent(o.id) + '">' + CNS.icon('arrow-right-start-on-rectangle') + 'Schedule delivery</a>';
+        else if (o.status === 'For delivery' && delivery)
+          html += '<a class="btn btn--primary" href="../deliveries/detail.html?id=' + encodeURIComponent(delivery.id) + '">' + CNS.icon('arrow-right-start-on-rectangle') + 'Open delivery</a>';
+        $('actions').innerHTML = html;
+        if ($('send')) $('send').addEventListener('click', function () {
+          o = A.sendForApproval(o, session);
+          CNS.ui.toast(o.order_no + ' sent to the Office Manager for approval.');
+          render();
+        });
+
+        var f = S.orderFlags(o.id);
+        var notes = [];
+        if (o.status === 'Shipped') notes.push(['info', 'Shipped. Waiting for the agent to confirm the delivery.']);
+        if (o.internal_note) notes.push(['info', 'Note: ' + o.internal_note]);
+        if (f.overCredit) notes.push(['warning', 'Over credit limit by ' + fmt.money(f.overCredit) + '.']);
+        if (f.backordered.length) notes.push(['info', f.backordered.length + (f.backordered.length === 1 ? ' line is' : ' lines are') + ' backordered. They will come from the supplier.']);
+        $('flags').innerHTML = notes.map(function (n) { return '<p class="alert" data-tone="' + n[0] + '">' + esc(n[1]) + '</p>'; }).join('');
+      }
+
+      // ---- Items (editable until Shipped; edits re-run 2.2 validation) ----
+      function renderItems() {
+        var f = S.orderFlags(o.id);
+        var short = {}, low = {};
+        f.backordered.forEach(function (b) { short[b.product_id] = b.short; });
+        f.belowMin.forEach(function (b) { low[b.product_id] = b.min; });
+        var canEdit = EDITABLE.indexOf(o.status) >= 0;
+        var lines = A.items(o.id);
+
+        $('items').innerHTML =
+          '<div class="items-bar"><span class="items-total">' + lines.length + (lines.length === 1 ? ' line' : ' lines') + ' · Total <strong>' + esc(fmt.money(S.orderTotal(o.id))) + '</strong></span>' +
+            (canEdit && !editing ? '<button type="button" class="btn btn--secondary" id="edit-items">' + CNS.icon('pencil-square') + 'Edit items</button>' : '') + '</div>' +
+          '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">Product</th><th scope="col">Unit</th><th scope="col" class="num-col">Qty</th>' +
+            '<th scope="col" class="num-col">Unit price</th><th scope="col" class="num-col">Amount</th><th scope="col">Stock</th>' +
+            (editing ? '<th scope="col" class="actions"><span class="sr-only">Remove</span></th>' : '') + '</tr></thead><tbody>' +
+            lines.map(function (it) {
+              var p = S.get('products', it.product_id);
+              var stock = short[p.id] ? CNS.ui.badge('info', 'information-circle', 'Backordered ' + fmt.number(short[p.id]))
+                : ['Shipped', 'Completed'].indexOf(o.status) >= 0 ? CNS.ui.badge('success', 'check-circle', 'Delivered from stock')
+                : CNS.ui.badge('success', 'check-circle', 'In stock');
+              return '<tr data-item="' + esc(it.id) + '"><td><span class="truncate cell-main" title="' + esc(p.name) + '">' + esc(p.name) + '</span>' +
+                  (low[p.id] ? '<p class="line-warn line-warn--warning">' + CNS.icon('exclamation-triangle') + 'Below minimum (' + esc(fmt.qty(low[p.id], p.unit_id)) + ')</p>' : '') + '</td>' +
+                '<td class="nowrap">' + esc(fmt.unit(p.unit_id, 2)) + '</td>' +
+                '<td class="num-col">' + (editing
+                  ? '<label class="sr-only" for="q-' + esc(it.id) + '">Quantity of ' + esc(p.name) + '</label><input class="input input--cell input--qty" id="q-' + esc(it.id) + '" type="number" min="1" step="1" value="' + it.qty + '">'
+                  : fmt.number(it.qty)) + '</td>' +
+                '<td class="num-col">' + esc(fmt.money(it.unit_price)) + '</td><td class="num-col">' + esc(fmt.money(it.qty * it.unit_price)) + '</td>' +
+                '<td>' + stock + '</td>' +
+                (editing ? '<td class="actions"><button type="button" class="btn btn--secondary" data-remove="' + esc(it.id) + '">' + CNS.icon('x-mark') + '<span class="sr-only">Remove ' + esc(p.name) + '</span></button></td>' : '') + '</tr>';
+            }).join('') + '</tbody></table></div>' +
+          (editing
+            ? '<div class="add-row"><div class="field"><label class="label" for="add-product">Add a product</label>' +
+                '<input class="input input--cell" id="add-product" list="all-products" autocomplete="off" placeholder="Name or code" style="min-width:300px"></div>' +
+                '<div class="field"><label class="label" for="add-qty">Qty</label><input class="input input--cell input--qty" id="add-qty" type="number" min="1" step="1"></div>' +
+                '<datalist id="all-products">' + S.all('products').map(function (p) { return '<option value="' + esc(p.code + ' — ' + p.name) + '">'; }).join('') + '</datalist></div>' +
+              '<div class="save-bar" style="margin-top:var(--space-4);max-width:none"><span class="cell-sub">Changes are checked again; if new warnings appear, the order goes back to the Office Manager.</span>' +
+                '<div class="save-bar__actions"><button type="button" class="btn btn--secondary" id="cancel-edit">Cancel</button>' +
+                '<button type="button" class="btn btn--primary" id="save-items">Save items</button></div></div>'
+            : '');
+
+        if ($('edit-items')) $('edit-items').addEventListener('click', function () { editing = true; renderItems(); var first = $('items').querySelector('input'); if (first) first.focus(); });
+        if (editing) {
+          $('cancel-edit').addEventListener('click', function () { editing = false; renderItems(); });
+          $('save-items').addEventListener('click', saveItems);
+          $('items').querySelectorAll('[data-remove]').forEach(function (b) {
+            b.addEventListener('click', function () { b.closest('tr').hidden = true; b.closest('tr').dataset.removed = '1'; });
+          });
+        }
+      }
+
+      function saveItems() {
+        var before = S.orderFlags(o.id);
+        var beforeCount = (before.overCredit ? 1 : 0) + before.backordered.length;
+        var changed = 0;
+        A.items(o.id).forEach(function (it) {
+          var tr = $('items').querySelector('[data-item="' + it.id + '"]');
+          var p = S.get('products', it.product_id);
+          if (tr.dataset.removed) {
+            S.remove('sales_order_items', function (x) { return x.id === it.id; });
+            CNS.history.logChange(A.MODULE, 'sales_orders', o.id, 'item', p.name + ': ' + fmt.qty(it.qty, p.unit_id), null);
+            changed++;
+            return;
+          }
+          var q = Math.round(Number(tr.querySelector('input').value));
+          if (q > 0 && q !== it.qty) {
+            S.update('sales_order_items', it.id, { qty: q });
+            CNS.history.logChange(A.MODULE, 'sales_orders', o.id, 'item', p.name + ': ' + fmt.qty(it.qty, p.unit_id), p.name + ': ' + fmt.qty(q, p.unit_id));
+            changed++;
+          }
+        });
+        var addVal = $('add-product').value.trim().toLowerCase();
+        var addP = S.all('products').filter(function (p) { return (p.code + ' — ' + p.name).toLowerCase() === addVal || p.code.toLowerCase() === addVal; })[0];
+        var addQ = Math.round(Number($('add-qty').value));
+        if (addP && addQ > 0) {
+          S.insert('sales_order_items', { order_id: o.id, product_id: addP.id, qty: addQ, unit_price: addP.selling_price });
+          CNS.history.logChange(A.MODULE, 'sales_orders', o.id, 'item', null, addP.name + ': ' + fmt.qty(addQ, addP.unit_id));
+          changed++;
+        } else if (addVal && !addP) {
+          CNS.ui.confirm({ title: 'Product not found', body: 'Pick the product to add from the list.', confirm: 'OK', icon: 'information-circle', alertOnly: true });
+          return;
+        }
+        if (!A.items(o.id).length) {
+          CNS.ui.confirm({ title: 'An order needs at least one product', body: 'Keep at least one line, or reject the order instead.', confirm: 'OK', icon: 'information-circle', alertOnly: true });
+          return;
+        }
+        editing = false;
+        var after = S.orderFlags(o.id);
+        var afterCount = (after.overCredit ? 1 : 0) + after.backordered.length;
+        if (changed && ['Approved', 'For delivery'].indexOf(o.status) >= 0 && afterCount > beforeCount) {
+          o = A.sendForApproval(o, session);
+          CNS.ui.toast('Items saved. New warnings appeared, so the order went back to the Office Manager.');
+        } else {
+          CNS.ui.toast(changed ? 'Items saved.' : 'No changes to save.');
+        }
+        render();
+      }
+
+      // ---- Timeline: from the History Log, filled in from the record for older orders ----
+      function renderTimeline() {
+        var logs = S.where('history_logs', function (h) { return h.record_type === 'sales_orders' && h.record_id === o.id && h.field === 'status'; })
+          .sort(function (a, b) { return a.datetime < b.datetime ? -1 : 1; });
+        var steps = [];
+        var has = function (status) { return logs.some(function (h) { return h.new_value === status || (h.new_value || '').indexOf(' · ' + status + ' · ') > 0; }); };
+        if (!logs.some(function (h) { return h.action === 'Create'; }))
+          steps.push({ when: o.order_date + 'T08:00:00', title: 'Order recorded', who: o.encoded_by, ok: true });
+        logs.forEach(function (h) {
+          var title = h.action === 'Create' ? 'Order recorded (' + (h.new_value || '').split(' · ')[1] + ')' : h.new_value;
+          steps.push({ when: h.datetime, title: title, who: h.user_id, ok: h.new_value !== 'Rejected' });
+        });
+        if (o.approved_by && !has('Approved') && !has('Rejected') && o.status !== 'For approval' && o.status !== 'Draft')
+          steps.push({ when: o.order_date + 'T10:00:00', title: o.status === 'Rejected' ? 'Rejected' : 'Approved', who: o.approved_by, ok: o.status !== 'Rejected' });
+        var d = A.deliveryFor(o.id);
+        if (d && d.shipped_at && !has('Shipped')) steps.push({ when: d.shipped_at, title: 'Shipped', who: null, ok: true });
+        if (d && d.completed_at && !has('Completed')) steps.push({ when: d.completed_at, title: 'Delivered and confirmed', who: d.confirmed_by, ok: true });
+        steps.sort(function (a, b) { return a.when < b.when ? -1 : 1; });
+        var next = { 'Draft': 'Send for approval', 'For approval': 'Office Manager approval', 'Approved': 'Schedule the delivery', 'For delivery': 'Ship on ' + fmt.date(d ? d.schedule_date : o.delivery_date), 'Shipped': 'Agent confirms the delivery' }[o.status];
+        $('timeline').innerHTML = steps.map(function (s) {
+          return '<li><span class="timeline__dot' + (s.ok ? '' : ' timeline__dot--bad') + '">' + CNS.icon(s.ok ? 'check' : 'x-mark') + '</span>' +
+            '<div><p class="timeline__title">' + esc(s.title) + '</p><p class="timeline__meta">' + esc(fmt.dateTime(s.when)) + (s.who ? ' · ' + esc(userName(s.who)) : '') + '</p></div></li>';
+        }).join('') + (next ? '<li><span class="timeline__dot timeline__dot--wait">' + CNS.icon('arrow-path') + '</span><div><p class="timeline__title">Next: ' + esc(next) + '</p><p class="timeline__meta">Waiting</p></div></li>' : '');
+      }
+
+      function renderSlip() {
+        var s = o.slip_photo;
+        $('slip').innerHTML = !s ? '<div class="table-wrap">' + emptyLine('No slip attached. Office-encoded orders don\'t need one.') + '</div>'
+          : s.indexOf('data:image') === 0 ? '<img class="slip-img" src="' + esc(s) + '" alt="Order slip photo for ' + esc(o.order_no) + '">'
+          : '<div class="table-wrap">' + emptyLine('Attached file: ' + s.replace(/^file:/, '')) + '</div>';
+      }
+
+      function renderPayments() {
+        var pays = S.where('payments', function (p) { return p.order_id === o.id; });
+        var total = S.orderTotal(o.id), paid = paidOnOrder();
+        $('payments').innerHTML = '<div class="card card--pad panel-card" style="margin-bottom:var(--space-4)"><dl class="details">' +
+            '<dt>Order total</dt><dd>' + esc(fmt.money(total)) + '</dd><dt>Paid (verified)</dt><dd>' + esc(fmt.money(paid)) + '</dd>' +
+            '<dt>Remaining on this order</dt><dd>' + esc(fmt.money(Math.max(0, total - paid))) + '</dd></dl></div>' +
+          '<div class="table-wrap">' + (pays.length
+            ? '<table class="table"><thead><tr><th scope="col">Date</th><th scope="col" class="num-col">Amount</th><th scope="col">Method</th><th scope="col">Reference</th><th scope="col">Channel</th><th scope="col">Status</th></tr></thead><tbody>' +
+              pays.map(function (p) {
+                var st = p.bounced ? CNS.ui.badge('error', 'x-mark', 'Bounced') : p.verified_by ? CNS.ui.badge('success', 'check-circle', 'Verified') : CNS.ui.badge('warning', 'exclamation-triangle', 'For verification');
+                return '<tr><td class="nowrap">' + esc(fmt.date(p.date)) + '</td><td class="num-col">' + esc(fmt.money(p.amount)) + '</td><td>' + esc(p.method) + '</td><td>' + esc(p.reference_no || '—') + '</td><td>' + esc(p.channel) + '</td><td>' + st + '</td></tr>';
+              }).join('') + '</tbody></table>'
+            : emptyLine('No payments on this order yet.')) + '</div>';
+      }
+
+      function renderDelivery() {
+        var d = A.deliveryFor(o.id);
+        if (!d) {
+          $('delivery').innerHTML = '<div class="card card--pad panel-card"><p style="margin:0 0 var(--space-3)">Not scheduled yet. Requested delivery: <strong>' + esc(fmt.date(o.delivery_date)) + '</strong>.</p>' +
+            (o.status === 'Approved' ? '<a class="btn btn--secondary" href="../deliveries/detail.html?order=' + encodeURIComponent(o.id) + '">Schedule delivery</a>' : '<p class="cell-sub" style="margin:0">Deliveries are scheduled after approval.</p>') + '</div>';
+          return;
+        }
+        var t = S.get('trucks', d.truck_id), dr = S.get('drivers', d.driver_id);
+        $('delivery').innerHTML = '<div class="card card--pad panel-card"><dl class="details">' +
+          '<dt>Status</dt><dd>' + CNS.ui.badge(d.status === 'Completed' ? 'success' : 'info', d.status === 'Completed' ? 'check-circle' : 'arrow-right-start-on-rectangle', d.status) + '</dd>' +
+          '<dt>Schedule</dt><dd>' + esc(fmt.date(d.schedule_date)) + '</dd>' +
+          '<dt>Truck</dt><dd>' + esc(t ? t.name + ' · ' + t.plate_no : '—') + '</dd>' +
+          '<dt>Driver</dt><dd>' + esc(dr ? dr.full_name : '—') + '</dd>' +
+          '<dt>Shipped</dt><dd>' + esc(d.shipped_at ? fmt.dateTime(d.shipped_at) : 'Not yet') + '</dd>' +
+          '<dt>Confirmed by</dt><dd>' + esc(d.completed_at ? userName(d.confirmed_by) + ' · ' + fmt.dateTime(d.completed_at) : 'Not yet') + '</dd></dl>' +
+          '<p style="margin:var(--space-4) 0 0"><a class="btn btn--secondary" href="../deliveries/detail.html?id=' + encodeURIComponent(d.id) + '">Open delivery</a></p></div>';
+      }
+
+      function renderHistory() {
+        var logs = S.where('history_logs', function (h) { return h.record_type === 'sales_orders' && h.record_id === o.id; })
+          .sort(function (a, b) { return a.datetime < b.datetime ? 1 : -1; });
+        $('history').innerHTML = logs.length
+          ? '<table class="table"><thead><tr><th scope="col">Date and time</th><th scope="col">User</th><th scope="col">Action</th><th scope="col">Field</th><th scope="col">Old value → New value</th></tr></thead><tbody>' +
+            logs.map(function (h) {
+              var change = h.old_value
+                ? '<span class="change"><span class="change__old"><span class="sr-only">from </span>' + esc(h.old_value) + '</span><span class="change__arrow" aria-hidden="true">→</span><span class="change__new"><span class="sr-only">to </span>' + esc(h.new_value || 'Removed') + '</span></span>'
+                : '<span class="change__new">' + esc(h.new_value || '—') + '</span>';
+              return '<tr><td class="nowrap">' + esc(fmt.dateTime(h.datetime)) + '</td><td class="nowrap">' + esc(userName(h.user_id)) + '</td><td>' + esc(h.action) + '</td>' +
+                '<td>' + esc({ status: 'Status', item: 'Item', qty_change: 'Stock' }[h.field] || h.field || '—') + '</td><td class="change-cell">' + change + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          : emptyLine('No changes logged yet.');
+      }
+
+      function render() {
+        o = S.get('sales_orders', o.id);
+        renderHead(); renderItems(); renderTimeline(); renderSlip(); renderPayments(); renderDelivery(); renderHistory();
+      }
+
+      $('order').hidden = false;
+      render();
+      CNS.ui.tabs($('tablist'));
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product form · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .supplier-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-3); align-items: end; margin-bottom: var(--space-3); }
+    .supplier-row .field { margin: 0; }
+    .supplier-row .label { font-size: var(--text-small); }
+    .supplier-row .conv { display: flex; align-items: center; gap: var(--space-2); }
+    .supplier-row .conv span { white-space: nowrap; color: var(--color-text-secondary); }
+    .supplier-row__error { grid-column: 1 / -1; margin-top: calc(-1 * var(--space-2)); }
+    .main-tag { font-size: var(--text-caption); font-weight: 600; color: var(--color-text-secondary); }
+    .levels-readonly .static-value { font-weight: 600; color: var(--color-text); }
+    #levels-desc { display: flex; align-items: center; gap: var(--space-2); }
+    @media (max-width: 760px) { .supplier-row { grid-template-columns: 1fr 1fr; } .supplier-row .field:first-child { grid-column: 1 / -1; } }
+  </style>
+</head>
+<body>
+  <!-- 3.1 Maintain Product Records; stock level settings (floor, reorder point, ceiling) are the Office Manager's (→ 3.4) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Products &amp; Inventory</a></li><li id="crumb-product" hidden><a id="crumb-product-link"></a></li><li><span aria-current="page" id="crumb-here"></span></li></ol>
+    </nav>
+    <h1 class="page-title" id="title"></h1>
+    <p class="page-desc">One product record for all branches: the same name, unit and price everywhere.</p>
+
+    <form id="form" novalidate>
+      <section class="card card--pad form-section" aria-labelledby="s-product">
+        <h2 class="form-section__title" id="s-product">Product</h2>
+        <div class="form-grid">
+          <div class="field">
+            <label class="label" for="code">Code</label>
+            <input class="input" id="code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="code-error">
+            <p class="field-error" id="code-error"></p>
+          </div>
+          <div class="field">
+            <label class="label" for="category">Category</label>
+            <select class="input" id="category" name="category_id" aria-describedby="category-error"><option value="">Choose a category</option></select>
+            <p class="field-error" id="category-error"></p>
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="name">Product name</label>
+            <input class="input" id="name" name="name" autocomplete="off" aria-describedby="name-error">
+            <p class="field-error" id="name-error"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card card--pad form-section" aria-labelledby="s-selling">
+        <h2 class="form-section__title" id="s-selling">Selling</h2>
+        <p class="form-section__desc">Each product has one selling unit.</p>
+        <div class="form-grid form-grid--3">
+          <div class="field">
+            <label class="label" for="unit">Selling unit</label>
+            <select class="input" id="unit" name="unit_id" aria-describedby="unit-error"><option value="">Choose a unit</option></select>
+            <p class="field-error" id="unit-error"></p>
+          </div>
+          <div class="field">
+            <label class="label" for="price">Selling price (₱)</label>
+            <input class="input" id="price" name="selling_price" type="number" inputmode="decimal" min="0" step="0.01" aria-describedby="price-error">
+            <p class="field-error" id="price-error"></p>
+          </div>
+          <div class="field">
+            <label class="label" for="moq">Minimum order</label>
+            <input class="input" id="moq" name="min_order_qty" type="number" inputmode="numeric" min="1" step="1" aria-describedby="moq-error">
+            <p class="field-error" id="moq-error"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card card--pad form-section" aria-labelledby="s-suppliers">
+        <h2 class="form-section__title" id="s-suppliers">Suppliers</h2>
+        <p class="form-section__desc">The first supplier is the main one. Their unit converts into the selling unit when a delivery is received.</p>
+        <div id="supplier-rows"></div>
+        <button type="button" class="btn btn--secondary" id="add-supplier"></button>
+      </section>
+
+      <section class="card card--pad form-section" aria-labelledby="s-storage">
+        <h2 class="form-section__title" id="s-storage">Storage</h2>
+        <fieldset class="check-list" id="areas"><legend>Where it is kept</legend></fieldset>
+      </section>
+
+      <section class="card card--pad form-section" aria-labelledby="s-levels">
+        <h2 class="form-section__title" id="s-levels">Stock levels</h2>
+        <p class="form-section__desc" id="levels-desc"></p>
+        <div class="form-grid form-grid--3" id="levels"></div>
+      </section>
+
+      <div class="save-bar">
+        <span id="autosave" role="status"></span>
+        <div class="save-bar__actions">
+          <a class="btn btn--secondary" id="cancel">Cancel</a>
+          <button type="submit" class="btn btn--primary">Save product</button>
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'products' });
+      if (!session) return;
+
+      var R = CNS.ROLES;
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var MODULE = 'Products & Inventory';
+      var me = session.user;
+      var canSetLevels = me.role === R.OM;   // stock level settings belong to the Office Manager (3.4)
+
+      var editId = new URLSearchParams(location.search).get('id');
+      var product = editId ? S.get('products', editId) : null;
+      if (editId && !product) { location.replace('list.html'); return; }
+      var isNew = !product;
+
+      // ---- Page chrome ----
+      $('title').textContent = isNew ? 'Add product' : 'Edit product';
+      $('crumb-here').textContent = isNew ? 'Add product' : 'Edit';
+      if (!isNew) {
+        $('crumb-product').hidden = false;
+        $('crumb-product-link').href = 'detail.html?id=' + encodeURIComponent(product.id);
+        $('crumb-product-link').textContent = product.name;
+        document.title = 'Edit ' + product.name + ' · Centennial Sales & Inventory';
+      }
+      $('cancel').href = isNew ? 'list.html' : 'detail.html?id=' + encodeURIComponent(product.id);
+      $('add-supplier').innerHTML = CNS.icon('plus-circle') + 'Add another supplier';
+
+      S.all('categories').forEach(function (c) {
+        $('category').insertAdjacentHTML('beforeend', '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>');
+      });
+      S.all('units').forEach(function (u) {
+        $('unit').insertAdjacentHTML('beforeend', '<option value="' + esc(u.id) + '">' + esc(u.name) + ' (' + esc(u.id) + ')</option>');
+      });
+
+      // ---- Supplier rows (purchase unit + conversion into the selling unit) ----
+      var rowSeq = 0;
+      function sellingUnitLabel() {
+        return $('unit').value ? fmt.unit($('unit').value, 2) : 'selling units';
+      }
+
+      function addSupplierRow(link) {
+        var n = rowSeq++;
+        var row = document.createElement('div');
+        row.className = 'supplier-row';
+        row.dataset.row = n;
+        row.innerHTML =
+          '<div class="field"><label class="label" for="sup-' + n + '">Supplier <span class="main-tag" data-main></span></label>' +
+            '<select class="input" id="sup-' + n + '" name="sup_supplier_' + n + '" aria-describedby="sup-' + n + '-error"><option value="">Choose a supplier</option>' +
+            S.all('suppliers').map(function (s) {
+              return '<option value="' + esc(s.id) + '"' + (link && link.supplier_id === s.id ? ' selected' : '') + '>' + esc(s.company_name) + '</option>';
+            }).join('') + '</select></div>' +
+          '<div class="field"><label class="label" for="pu-' + n + '">Supplier sells by</label>' +
+            '<input class="input" id="pu-' + n + '" name="sup_unit_' + n + '" placeholder="e.g. box, mother box" autocomplete="off" value="' + esc(link ? link.purchase_unit : '') + '"></div>' +
+          '<div class="field"><label class="label" for="cv-' + n + '">1 of those holds</label>' +
+            '<div class="conv"><input class="input" id="cv-' + n + '" name="sup_conv_' + n + '" type="number" inputmode="numeric" min="1" step="1" value="' + esc(link ? link.conversion : '') + '">' +
+            '<span data-unit></span></div></div>' +
+          '<button type="button" class="btn btn--secondary" data-remove>' + CNS.icon('x-mark') + 'Remove<span class="sr-only"> supplier</span></button>' +
+          '<p class="field-error supplier-row__error" id="sup-' + n + '-error"></p>';
+        $('supplier-rows').appendChild(row);
+        refreshSupplierRows();
+        return row;
+      }
+
+      function supplierRows() { return Array.prototype.slice.call($('supplier-rows').children); }
+
+      function refreshSupplierRows() {
+        var rows = supplierRows();
+        rows.forEach(function (r, i) {
+          r.querySelector('[data-main]').textContent = i === 0 ? '(main)' : '';
+          r.querySelector('[data-remove]').hidden = rows.length === 1;   // keep at least one supplier
+          r.querySelector('[data-unit]').textContent = sellingUnitLabel();
+        });
+      }
+
+      $('supplier-rows').addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-remove]');
+        if (!btn) return;
+        var row = btn.closest('.supplier-row');
+        var next = row.nextElementSibling || row.previousElementSibling;
+        row.remove();
+        refreshSupplierRows();
+        $('form').dispatchEvent(new Event('input'));   // autosave the change
+        if (next) next.querySelector('select').focus();
+      });
+      $('add-supplier').addEventListener('click', function () {
+        addSupplierRow(null).querySelector('select').focus();
+      });
+      $('unit').addEventListener('change', refreshSupplierRows);
+
+      // ---- Storage areas: management sees every branch, others only their own ----
+      var seesAll = CNS.auth.canSwitchBranch(me);
+      var areas = S.where('storage', function (a) { return seesAll || a.branch_id === me.branch_id; });
+      var currentAreas = product ? S.where('stock_locations', function (l) { return l.product_id === product.id; }).map(function (l) { return l.area_id; }) : [];
+      areas.forEach(function (a) {
+        $('areas').insertAdjacentHTML('beforeend',
+          '<label class="check-row"><input type="checkbox" name="area_' + esc(a.id) + '" value="' + esc(a.id) + '"' +
+          (currentAreas.indexOf(a.id) >= 0 ? ' checked' : '') + '>' + esc(S.branchName(a.branch_id) + ' · ' + a.name) + '</label>');
+      });
+
+      // ---- Stock levels ----
+      var LEVELS = [['floor', 'floor_qty', 'Floor'], ['critical', 'critical_qty', 'Reorder point'], ['ceiling', 'ceiling_qty', 'Ceiling']];
+      if (canSetLevels) {
+        $('levels-desc').textContent = 'Low-stock alerts start at the reorder point. Floor is the safe minimum; ceiling is the most to keep.';
+        $('levels').innerHTML = LEVELS.map(function (l) {
+          return '<div class="field"><label class="label" for="' + l[0] + '">' + l[2] + '</label>' +
+            '<input class="input" id="' + l[0] + '" name="' + l[1] + '" type="number" inputmode="numeric" min="0" step="1" aria-describedby="' + l[0] + '-error"' +
+            ' value="' + (product ? product[l[1]] : '') + '"><p class="field-error" id="' + l[0] + '-error"></p></div>';
+        }).join('');
+      } else {
+        $('levels-desc').innerHTML = CNS.icon('lock-closed') + '<span>Set by the Office Manager.</span>';
+        $('levels').classList.add('levels-readonly');
+        $('levels').innerHTML = LEVELS.map(function (l) {
+          return '<div class="field"><span class="label">' + l[2] + '</span><div class="static-value">' +
+            (product ? esc(fmt.number(product[l[1]])) : 'Not set yet') + '</div></div>';
+        }).join('');
+      }
+
+      // ---- Fill from the record, then let a saved draft take over ----
+      var draftKey = 'product-' + (product ? product.id : 'new');
+      var links = product ? S.where('product_supplier', function (ps) { return ps.product_id === product.id; }) : [];
+      if (product) {
+        $('code').value = product.code;
+        $('name').value = product.name;
+        $('category').value = product.category_id;
+        $('unit').value = product.unit_id;
+        $('price').value = product.selling_price;
+        $('moq').value = product.min_order_qty;
+      }
+      // Make enough supplier rows for the draft (autosave restores fields by name)
+      var draftRows = 0;
+      try {
+        var d = JSON.parse(localStorage.getItem('centennial-draft:' + draftKey));
+        if (d && d.data) draftRows = Object.keys(d.data).filter(function (k) { return k.indexOf('sup_supplier_') === 0; }).length;
+      } catch (e) { /* no draft */ }
+      var rowsNeeded = Math.max(links.length, draftRows, 1);
+      for (var i = 0; i < rowsNeeded; i++) addSupplierRow(links[i] || null);
+
+      var draft = CNS.autosave.attach($('form'), { key: draftKey, status: $('autosave') });
+      refreshSupplierRows();
+
+      // ---- Validation ----
+      function setError(id, message) {
+        var el = $(id);
+        $(id + '-error').textContent = message || '';
+        if (message) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
+        return !message;
+      }
+
+      function wholeNumber(v) { return v !== '' && /^\d+$/.test(String(v)); }
+
+      function readSuppliers() {
+        return supplierRows().map(function (r) {
+          var n = r.dataset.row;
+          return { n: n, supplier_id: $('sup-' + n).value, purchase_unit: $('pu-' + n).value.trim(), conversion: $('cv-' + n).value };
+        });
+      }
+
+      function validate() {
+        var code = $('code').value.trim().toUpperCase();
+        var dup = S.where('products', function (p) { return p.code.toUpperCase() === code && (!product || p.id !== product.id); }).length;
+        var ok = [
+          setError('code', !code ? 'Enter the product code.' : dup ? 'Another product already uses this code.' : ''),
+          setError('category', $('category').value ? '' : 'Choose a category.'),
+          setError('name', $('name').value.trim() ? '' : 'Enter the product name.'),
+          setError('unit', $('unit').value ? '' : 'Choose the selling unit.'),
+          setError('price', $('price').value !== '' && Number($('price').value) > 0 ? '' : 'Enter a price above ₱0.'),
+          setError('moq', wholeNumber($('moq').value) && Number($('moq').value) >= 1 ? '' : 'Enter a whole number, 1 or more.')
+        ];
+
+        var seen = [];
+        readSuppliers().forEach(function (s) {
+          var msg = !s.supplier_id ? 'Choose a supplier.'
+            : seen.indexOf(s.supplier_id) >= 0 ? 'This supplier is listed twice.'
+            : !s.purchase_unit ? 'Enter the unit the supplier sells by.'
+            : !(wholeNumber(s.conversion) && Number(s.conversion) >= 1) ? 'Enter how many ' + sellingUnitLabel() + ' are in 1 ' + s.purchase_unit + '.' : '';
+          seen.push(s.supplier_id);
+          $('sup-' + s.n + '-error').textContent = msg;
+          [$('sup-' + s.n), $('pu-' + s.n), $('cv-' + s.n)].forEach(function (el) {
+            if (msg) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
+          });
+          ok.push(!msg);
+        });
+
+        if (canSetLevels) {
+          var f = $('floor').value, c = $('critical').value, ce = $('ceiling').value;
+          var allWhole = [f, c, ce].every(wholeNumber);
+          ok.push(setError('floor', wholeNumber(f) ? '' : 'Enter a whole number, 0 or more.'));
+          ok.push(setError('critical', !wholeNumber(c) ? 'Enter a whole number, 0 or more.'
+            : allWhole && Number(c) < Number(f) ? 'Must be the same as the floor or higher.' : ''));
+          ok.push(setError('ceiling', !wholeNumber(ce) ? 'Enter a whole number.'
+            : allWhole && Number(ce) <= Number(c) ? 'Must be higher than the reorder point.' : ''));
+        }
+        return ok.indexOf(false) < 0;
+      }
+
+      // ---- Save ----
+      function nameOf(table, id, key) { var r = id && S.get(table, id); return r ? r[key] : null; }
+
+      $('form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!validate()) {
+          $('form').querySelector('[aria-invalid="true"]').focus();
+          return;
+        }
+
+        var suppliers = readSuppliers();
+        var values = {
+          code: $('code').value.trim().toUpperCase(),
+          name: $('name').value.trim().replace(/\s+/g, ' '),
+          category_id: $('category').value,
+          unit_id: $('unit').value,
+          selling_price: Math.round(Number($('price').value) * 100) / 100,
+          min_order_qty: Number($('moq').value),
+          supplier_id: suppliers[0].supplier_id
+        };
+        if (canSetLevels) {
+          values.floor_qty = Number($('floor').value);
+          values.critical_qty = Number($('critical').value);
+          values.ceiling_qty = Number($('ceiling').value);
+        } else if (isNew) {
+          values.floor_qty = 0; values.critical_qty = 0; values.ceiling_qty = 0;   // until the Office Manager sets them
+        }
+
+        var record;
+        if (isNew) {
+          record = S.insert('products', values);
+          CNS.history.log({ action: 'Create', module: MODULE, record_type: 'products', record_id: record.id, new_value: values.code + ' · ' + values.name });
+        } else {
+          record = product;
+          var changes = {};
+          Object.keys(values).forEach(function (k) { if (values[k] !== product[k]) changes[k] = values[k]; });
+          var old = S.update('products', product.id, changes);
+          // Readable values in the History Log: names, not ids
+          var READ = {
+            category_id: function (v) { return nameOf('categories', v, 'name'); },
+            unit_id: function (v) { return v ? fmt.unit(v, 2) : v; },
+            supplier_id: function (v) { return nameOf('suppliers', v, 'company_name'); }
+          };
+          Object.keys(changes).forEach(function (k) {
+            var r = READ[k] || function (v) { return v; };
+            CNS.history.logChange(MODULE, 'products', product.id, k, r(old[k]), r(changes[k]));
+          });
+        }
+
+        // Supplier units: replace the links, log the change as one readable line
+        var describe = function (list) {
+          return list.map(function (s) { return nameOf('suppliers', s.supplier_id, 'company_name') + ': 1 ' + s.purchase_unit + ' = ' + s.conversion; }).join('; ');
+        };
+        var oldLinks = describe(links);
+        S.remove('product_supplier', function (ps) { return ps.product_id === record.id; });
+        suppliers.forEach(function (s) {
+          S.insert('product_supplier', { product_id: record.id, supplier_id: s.supplier_id, purchase_unit: s.purchase_unit, conversion: Number(s.conversion) });
+        });
+        var newLinks = describe(suppliers);
+        if (!isNew && oldLinks !== newLinks) CNS.history.logChange(MODULE, 'products', record.id, 'supplier_units', oldLinks, newLinks);
+
+        // Storage areas: only the areas this user can see change; other branches' areas stay as they were
+        var visible = areas.map(function (a) { return a.id; });
+        var checked = visible.filter(function (id) { return $('form').querySelector('[name="area_' + id + '"]').checked; });
+        var before = currentAreas.filter(function (id) { return visible.indexOf(id) >= 0; });
+        if (checked.slice().sort().join() !== before.slice().sort().join()) {
+          S.remove('stock_locations', function (l) { return l.product_id === record.id && visible.indexOf(l.area_id) >= 0; });
+          checked.forEach(function (id) { S.insert('stock_locations', { product_id: record.id, area_id: id }); });
+          var areaNames = function (ids) { return ids.map(function (id) { var a = S.get('storage', id); return S.branchName(a.branch_id) + ' · ' + a.name; }).join(', '); };
+          if (!isNew) CNS.history.logChange(MODULE, 'products', record.id, 'storage', areaNames(before) || 'None', areaNames(checked) || 'None');
+        }
+
+        draft.clear();
+        CNS.ui.flash(isNew ? values.name + ' added.' : values.name + ' saved.');
+        location.href = 'detail.html?id=' + encodeURIComponent(record.id);
+      });
+
+      $('code').focus();
+    })();
+  </script>
+</body>
+</html>

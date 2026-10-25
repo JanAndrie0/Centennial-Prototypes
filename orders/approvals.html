@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order approvals · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .approvals { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+    .queue { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+    .queue button {
+      display: grid; gap: 4px; width: 100%; padding: var(--space-3) var(--space-4); font: inherit; text-align: left; color: var(--color-text);
+      background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer;
+    }
+    .queue button:hover { border-color: var(--color-text-secondary); }
+    .queue button[aria-current="true"] { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-focus-ring); }
+    .queue button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .queue__top { display: flex; justify-content: space-between; gap: var(--space-2); font-weight: 700; }
+    .queue__flags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .record { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin: 0 0 var(--space-4); }
+    .record div { padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
+    .record dt { font-size: var(--text-small); color: var(--color-text-secondary); }
+    .record dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .record .is-bad { color: var(--color-error); }
+    .record .is-warn { color: var(--color-warning); }
+    .detail-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); }
+    .detail-head h2 { margin: 0; font-size: 22px; }
+    .detail-total { text-align: right; }
+    .detail-total strong { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+    .detail-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-5); }
+    .sub-title { margin: var(--space-5) 0 var(--space-3); font-size: var(--text-card-title); font-weight: 700; }
+    .slip-img { max-width: 320px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    @media (max-width: 1100px) { .approvals { grid-template-columns: 1fr; } .record { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body>
+  <!-- 2.3 Process Order Approval: the Office Manager sees the order with the customer's payment record -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Sales Orders &amp; Deliveries</a></li><li><span aria-current="page">Approvals</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <h1 class="page-title">Order approvals</h1>
+    <p class="page-desc" id="desc">Check the customer's payment record, then approve or reject.</p>
+
+    <div class="approvals" id="approvals">
+      <section aria-labelledby="queue-title">
+        <h2 class="sr-only" id="queue-title">Waiting for approval</h2>
+        <p class="result-count" id="queue-count" aria-live="polite"></p>
+        <ul class="queue" id="queue"></ul>
+      </section>
+      <section class="card card--pad" id="detail" aria-live="polite"></section>
+    </div>
+    <div class="card empty" id="empty" hidden>
+      <span id="empty-icon"></span>
+      <p class="empty__title">No orders waiting.</p>
+      <p class="empty__text">New orders sent for approval show up here.</p>
+      <a class="btn btn--secondary" href="list.html">Open sales orders</a>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/order-actions.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      var session = CNS.layout.desktop({ active: 'orders', roles: [R.CEO, R.OM, R.SS] });
+      if (!session) return;
+
+      var S = CNS.store;
+      var A = CNS.orderActions;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var selected = new URLSearchParams(location.search).get('id');
+
+      $('empty-icon').outerHTML = CNS.icon('check-circle');
+      if (me.role !== R.OM) $('desc').textContent = 'Orders waiting for the Office Manager. View only.';
+
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+      // Each branch's own Office Manager approves that branch's orders
+      function canDecide(o) { return me.role === R.OM && o.branch_id === me.branch_id; }
+
+      function waiting(o) {
+        var days = Math.round((new Date(S.today()) - new Date(o.order_date)) / 86400000);
+        return days <= 0 ? 'Sent today' : 'Waiting ' + days + (days === 1 ? ' day' : ' days');
+      }
+
+      function flagBadges(o) {
+        var f = S.orderFlags(o.id);
+        var out = [];
+        if (f.overCredit) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Over credit'));
+        if (S.clientOverdue(o.client_id)) out.push(CNS.ui.badge('error', 'exclamation-circle', 'Overdue'));
+        if (f.backordered.length) out.push(CNS.ui.badge('info', 'information-circle', 'Backordered'));
+        if (f.belowMin.length) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Below minimum'));
+        return out.join('');
+      }
+
+      function queue() {
+        var sc = scope();
+        return S.where('sales_orders', function (o) { return o.status === 'For approval' && (sc === 'all' || o.branch_id === sc); })
+          .sort(function (a, b) { return a.order_date < b.order_date ? -1 : 1; });   // oldest first
+      }
+
+      function renderQueue() {
+        CNS.layout.moduleTabs('orders', 'approvals', session);
+        var list = queue();
+        $('approvals').hidden = !list.length;
+        $('empty').hidden = !!list.length;
+        if (!list.length) return;
+        if (!list.some(function (o) { return o.id === selected; })) selected = list[0].id;
+        $('queue-count').textContent = list.length + (list.length === 1 ? ' order waiting' : ' orders waiting') + ' · oldest first';
+        $('queue').innerHTML = list.map(function (o) {
+          var c = S.get('clients', o.client_id);
+          var agent = S.get('users', o.agent_id);
+          return '<li><button type="button" data-id="' + esc(o.id) + '" aria-current="' + (o.id === selected) + '">' +
+            '<span class="queue__top"><span>' + esc(o.order_no) + '</span><span>' + esc(fmt.money(S.orderTotal(o.id))) + '</span></span>' +
+            '<span>' + esc(c ? c.store_name : '—') + '</span>' +
+            '<span class="cell-sub">' + esc((agent ? agent.full_name : '—') + ' · ' + waiting(o) + (scope() === 'all' ? ' · ' + S.branchName(o.branch_id) : '')) + '</span>' +
+            '<span class="queue__flags">' + flagBadges(o) + '</span></button></li>';
+        }).join('');
+        renderDetail();
+      }
+
+      function paymentRecord(c) {
+        var bal = S.clientBalance(c.id), overdue = S.clientOverdue(c.id);
+        var orders = S.where('sales_orders', function (o) { return o.client_id === c.id; }).map(function (o) { return o.id; });
+        var plans = S.where('installment_plans', function (p) { return orders.indexOf(p.order_id) >= 0; }).map(function (p) { return p.id; });
+        var today = S.today();
+        var sched = S.where('installment_schedules', function (s) { return plans.indexOf(s.plan_id) >= 0; });
+        var late = sched.filter(function (s) { return s.due_date < today && s.amount_paid < s.amount_due; }).length;
+        var open = sched.filter(function (s) { return s.amount_paid < s.amount_due; }).length;
+        var pays = S.where('payments', function (p) { return p.client_id === c.id; }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        var bounced = pays.filter(function (p) { return p.bounced; });
+
+        return '<h3 class="sub-title">Customer payment record</h3>' +
+          '<dl class="record">' +
+            '<div><dt>Balance</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
+            '<div><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
+            '<div><dt>Overdue</dt><dd' + (overdue ? ' class="is-bad"' : '') + '>' + esc(fmt.money(overdue)) + (overdue ? ' · ' + S.clientOverdueDays(c.id) + ' days' : '') + '</dd></div>' +
+            '<div><dt>Installments</dt><dd' + (late ? ' class="is-bad"' : '') + '>' + (sched.length ? open + ' open · ' + late + ' late' : 'None') + '</dd></div>' +
+          '</dl>' +
+          (bounced.length ? '<p class="alert" data-tone="error">' + bounced.length + (bounced.length === 1 ? ' bounced cheque' : ' bounced cheques') + ' on record: ' +
+            esc(bounced.map(function (p) { return p.reference_no + ' (' + fmt.date(p.date) + ', ' + fmt.money(p.amount) + ')'; }).join(', ')) + '.</p>' : '') +
+          '<div class="table-wrap">' + (pays.length
+            ? '<table class="table"><thead><tr><th scope="col">Last payments</th><th scope="col" class="num-col">Amount</th><th scope="col">Method</th><th scope="col">Status</th></tr></thead><tbody>' +
+              pays.slice(0, 3).map(function (p) {
+                var st = p.bounced ? CNS.ui.badge('error', 'x-mark', 'Bounced') : p.verified_by ? CNS.ui.badge('success', 'check-circle', 'Verified') : CNS.ui.badge('warning', 'exclamation-triangle', 'For verification');
+                return '<tr><td class="nowrap">' + esc(fmt.date(p.date)) + '</td><td class="num-col">' + esc(fmt.money(p.amount)) + '</td><td>' + esc(p.method) + '</td><td>' + st + '</td></tr>';
+              }).join('') + '</tbody></table>'
+            : '<p class="empty-line">No payments on record yet.</p>') + '</div>';
+      }
+
+      function renderDetail() {
+        var o = S.get('sales_orders', selected);
+        if (!o) { $('detail').innerHTML = ''; return; }
+        var c = S.get('clients', o.client_id);
+        var f = S.orderFlags(o.id);
+        var short = {};
+        f.backordered.forEach(function (b) { short[b.product_id] = b.short; });
+
+        $('detail').innerHTML =
+          '<div class="detail-head"><div><h2>' + esc(o.order_no) + ' · ' + esc(c ? c.store_name : '') + '</h2>' +
+            '<p class="cell-sub">Ordered ' + esc(fmt.date(o.order_date)) + ' · Delivery ' + esc(fmt.date(o.delivery_date)) + ' · ' + esc(S.branchName(o.branch_id)) + '</p>' +
+            (o.internal_note ? '<p class="cell-sub">Note: ' + esc(o.internal_note) + '</p>' : '') + '</div>' +
+            '<div class="detail-total"><span class="cell-sub">Order total</span><strong>' + esc(fmt.money(S.orderTotal(o.id))) + '</strong></div></div>' +
+          (f.overCredit ? '<p class="alert" data-tone="warning">Over credit limit by ' + esc(fmt.money(f.overCredit)) + ' if approved.</p>' : '') +
+          '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Qty</th>' +
+            '<th scope="col" class="num-col">Unit price</th><th scope="col" class="num-col">Amount</th><th scope="col">Stock</th></tr></thead><tbody>' +
+            A.items(o.id).map(function (it) {
+              var p = S.get('products', it.product_id);
+              return '<tr><td><span class="truncate cell-main" title="' + esc(p.name) + '">' + esc(p.name) + '</span></td>' +
+                '<td class="num-col">' + esc(fmt.qty(it.qty, p.unit_id)) + '</td><td class="num-col">' + esc(fmt.money(it.unit_price)) + '</td>' +
+                '<td class="num-col">' + esc(fmt.money(it.qty * it.unit_price)) + '</td>' +
+                '<td>' + (short[p.id] ? CNS.ui.badge('info', 'information-circle', 'Backordered ' + fmt.number(short[p.id])) : CNS.ui.badge('success', 'check-circle', 'In stock')) + '</td></tr>';
+            }).join('') + '</tbody></table></div>' +
+          (c ? paymentRecord(c) : '') +
+          (o.slip_photo && o.slip_photo.indexOf('data:image') === 0 ? '<h3 class="sub-title">Order slip</h3><img class="slip-img" src="' + esc(o.slip_photo) + '" alt="Order slip photo">' : '') +
+          (canDecide(o)
+            ? '<div class="detail-actions"><button type="button" class="btn btn--secondary" id="send-back">Send back with a note</button>' +
+                '<button type="button" class="btn btn--secondary" id="reject">' + CNS.icon('x-mark') + 'Reject</button>' +
+                '<button type="button" class="btn btn--primary" id="approve">' + CNS.icon('check') + 'Approve</button></div>'
+            : '<p class="notice notice--info">' + CNS.icon('information-circle') + '<span>' +
+                (me.role === R.OM ? 'This order belongs to ' + esc(S.branchName(o.branch_id)) + '; its own Office Manager approves it.' : 'Only the Office Manager approves orders.') + '</span></p>');
+
+        if (canDecide(o)) {
+          $('approve').addEventListener('click', function () {
+            A.approve(o, session);
+            CNS.ui.toast(o.order_no + ' approved. The stock is now reserved for ' + c.store_name + '.');
+            renderQueue();
+          });
+          $('reject').addEventListener('click', function () { askReason(o, true); });
+          $('send-back').addEventListener('click', function () { askReason(o, false); });
+        }
+      }
+
+      // Reject (requires a reason) and Send back (requires a note), each in a dialog
+      function askReason(o, reject) {
+        var d = document.createElement('dialog');
+        d.className = 'modal modal--form';
+        d.setAttribute('aria-labelledby', 'r-title');
+        d.innerHTML = CNS.icon(reject ? 'x-mark' : 'arrow-path', 'modal__icon') +
+          '<h2 class="modal__title" id="r-title">' + (reject ? 'Reject ' : 'Send back ') + esc(o.order_no) + '?</h2>' +
+          '<p class="modal__body">' + (reject ? 'The order stops here. The agent sees your reason.' : 'It goes back to the agent as a draft so they can fix it and send it again.') + '</p>' +
+          '<form novalidate><div class="field"><label class="label" for="r-text">' + (reject ? 'Reason' : 'Note to the agent') + '</label>' +
+            '<input class="input" id="r-text" autocomplete="off" placeholder="' + (reject ? 'e.g. Two bounced cheques this quarter' : 'e.g. Please confirm the hinge size') + '" aria-describedby="r-text-error">' +
+            '<p class="field-error" id="r-text-error"></p></div>' +
+          '<div class="modal__actions"><button type="button" class="btn btn--secondary" data-cancel>Cancel</button>' +
+            '<button type="submit" class="btn btn--primary">' + (reject ? 'Reject order' : 'Send back') + '</button></div></form>';
+        var opener = document.activeElement;
+        document.body.appendChild(d);
+        d.addEventListener('close', function () { d.remove(); if (opener && document.contains(opener)) opener.focus(); });
+        d.querySelector('[data-cancel]').addEventListener('click', function () { d.close(); });
+        d.querySelector('form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          var text = d.querySelector('#r-text').value.trim();
+          if (!text) {
+            d.querySelector('#r-text-error').textContent = reject ? 'Give the reason.' : 'Write the note.';
+            d.querySelector('#r-text').setAttribute('aria-invalid', 'true');
+            d.querySelector('#r-text').focus();
+            return;
+          }
+          if (reject) A.reject(o, text, session); else A.sendBack(o, text, session);
+          d.close();
+          CNS.ui.toast(o.order_no + (reject ? ' rejected.' : ' sent back to the agent.'));
+          renderQueue();
+        });
+        d.showModal();
+        d.querySelector('#r-text').focus();
+      }
+
+      $('queue').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-id]');
+        if (!b) return;
+        selected = b.getAttribute('data-id');
+        renderQueue();
+        $('queue').querySelector('[data-id="' + selected + '"]').focus();
+      });
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        renderQueue();
+      });
+
+      renderQueue();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suppliers · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .link-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 110px auto; gap: var(--space-2); align-items: end; margin-bottom: var(--space-2); }
+    .link-row .field { margin: 0; }
+    .link-row .label { font-size: var(--text-small); }
+    .modal--supplier { max-width: 720px; }
+  </style>
+</head>
+<body>
+  <!-- 4.1 Maintain Supplier Records -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Purchasing &amp; Suppliers</a></li><li><span aria-current="page">Suppliers</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+    <div class="page-head">
+      <div><h1 class="page-title">Suppliers</h1><p class="page-desc">Who supplies what, and in which unit.</p></div>
+      <div class="page-head__actions"><button type="button" class="btn btn--primary" id="add"></button></div>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th scope="col">Company</th><th scope="col">Contact</th><th scope="col">Address</th><th scope="col" class="num-col">Products</th>
+          <th scope="col" class="num-col">Unpaid</th><th scope="col" class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/po-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'purchasing' });
+      if (!session) return;
+      var S = CNS.store, P = CNS.poActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var products = S.all('products').slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+      $('add').innerHTML = CNS.icon('plus-circle') + 'Add supplier';
+
+      function links(sid) { return S.where('product_supplier', function (ps) { return ps.supplier_id === sid; }); }
+
+      function render() {
+        CNS.layout.moduleTabs('purchasing', 'suppliers', session);
+        $('rows').innerHTML = S.all('suppliers').slice().sort(function (a, b) { return a.company_name.localeCompare(b.company_name); }).map(function (s) {
+          var unpaid = P.supplierUnpaid(s.id);
+          return '<tr><td class="cell-main">' + esc(s.company_name) + '</td>' +
+            '<td class="nowrap">' + esc(s.contact_person) + '<span class="cell-sub">' + esc(s.contact_no) + '</span></td>' +
+            '<td><span class="truncate" title="' + esc(s.address) + '">' + esc(s.address) + '</span></td>' +
+            '<td class="num-col">' + links(s.id).length + '</td>' +
+            '<td class="num-col">' + (unpaid ? '<a class="row-link" href="list.html?payment=Unpaid">' + esc(fmt.money(unpaid)) + '</a>' : '<span class="cell-sub">None</span>') + '</td>' +
+            '<td class="actions"><button type="button" class="btn btn--secondary" data-edit="' + esc(s.id) + '">' + CNS.icon('pencil-square') + 'Edit<span class="sr-only"> ' + esc(s.company_name) + '</span></button></td></tr>';
+        }).join('');
+      }
+
+      function field(id, label, control) {
+        return '<div class="field"><label class="label" for="' + id + '">' + label + '</label>' + control + '<p class="field-error" id="' + id + '-error"></p></div>';
+      }
+
+      function open(s) {
+        var isNew = !s;
+        var seq = 0;
+        var d = document.createElement('dialog');
+        d.className = 'modal modal--form modal--supplier';
+        d.setAttribute('aria-labelledby', 'sf-title');
+        d.innerHTML = '<h2 class="modal__title" id="sf-title">' + (isNew ? 'Add supplier' : 'Edit supplier') + '</h2>' +
+          '<form novalidate>' +
+            field('sf-name', 'Company name', '<input class="input" id="sf-name" autocomplete="off" value="' + esc(s ? s.company_name : '') + '" aria-describedby="sf-name-error">') +
+            '<div class="form-grid">' +
+              field('sf-contact', 'Contact person', '<input class="input" id="sf-contact" autocomplete="off" value="' + esc(s ? s.contact_person : '') + '" aria-describedby="sf-contact-error">') +
+              field('sf-phone', 'Contact no.', '<input class="input" id="sf-phone" type="tel" autocomplete="off" value="' + esc(s ? s.contact_no : '') + '" aria-describedby="sf-phone-error">') +
+            '</div>' +
+            field('sf-address', 'Address', '<input class="input" id="sf-address" autocomplete="off" value="' + esc(s ? s.address : '') + '" aria-describedby="sf-address-error">') +
+            '<fieldset class="check-list field"><legend>Products supplied</legend><div id="sf-links"></div>' +
+              '<button type="button" class="btn btn--secondary" id="sf-add">' + CNS.icon('plus-circle') + 'Add product</button>' +
+              '<p class="field-error" id="sf-links-error"></p></fieldset>' +
+            '<div class="modal__actions"><button type="button" class="btn btn--secondary" data-cancel>Cancel</button>' +
+              '<button type="submit" class="btn btn--primary">' + (isNew ? 'Add supplier' : 'Save changes') + '</button></div>' +
+          '</form>';
+        var opener = document.activeElement;
+        document.body.appendChild(d);
+        var q = function (id) { return d.querySelector('#' + id); };
+
+        function addLink(l) {
+          var n = seq++;
+          var row = document.createElement('div');
+          row.className = 'link-row';
+          row.innerHTML =
+            '<div class="field"><label class="label" for="lp' + n + '">Product</label><select class="input input--cell" id="lp' + n + '"><option value="">Choose</option>' +
+              products.map(function (p) { return '<option value="' + esc(p.id) + '"' + (l && l.product_id === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></div>' +
+            '<div class="field"><label class="label" for="lu' + n + '">Sells by</label><input class="input input--cell" id="lu' + n + '" placeholder="e.g. box" value="' + esc(l ? l.purchase_unit : '') + '"></div>' +
+            '<div class="field"><label class="label" for="lc' + n + '">1 holds</label><input class="input input--cell input--qty" id="lc' + n + '" type="number" min="1" step="1" value="' + esc(l ? l.conversion : '') + '"></div>' +
+            '<button type="button" class="btn btn--secondary" data-remove>' + CNS.icon('x-mark') + '<span class="sr-only">Remove product</span></button>';
+          q('sf-links').appendChild(row);
+          return row;
+        }
+        (s ? links(s.id) : []).forEach(addLink);
+        if (isNew) addLink(null);
+        q('sf-add').addEventListener('click', function () { addLink(null).querySelector('select').focus(); });
+        q('sf-links').addEventListener('click', function (e) { var b = e.target.closest('[data-remove]'); if (b) b.closest('.link-row').remove(); });
+
+        d.addEventListener('close', function () { d.remove(); if (opener && document.contains(opener)) opener.focus(); });
+        d.querySelector('[data-cancel]').addEventListener('click', function () { d.close(); });
+        function err(id, msg) { q(id + '-error').textContent = msg || ''; var el = q(id); if (el && el.tagName !== 'DIV') { if (msg) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid'); } return !msg; }
+
+        d.querySelector('form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          var values = { company_name: q('sf-name').value.trim(), contact_person: q('sf-contact').value.trim(), contact_no: q('sf-phone').value.trim(), address: q('sf-address').value.trim() };
+          var rows = Array.prototype.map.call(d.querySelectorAll('.link-row'), function (r) {
+            return { product_id: r.querySelector('select').value, purchase_unit: r.querySelector('input').value.trim(), conversion: r.querySelector('input[type=number]').value };
+          }).filter(function (r) { return r.product_id || r.purchase_unit || r.conversion; });
+          var badLink = rows.filter(function (r) { return !r.product_id || !r.purchase_unit || !/^\d+$/.test(r.conversion) || Number(r.conversion) < 1; }).length;
+          var dupLink = rows.length !== rows.map(function (r) { return r.product_id; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).length;
+          var ok = [
+            err('sf-name', values.company_name ? '' : 'Enter the company name.'),
+            err('sf-contact', values.contact_person ? '' : 'Enter the contact person.'),
+            err('sf-phone', /^[0-9 ()+-]{7,}$/.test(values.contact_no) ? '' : 'Enter a phone number.'),
+            err('sf-address', values.address ? '' : 'Enter the address.'),
+            err('sf-links', badLink ? 'Each product needs its unit and how many it holds.' : dupLink ? 'A product is listed twice.' : '')
+          ];
+          if (ok.indexOf(false) >= 0) { var f = d.querySelector('[aria-invalid="true"]') || q('sf-links').querySelector('select'); if (f) f.focus(); return; }
+
+          var rec;
+          if (isNew) {
+            rec = S.insert('suppliers', values);
+            CNS.history.log({ action: 'Create', module: P.MODULE, record_type: 'suppliers', record_id: rec.id, new_value: values.company_name });
+          } else {
+            rec = s;
+            var ch = {};
+            Object.keys(values).forEach(function (k) { if (values[k] !== s[k]) ch[k] = values[k]; });
+            var old = S.update('suppliers', s.id, ch);
+            Object.keys(ch).forEach(function (k) { CNS.history.logChange(P.MODULE, 'suppliers', s.id, k, old[k], ch[k]); });
+          }
+          var describe = function (list) { return list.map(function (l) { return S.get('products', l.product_id).name + ': 1 ' + l.purchase_unit + ' = ' + l.conversion; }).join('; '); };
+          var before = describe(links(rec.id));
+          S.remove('product_supplier', function (ps) { return ps.supplier_id === rec.id; });
+          rows.forEach(function (r) { S.insert('product_supplier', { product_id: r.product_id, supplier_id: rec.id, purchase_unit: r.purchase_unit, conversion: Number(r.conversion) }); });
+          var after = describe(links(rec.id));
+          if (!isNew && before !== after) CNS.history.logChange(P.MODULE, 'suppliers', rec.id, 'supplier_units', before || 'None', after || 'None');
+          d.close();
+          render();
+          CNS.ui.toast(values.company_name + (isNew ? ' added.' : ' saved.'));
+        });
+        d.showModal();
+        q('sf-name').focus();
+      }
+
+      $('add').addEventListener('click', function () { open(null); });
+      $('rows').addEventListener('click', function (e) { var b = e.target.closest('[data-edit]'); if (b) open(S.get('suppliers', b.getAttribute('data-edit'))); });
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confirm deliveries · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .back { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--tap); margin-bottom: var(--space-2); color: var(--color-primary); font-weight: 600; }
+    .d-cards { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+    .d-card { padding: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+    .d-card h2 { margin: 0; font-size: 18px; }
+    .d-card p { margin: 4px 0 0; color: var(--color-text-secondary); }
+    .d-card .field { margin: var(--space-3) 0; }
+    .section-title { margin: var(--space-6) 0 var(--space-2); font-size: 18px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <!-- 2.6: the agent confirms the delivery → Completed (confirmed_by = the agent) -->
+  <main id="main">
+    <a class="back" href="home.html" id="back"></a>
+    <h1 class="page-title">Confirm deliveries</h1>
+    <p class="page-desc">When the store has received its order, tap Delivered.</p>
+    <ul class="d-cards" id="to-confirm"></ul>
+    <h2 class="section-title" id="done-title" hidden>Confirmed recently</h2>
+    <ul class="d-cards" id="done"></ul>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/order-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.mobile({ active: 'home' });
+      if (!session) return;
+      var S = CNS.store, A = CNS.orderActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      $('back').innerHTML = CNS.icon('chevron-left') + 'Home';
+
+      function render() {
+        var mine = S.where('sales_orders', function (o) { return o.agent_id === me.id; });
+        var shipped = mine.filter(function (o) { return o.status === 'Shipped'; });
+        $('to-confirm').innerHTML = shipped.length ? shipped.map(function (o) {
+          var c = S.get('clients', o.client_id), d = A.deliveryFor(o.id), t = d && S.get('trucks', d.truck_id);
+          return '<li class="d-card"><h2>' + esc(c ? c.store_name : '') + '</h2>' +
+            '<p>' + esc(o.order_no + ' · ' + A.items(o.id).length + ' lines · ' + fmt.money(S.orderTotal(o.id))) + '</p>' +
+            '<p>' + esc('Shipped ' + (d && d.shipped_at ? fmt.dateTime(d.shipped_at) : '') + (t ? ' · ' + t.name : '')) + '</p>' +
+            '<div class="field"><label class="label" for="note-' + esc(o.id) + '">Note <span class="main-tag">(optional)</span></label>' +
+              '<input class="input" id="note-' + esc(o.id) + '" autocomplete="off" placeholder="e.g. Received by Mr. Lim"></div>' +
+            '<button type="button" class="btn btn--primary btn--block" data-confirm="' + esc(o.id) + '">' + CNS.icon('check-circle') + 'Delivered</button></li>';
+        }).join('') : '<li class="card empty"><p class="empty__title">Nothing to confirm.</p><p class="empty__text">Shipped orders for your stores show up here.</p></li>';
+
+        var done = mine.filter(function (o) { return o.status === 'Completed'; })
+          .map(function (o) { return { o: o, d: A.deliveryFor(o.id) }; })
+          .filter(function (x) { return x.d && x.d.completed_at; })
+          .sort(function (a, b) { return a.d.completed_at < b.d.completed_at ? 1 : -1; }).slice(0, 5);
+        $('done-title').hidden = !done.length;
+        $('done').innerHTML = done.map(function (x) {
+          var c = S.get('clients', x.o.client_id);
+          return '<li class="d-card"><h2>' + esc(c ? c.store_name : '') + '</h2><p>' + esc(x.o.order_no + ' · Confirmed ' + fmt.dateTime(x.d.completed_at)) + '</p></li>';
+        }).join('');
+      }
+
+      $('to-confirm').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-confirm]');
+        if (!b) return;
+        var o = S.get('sales_orders', b.getAttribute('data-confirm'));
+        var note = document.getElementById('note-' + o.id).value.trim();
+        CNS.ui.confirm({ title: 'Confirm delivery?', body: 'Only confirm if the store has received ' + o.order_no + '.', confirm: 'Yes, delivered', icon: 'check-circle' })
+          .then(function (yes) {
+            if (!yes) return;
+            A.confirmDelivered(A.deliveryFor(o.id), session, note);
+            render();
+            CNS.ui.toast(o.order_no + ' is completed. Thank you.');
+          });
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

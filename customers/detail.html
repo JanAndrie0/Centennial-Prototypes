@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customer · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .meta { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
+    .panel-card { max-width: 760px; }
+    .credit-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .plan { margin-bottom: var(--space-5); }
+    .plan__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-3); }
+    .plan__title { margin: 0; font-size: var(--text-card-title); font-weight: 700; }
+    .plan__meta { margin: 0; font-size: var(--text-small); color: var(--color-text-secondary); }
+    .no-photo { font-size: var(--text-small); color: var(--color-text-secondary); }
+  </style>
+</head>
+<body>
+  <!-- 5.1 Maintain Customer Accounts + 5.4 Provide Customer Balance -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html" id="crumb-list">Customer Accounts &amp; Payments</a></li><li><span aria-current="page" id="crumb-name"></span></li></ol>
+    </nav>
+
+    <div id="not-found" class="card empty" hidden>
+      <span id="nf-icon"></span>
+      <h1 class="empty__title">Customer not found</h1>
+      <p class="empty__text">The link may be wrong.</p>
+      <a class="btn btn--secondary" href="list.html">Back to customers</a>
+    </div>
+
+    <div id="customer" hidden>
+      <div class="page-head">
+        <div>
+          <h1 class="page-title" id="c-name"></h1>
+          <p class="meta" id="c-meta"></p>
+        </div>
+        <div class="page-head__actions"><button type="button" class="btn btn--secondary" id="edit-btn" hidden></button></div>
+      </div>
+
+      <!-- Credit limit · Current balance · Available credit · Overdue amount -->
+      <section class="stats" aria-label="Account summary" id="stats"></section>
+
+      <div class="tabs" role="tablist" aria-label="Customer account" id="tablist">
+        <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview">Overview</button>
+        <button type="button" role="tab" id="tab-orders" aria-controls="panel-orders">Orders</button>
+        <button type="button" role="tab" id="tab-payments" aria-controls="panel-payments">Payments</button>
+        <button type="button" role="tab" id="tab-installments" aria-controls="panel-installments">Installments</button>
+        <button type="button" role="tab" id="tab-history" aria-controls="panel-history">History</button>
+      </div>
+
+      <section class="tab-panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
+        <div class="card card--pad panel-card"><dl class="details" id="overview"></dl></div>
+      </section>
+
+      <section class="tab-panel" role="tabpanel" id="panel-orders" aria-labelledby="tab-orders" tabindex="0" hidden>
+        <div class="table-wrap" id="orders-wrap"></div>
+      </section>
+
+      <section class="tab-panel" role="tabpanel" id="panel-payments" aria-labelledby="tab-payments" tabindex="0" hidden>
+        <div class="table-wrap" id="payments-wrap"></div>
+      </section>
+
+      <section class="tab-panel" role="tabpanel" id="panel-installments" aria-labelledby="tab-installments" tabindex="0" hidden>
+        <div id="plans"></div>
+      </section>
+
+      <section class="tab-panel" role="tabpanel" id="panel-history" aria-labelledby="tab-history" tabindex="0" hidden>
+        <div class="table-wrap" id="history-wrap"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'customers' });
+      if (!session) return;
+
+      var R = CNS.ROLES;
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var MODULE = 'Customer Accounts & Payments';
+      var me = session.user;
+
+      var id = new URLSearchParams(location.search).get('id');
+      var c = id && S.get('clients', id);
+      if (!c) {
+        $('not-found').hidden = false;
+        $('nf-icon').outerHTML = CNS.icon('building-storefront');
+        $('crumb-name').textContent = 'Not found';
+        return;
+      }
+      if (document.referrer.indexOf('/customers/list.html') >= 0) $('crumb-list').href = document.referrer;
+
+      var canSetCredit = me.role === R.OM;
+      // Records are company-wide; management edits any customer, staff edit their own branch's
+      var canEdit = me.role === R.CEO || me.role === R.OM || me.role === R.SS || c.branch_id === me.branch_id;
+      var FIELDS = { store_name: 'Store name', contact_person: 'Contact person', contact_no: 'Contact no.', address: 'Address', agent_id: 'Sales agent', credit_limit: 'Credit limit' };
+
+      function userName(uid) { var u = uid && S.get('users', uid); return u ? u.full_name : '—'; }
+      function emptyLine(text) { return '<p class="empty-line">' + esc(text) + '</p>'; }
+      function change(oldV, newV) {
+        return oldV
+          ? '<span class="change"><span class="change__old"><span class="sr-only">from </span>' + esc(oldV) + '</span><span class="change__arrow" aria-hidden="true">→</span><span class="change__new"><span class="sr-only">to </span>' + esc(newV || '—') + '</span></span>'
+          : '<span class="change__new">' + esc(newV || '—') + '</span>';
+      }
+
+      function render() {
+        c = S.get('clients', c.id);
+        var bal = S.clientBalance(c.id);
+        var availableCredit = c.credit_limit - bal;
+        var overdue = S.clientOverdue(c.id);
+        var days = S.clientOverdueDays(c.id);
+
+        document.title = c.store_name + ' · Centennial Sales & Inventory';
+        $('crumb-name').textContent = c.store_name;
+        $('c-name').textContent = c.store_name;
+        $('c-meta').textContent = c.address + ' · ' + S.branchName(c.branch_id) + ' · Agent: ' + userName(c.agent_id);
+
+        // ---- Tiles ----
+        $('stats').innerHTML =
+          '<div class="stat"><p class="stat__label">Credit limit</p><p class="stat__value">' + esc(fmt.money(c.credit_limit)) + '</p>' +
+            '<p class="stat__sub">' + (canSetCredit ? 'You can change it in Overview' : 'Set by the Office Manager') + '</p></div>' +
+          '<div class="stat"><p class="stat__label">Current balance</p><p class="stat__value">' + esc(fmt.money(bal)) + '</p>' +
+            '<p class="stat__sub">Billed orders minus verified payments</p></div>' +
+          '<div class="stat' + (availableCredit < 0 ? ' stat--warning' : '') + '"><p class="stat__label">Available credit</p>' +
+            '<p class="stat__value">' + esc(fmt.money(Math.max(0, availableCredit))) + '</p>' +
+            '<p class="stat__sub">' + (availableCredit < 0 ? 'Over the limit by ' + esc(fmt.money(-availableCredit)) : 'Left before the limit') + '</p></div>' +
+          '<div class="stat' + (overdue ? ' stat--error' : '') + '"><p class="stat__label">Overdue</p>' +
+            '<p class="stat__value">' + esc(fmt.money(overdue)) + '</p>' +
+            '<p class="stat__sub">' + (overdue ? 'Oldest is ' + days + (days === 1 ? ' day' : ' days') + ' late' : 'Nothing overdue') + '</p></div>';
+
+        // ---- Overview ----
+        var creditCell = '<div class="credit-row"><span>' + esc(fmt.money(c.credit_limit)) + '</span>' +
+          (availableCredit < 0 ? CNS.ui.badge('warning', 'exclamation-triangle', 'Over limit') : '') +
+          (canSetCredit ? '<button type="button" class="btn btn--secondary" id="credit-btn">' + CNS.icon('pencil-square') + 'Change credit limit</button>' : '') + '</div>';
+        $('overview').innerHTML = [
+          ['Contact person', esc(c.contact_person)],
+          ['Contact no.', '<a href="tel:' + esc(c.contact_no.replace(/\s/g, '')) + '">' + esc(c.contact_no) + '</a>'],
+          ['Address', esc(c.address)],
+          ['Branch', esc(S.branchName(c.branch_id))],
+          ['Sales agent', esc(userName(c.agent_id))],
+          ['Credit limit', creditCell]
+        ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
+        if ($('credit-btn')) $('credit-btn').addEventListener('click', openCredit);
+
+        // ---- Orders (from 2.0) ----
+        var orders = S.where('sales_orders', function (o) { return o.client_id === c.id; })
+          .sort(function (a, b) { return a.order_date < b.order_date ? 1 : -1; });
+        $('orders-wrap').innerHTML = orders.length
+          ? '<table class="table"><thead><tr><th scope="col">Order no.</th><th scope="col">Date</th><th scope="col">Status</th>' +
+              '<th scope="col" class="num-col">Items</th><th scope="col" class="num-col">Total</th><th scope="col">Delivery</th><th scope="col">Agent</th></tr></thead><tbody>' +
+            orders.map(function (o) {
+              var lines = S.where('sales_order_items', function (it) { return it.order_id === o.id; }).length;
+              return '<tr><td class="nowrap cell-main">' + esc(o.order_no) + '</td><td class="nowrap">' + esc(fmt.date(o.order_date)) + '</td>' +
+                '<td>' + CNS.ui.orderBadge(o.status) + '</td><td class="num-col">' + lines + '</td>' +
+                '<td class="num-col">' + esc(fmt.money(S.orderTotal(o.id))) + '</td>' +
+                '<td class="nowrap">' + esc(fmt.date(o.delivery_date)) + '</td><td class="nowrap">' + esc(userName(o.agent_id)) + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          : emptyLine('No orders yet.');
+
+        // ---- Payments ----
+        var pays = S.where('payments', function (p) { return p.client_id === c.id; })
+          .sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        $('payments-wrap').innerHTML = pays.length
+          ? '<table class="table"><thead><tr><th scope="col">Date</th><th scope="col">Order</th><th scope="col" class="num-col">Amount</th>' +
+              '<th scope="col">Method</th><th scope="col">Reference</th><th scope="col">Proof</th><th scope="col">Channel</th><th scope="col">Received by</th><th scope="col">Status</th></tr></thead><tbody>' +
+            pays.map(function (p) {
+              var o = p.order_id && S.get('sales_orders', p.order_id);
+              var status = p.bounced ? CNS.ui.badge('error', 'x-mark', 'Bounced')
+                : p.verified_by ? CNS.ui.badge('success', 'check-circle', 'Verified')
+                : CNS.ui.badge('warning', 'exclamation-triangle', 'For verification');
+              return '<tr><td class="nowrap">' + esc(fmt.date(p.date)) + '</td><td class="nowrap">' + esc(o ? o.order_no : '—') + '</td>' +
+                '<td class="num-col cell-main">' + esc(fmt.money(p.amount)) + '</td><td class="nowrap">' + esc(p.method) + '</td>' +
+                '<td class="nowrap">' + esc(p.reference_no || '—') + '</td>' +
+                '<td>' + (p.proof_photo ? '<img src="' + esc(p.proof_photo) + '" alt="Proof of payment" width="48" height="48" style="border-radius:6px;object-fit:cover">' : '<span class="no-photo">No photo</span>') + '</td>' +
+                '<td>' + esc(p.channel) + '</td><td class="nowrap">' + esc(userName(p.received_by)) + '</td><td>' + status + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          : emptyLine('No payments yet.');
+
+        // ---- Installments (plans are set up in part 2; here they are shown) ----
+        var plans = S.where('installment_plans', function (pl) {
+          return orders.some(function (o) { return o.id === pl.order_id; });
+        });
+        var today = S.today();
+        $('plans').innerHTML = plans.length ? plans.map(function (pl) {
+          var o = S.get('sales_orders', pl.order_id);
+          var sched = S.where('installment_schedules', function (s) { return s.plan_id === pl.id; })
+            .sort(function (a, b) { return a.due_date < b.due_date ? -1 : 1; });
+          var left = sched.reduce(function (t, s) { return t + (s.amount_due - s.amount_paid); }, 0);
+          return '<section class="plan"><div class="plan__head"><h2 class="plan__title">' + esc(o ? o.order_no : pl.order_id) + ' · ' + esc(fmt.money(pl.total)) + '</h2>' +
+            '<p class="plan__meta">' + pl.no_of_payments + ' payments · ' + esc(pl.frequency) + ' · ' + esc(fmt.money(left)) + ' remaining</p></div>' +
+            '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">No.</th><th scope="col">Due date</th><th scope="col" class="num-col">Amount due</th>' +
+            '<th scope="col" class="num-col">Paid</th><th scope="col" class="num-col">Remaining</th><th scope="col">Status</th></tr></thead><tbody>' +
+            sched.map(function (s, i) {
+              var rem = s.amount_due - s.amount_paid;
+              var badge = rem <= 0 ? CNS.ui.badge('success', 'check-circle', 'Paid')
+                : s.due_date < today ? CNS.ui.badge('error', 'exclamation-circle', 'Overdue')
+                : s.amount_paid > 0 ? CNS.ui.badge('info', 'information-circle', 'Partially paid')
+                : CNS.ui.badge('neutral', 'clipboard-document-list', 'Due');
+              return '<tr><td>' + (i + 1) + '</td><td class="nowrap">' + esc(fmt.date(s.due_date)) + '</td>' +
+                '<td class="num-col">' + esc(fmt.money(s.amount_due)) + '</td><td class="num-col">' + esc(fmt.money(s.amount_paid)) + '</td>' +
+                '<td class="num-col cell-main">' + esc(fmt.money(rem)) + '</td><td>' + badge + '</td></tr>';
+            }).join('') + '</tbody></table></div></section>';
+        }).join('') : '<div class="table-wrap">' + emptyLine('No installment plans.') + '</div>';
+
+        // ---- History (this customer's audit trail) ----
+        var logs = S.where('history_logs', function (h) { return h.record_type === 'clients' && h.record_id === c.id; })
+          .sort(function (a, b) { return a.datetime < b.datetime ? 1 : -1; });
+        $('history-wrap').innerHTML = logs.length
+          ? '<table class="table"><thead><tr><th scope="col">Date and time</th><th scope="col">User</th><th scope="col">Action</th><th scope="col">Field</th><th scope="col">Old value → New value</th></tr></thead><tbody>' +
+            logs.map(function (h) {
+              var money = h.field === 'credit_limit';
+              var v = function (x) { return x == null ? null : money && !isNaN(x) ? fmt.money(Number(x)) : x; };
+              return '<tr><td class="nowrap">' + esc(fmt.dateTime(h.datetime)) + '</td><td class="nowrap">' + esc(userName(h.user_id)) + '</td>' +
+                '<td>' + esc(h.action) + '</td><td class="nowrap">' + esc(FIELDS[h.field] || h.field || '—') + '</td><td class="change-cell">' + change(v(h.old_value), v(h.new_value)) + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          : emptyLine('No changes yet.');
+      }
+
+      // ---- Shared dialog shell ----
+      function dialog(title, lede, body, submit) {
+        var d = document.createElement('dialog');
+        d.className = 'modal modal--form';
+        d.setAttribute('aria-labelledby', 'cd-title');
+        d.innerHTML = '<h2 class="modal__title" id="cd-title">' + esc(title) + '</h2>' + (lede ? '<p class="modal__body">' + esc(lede) + '</p>' : '') +
+          '<form novalidate>' + body + '<div class="modal__actions"><button type="button" class="btn btn--secondary" data-cancel>Cancel</button>' +
+          '<button type="submit" class="btn btn--primary">' + esc(submit) + '</button></div></form>';
+        var opener = document.activeElement;
+        document.body.appendChild(d);
+        d.addEventListener('close', function () { d.remove(); if (opener && document.contains(opener)) opener.focus(); });
+        d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+        d.querySelector('[data-cancel]').addEventListener('click', function () { d.close(); });
+        d.q = function (s) { return d.querySelector('#' + s); };
+        d.setError = function (fid, msg) {
+          d.q(fid + '-error').textContent = msg || '';
+          if (msg) d.q(fid).setAttribute('aria-invalid', 'true'); else d.q(fid).removeAttribute('aria-invalid');
+          return !msg;
+        };
+        d.showModal();
+        return d;
+      }
+      function field(fid, label, control) {
+        return '<div class="field"><label class="label" for="' + fid + '">' + label + '</label>' + control + '<p class="field-error" id="' + fid + '-error"></p></div>';
+      }
+
+      // ---- Change credit limit (Office Manager only, logged) ----
+      function openCredit() {
+        var bal = S.clientBalance(c.id);
+        var d = dialog('Change credit limit', c.store_name + ' · current balance ' + fmt.money(bal),
+          field('cd-credit', 'New credit limit (₱)', '<input class="input" id="cd-credit" type="number" inputmode="numeric" min="0" step="1000" value="' + c.credit_limit + '" aria-describedby="cd-credit-error cd-note">') +
+          '<p class="notice notice--warning" id="cd-note" hidden></p>', 'Save credit limit');
+        var input = d.q('cd-credit');
+        function note() {
+          var v = Number(input.value);
+          var show = input.value !== '' && v < bal;
+          d.q('cd-note').hidden = !show;
+          d.q('cd-note').innerHTML = show ? CNS.icon('exclamation-triangle') + '<span>The balance is already above this limit. New orders will show an "Over credit limit" warning.</span>' : '';
+        }
+        input.addEventListener('input', note);
+        note();
+        input.focus();
+        input.select();
+        d.querySelector('form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          if (!d.setError('cd-credit', /^\d+$/.test(input.value) ? '' : 'Enter the limit in pesos, 0 or more.')) { input.focus(); return; }
+          var v = Number(input.value);
+          if (v !== c.credit_limit) {
+            var old = S.update('clients', c.id, { credit_limit: v });
+            CNS.history.logChange(MODULE, 'clients', c.id, 'credit_limit', old.credit_limit, v);
+          }
+          d.close();
+          render();
+          CNS.ui.toast('Credit limit is now ' + fmt.money(v) + '.');
+        });
+      }
+
+      // ---- Edit details ----
+      function openEdit() {
+        var agents = S.where('users', function (u) { return u.role === R.AGENT && u.is_active && u.branch_id === c.branch_id; });
+        var d = dialog('Edit customer details', 'The credit limit is changed separately by the Office Manager.',
+          field('cd-name', 'Store name', '<input class="input" id="cd-name" value="' + esc(c.store_name) + '" autocomplete="off" aria-describedby="cd-name-error">') +
+          '<div class="form-grid">' +
+            field('cd-contact', 'Contact person', '<input class="input" id="cd-contact" value="' + esc(c.contact_person) + '" autocomplete="off" aria-describedby="cd-contact-error">') +
+            field('cd-phone', 'Contact no.', '<input class="input" id="cd-phone" type="tel" inputmode="tel" value="' + esc(c.contact_no) + '" autocomplete="off" aria-describedby="cd-phone-error">') +
+          '</div>' +
+          field('cd-address', 'Address', '<input class="input" id="cd-address" value="' + esc(c.address) + '" autocomplete="off" aria-describedby="cd-address-error">') +
+          field('cd-agent', 'Sales agent', '<select class="input" id="cd-agent" aria-describedby="cd-agent-error">' +
+            agents.map(function (u) { return '<option value="' + esc(u.id) + '"' + (u.id === c.agent_id ? ' selected' : '') + '>' + esc(u.full_name) + '</option>'; }).join('') + '</select>'),
+          'Save changes');
+        d.q('cd-name').focus();
+        d.querySelector('form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          var values = {
+            store_name: d.q('cd-name').value.trim().replace(/\s+/g, ' '),
+            contact_person: d.q('cd-contact').value.trim(),
+            contact_no: d.q('cd-phone').value.trim(),
+            address: d.q('cd-address').value.trim(),
+            agent_id: d.q('cd-agent').value
+          };
+          var dup = S.where('clients', function (x) { return x.id !== c.id && x.store_name.toLowerCase() === values.store_name.toLowerCase(); }).length;
+          var ok = [
+            d.setError('cd-name', !values.store_name ? 'Enter the store name.' : dup ? 'Another customer already has this name.' : ''),
+            d.setError('cd-contact', values.contact_person ? '' : 'Enter the contact person.'),
+            d.setError('cd-phone', /^[0-9 ()+-]{7,}$/.test(values.contact_no) ? '' : 'Enter a phone number, e.g. 0917 555 0101.'),
+            d.setError('cd-address', values.address ? '' : 'Enter the address.'),
+            d.setError('cd-agent', '')
+          ];
+          if (ok.indexOf(false) >= 0) { d.querySelector('[aria-invalid="true"]').focus(); return; }
+          var changes = {};
+          Object.keys(values).forEach(function (k) { if (values[k] !== c[k]) changes[k] = values[k]; });
+          var old = S.update('clients', c.id, changes);
+          Object.keys(changes).forEach(function (k) {
+            var read = k === 'agent_id' ? userName : function (x) { return x; };
+            CNS.history.logChange(MODULE, 'clients', c.id, k, read(old[k]), read(changes[k]));
+          });
+          d.close();
+          render();
+          CNS.ui.toast(Object.keys(changes).length ? 'Customer details saved.' : 'No changes to save.');
+        });
+      }
+
+      if (canEdit) {
+        $('edit-btn').hidden = false;
+        $('edit-btn').innerHTML = CNS.icon('pencil-square') + 'Edit details';
+        $('edit-btn').addEventListener('click', openEdit);
+      }
+
+      $('customer').hidden = false;
+      render();
+      CNS.ui.tabs($('tablist'));
+    })();
+  </script>
+</body>
+</html>

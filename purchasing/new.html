@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New purchase order · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .wide { max-width: none; }
+    .group-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .group-head .field { margin: 0; min-width: 320px; }
+    .group-total { font-size: 18px; }
+    .group-total strong { font-variant-numeric: tabular-nums; }
+    .po-lines td { vertical-align: top; }
+    .po-lines td.text-cell { padding-top: 22px; }
+    .conv { font-weight: 700; color: var(--color-info); }
+  </style>
+</head>
+<body>
+  <!-- 4.2 Prepare Purchase Request: from the 3.4 reorder list, a stock order request, or blank; converts into the supplier's unit -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Purchasing &amp; Suppliers</a></li><li><span aria-current="page" id="crumb"></span></li></ol>
+    </nav>
+    <h1 class="page-title" id="title"></h1>
+    <p class="page-desc" id="desc">Quantities are in the supplier's unit; the selling-unit total is worked out for you. The Office Manager approves it before it is sent.</p>
+    <div class="alert" data-tone="info" id="source" role="status"></div>
+
+    <form id="form" novalidate>
+      <section class="card card--pad form-section wide" aria-labelledby="s-general">
+        <h2 class="form-section__title" id="s-general">Delivery</h2>
+        <div class="form-grid form-grid--3">
+          <div class="field" id="branch-field"></div>
+          <div class="field"><label class="label" for="expected">Expected delivery</label><input class="input" type="date" id="expected"></div>
+          <div class="field"><label class="label" for="note">Note <span class="main-tag">(optional)</span></label><input class="input" id="note" autocomplete="off"></div>
+        </div>
+      </section>
+      <div id="groups"></div>
+      <button type="button" class="btn btn--secondary" id="add-group" style="margin-bottom:var(--space-5)"></button>
+      <div class="save-bar wide">
+        <span id="autosave" class="autosave" role="status"></span>
+        <div class="save-bar__actions"><a class="btn btn--secondary" href="list.html">Cancel</a><button type="submit" class="btn btn--primary" id="send"></button></div>
+      </div>
+    </form>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/po-actions.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      var session = CNS.layout.desktop({ active: 'purchasing', roles: [R.CEO, R.OM, R.SS, R.STAFF] });
+      if (!session) return;
+      var S = CNS.store, P = CNS.poActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var DRAFT = 'centennial-draft:po-new';
+      var isSS = me.role === R.SS;   // the Sales Supervisor's request is a "stock order request"
+      var kind = isSS ? 'stock order request' : 'purchase request';
+      var pickBranch = CNS.auth.canSwitchBranch(me);
+
+      // ---- Start from: reorder hand-off (3.4) → saved draft → blank ----
+      var state = null, handoff = null;
+      try { handoff = JSON.parse(sessionStorage.getItem('centennial-reorder-handoff')); } catch (e) { /* none */ }
+      if (handoff && handoff.items && handoff.items.length) {
+        var bySupplier = {};
+        handoff.items.forEach(function (it) {
+          var l = P.link(it.product_id, it.supplier_id);
+          var conv = l ? l.conversion : 1;
+          (bySupplier[it.supplier_id] = bySupplier[it.supplier_id] || []).push({ product_id: it.product_id, qty: Math.max(1, Math.ceil(it.qty / conv)), cost: '' });
+        });
+        state = { branch: handoff.branch, combined: handoff.branch === 'all', groups: Object.keys(bySupplier).map(function (sid) { return { supplier_id: sid, lines: bySupplier[sid] }; }) };
+        if (handoff.kind === 'stock order request') { kind = 'stock order request'; }
+        $('source').textContent = 'From the reorder list: ' + handoff.items.length + (handoff.items.length === 1 ? ' product' : ' products') + ', grouped by supplier. Suggested quantities are rounded up to whole supplier units.' +
+          (state.combined ? ' Combined needs of all branches.' : '');
+      } else {
+        try { state = JSON.parse(localStorage.getItem(DRAFT)); } catch (e) { state = null; }
+        if (state) $('source').textContent = 'Your unsent draft was restored.';
+      }
+      if (!state) state = { branch: pickBranch && session.branchView !== 'all' ? session.branchView : me.branch_id, combined: false, groups: [{ supplier_id: '', lines: [{ product_id: '', qty: '', cost: '' }] }] };
+      if (state.branch === 'all') state.branch = me.branch_id;   // a combined order is delivered to one branch
+
+      var title = kind === 'stock order request' ? 'Stock order request' : 'Purchase request';
+      $('title').textContent = title;
+      $('crumb').textContent = title;
+      $('add-group').innerHTML = CNS.icon('plus-circle') + 'Add another supplier';
+      var exp = new Date(); exp.setDate(exp.getDate() + 3);
+      $('expected').value = state.expected || (exp.getFullYear() + '-' + String(exp.getMonth() + 1).padStart(2, '0') + '-' + String(exp.getDate()).padStart(2, '0'));
+      $('note').value = state.note || '';
+      $('branch-field').innerHTML = pickBranch
+        ? '<label class="label" for="branch">Deliver to branch</label><select class="input" id="branch">' + S.all('branches').map(function (b) { return '<option value="' + esc(b.id) + '"' + (b.id === state.branch ? ' selected' : '') + '>' + esc(b.short_name) + '</option>'; }).join('') + '</select>'
+        : '<span class="label">Deliver to branch</span><div class="static-value">' + esc(S.branchName(me.branch_id)) + '</div>';
+
+      function supplierProducts(sid) {
+        return S.where('product_supplier', function (ps) { return ps.supplier_id === sid; })
+          .map(function (ps) { return S.get('products', ps.product_id); }).filter(Boolean)
+          .sort(function (a, b) { return a.name.localeCompare(b.name); });
+      }
+
+      // Each branch's own need, shown under the line when combining all branches (E2/E4)
+      function needsText(pid) {
+        var parts = S.all('branches').map(function (b) {
+          var n = ['backordered', 'below-floor', 'low'].indexOf(S.stockStatus(pid, b.id)) >= 0 ? S.suggestedReorder(pid, b.id) : 0;
+          return n ? b.short_name + ' ' + n : null;
+        }).filter(Boolean);
+        return parts.length ? 'Needs: ' + parts.join(' · ') : '';
+      }
+
+      // ---- Render groups (one purchase request per supplier) ----
+      function render() {
+        $('groups').innerHTML = state.groups.map(function (g, gi) {
+          var prods = g.supplier_id ? supplierProducts(g.supplier_id) : [];
+          return '<section class="card card--pad form-section wide" data-g="' + gi + '" aria-label="Supplier ' + (gi + 1) + '">' +
+            '<div class="group-head"><div class="field"><label class="label" for="g' + gi + '-sup">Supplier</label>' +
+              '<select class="input" id="g' + gi + '-sup" data-field="supplier"><option value="">Choose a supplier</option>' +
+              S.all('suppliers').map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === g.supplier_id ? ' selected' : '') + '>' + esc(s.company_name) + '</option>'; }).join('') +
+              '</select></div><span class="group-total">Total <strong data-gtotal></strong></span></div>' +
+            '<div class="table-wrap"><table class="table po-lines"><thead><tr><th scope="col">Product</th><th scope="col">Supplier unit</th>' +
+              '<th scope="col" class="num-col">Qty</th><th scope="col">= Selling units</th><th scope="col" class="num-col">Unit cost (₱)</th><th scope="col" class="num-col">Amount</th>' +
+              '<th scope="col" class="actions"><span class="sr-only">Remove</span></th></tr></thead><tbody>' +
+            g.lines.map(function (l, li) {
+              var id = 'g' + gi + 'l' + li;
+              return '<tr data-l="' + li + '"><td><label class="sr-only" for="' + id + 'p">Product</label><select class="input input--cell" id="' + id + 'p" data-field="product"' + (g.supplier_id ? '' : ' disabled') + '>' +
+                  '<option value="">' + (g.supplier_id ? 'Choose a product' : 'Choose the supplier first') + '</option>' +
+                  prods.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === l.product_id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select>' +
+                  '<span class="cell-sub" data-needs></span></td>' +
+                '<td class="text-cell nowrap" data-unit></td>' +
+                '<td class="num-col"><label class="sr-only" for="' + id + 'q">Quantity</label><input class="input input--cell input--qty" id="' + id + 'q" data-field="qty" type="number" min="1" step="1" value="' + esc(l.qty) + '"></td>' +
+                '<td class="text-cell nowrap conv" data-conv></td>' +
+                '<td class="num-col"><label class="sr-only" for="' + id + 'c">Unit cost</label><input class="input input--cell input--qty" id="' + id + 'c" data-field="cost" type="number" min="0" step="0.01" value="' + esc(l.cost) + '"></td>' +
+                '<td class="num-col text-cell cell-main" data-amount></td>' +
+                '<td class="actions"><button type="button" class="btn btn--secondary" data-remove-line>' + CNS.icon('x-mark') + '<span class="sr-only">Remove line</span></button></td></tr>';
+            }).join('') + '</tbody></table></div>' +
+            '<div style="display:flex;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-3)"><button type="button" class="btn btn--secondary" data-add-line>' + CNS.icon('plus-circle') + 'Add line</button>' +
+              (state.groups.length > 1 ? '<button type="button" class="btn-link" data-remove-group>' + CNS.icon('x-mark') + 'Remove this supplier</button>' : '') + '</div>' +
+            '<p class="field-error" id="g' + gi + '-error"></p></section>';
+        }).join('');
+        $('send').innerHTML = CNS.icon('check') + (state.groups.length > 1 ? 'Send ' + state.groups.length + ' requests for approval' : 'Send for approval');
+        update();
+      }
+
+      // Computed cells only, so typing never loses focus
+      function update() {
+        state.groups.forEach(function (g, gi) {
+          var sec = $('groups').querySelector('[data-g="' + gi + '"]');
+          var total = 0;
+          g.lines.forEach(function (l, li) {
+            var tr = sec.querySelector('[data-l="' + li + '"]');
+            var p = l.product_id && S.get('products', l.product_id);
+            var link = p && P.link(p.id, g.supplier_id);
+            var qty = Number(l.qty) || 0, cost = Number(l.cost) || 0;
+            total += qty * cost;
+            tr.querySelector('[data-unit]').textContent = link ? link.purchase_unit + ' (' + fmt.qty(link.conversion, p.unit_id) + ')' : '';
+            tr.querySelector('[data-conv]').textContent = link && qty ? '= ' + fmt.qty(qty * link.conversion, p.unit_id) : '';
+            tr.querySelector('[data-amount]').textContent = qty && cost ? fmt.money(qty * cost) : '';
+            tr.querySelector('[data-needs]').textContent = p && state.combined ? needsText(p.id) : '';
+            tr.querySelector('[data-remove-line]').hidden = g.lines.length === 1;
+          });
+          sec.querySelector('[data-gtotal]').textContent = fmt.money(total);
+        });
+      }
+
+      function saveDraft() {
+        state.expected = $('expected').value;
+        state.note = $('note').value;
+        if ($('branch')) state.branch = $('branch').value;
+        try {
+          localStorage.setItem(DRAFT, JSON.stringify(state));
+          $('autosave').dataset.state = 'saved';
+          $('autosave').innerHTML = CNS.icon('check') + '<span>Saved ' + esc(fmt.time(new Date())) + '</span>';
+        } catch (e) { /* storage full: draft not kept */ }
+      }
+
+      var timer;
+      $('form').addEventListener('input', function (e) {
+        var el = e.target, sec = el.closest('[data-g]'), tr = el.closest('[data-l]');
+        if (sec && el.dataset.field) {
+          var g = state.groups[Number(sec.dataset.g)];
+          if (el.dataset.field === 'supplier') { g.supplier_id = el.value; g.lines = [{ product_id: '', qty: '', cost: '' }]; render(); sec = null; }
+          else if (tr) { g.lines[Number(tr.dataset.l)][{ product: 'product_id', qty: 'qty', cost: 'cost' }[el.dataset.field]] = el.value; update(); }
+        }
+        $('autosave').dataset.state = 'saving';
+        $('autosave').innerHTML = CNS.icon('arrow-path') + '<span>Saving…</span>';
+        clearTimeout(timer);
+        timer = setTimeout(saveDraft, 800);
+      });
+      $('form').addEventListener('change', function (e) { if (e.target.dataset.field === 'product') $('form').dispatchEvent(new Event('input')); });
+      $('groups').addEventListener('click', function (e) {
+        var sec = e.target.closest('[data-g]');
+        if (!sec) return;
+        var g = state.groups[Number(sec.dataset.g)];
+        if (e.target.closest('[data-add-line]')) { g.lines.push({ product_id: '', qty: '', cost: '' }); render(); }
+        else if (e.target.closest('[data-remove-line]')) { g.lines.splice(Number(e.target.closest('[data-l]').dataset.l), 1); render(); }
+        else if (e.target.closest('[data-remove-group]')) { state.groups.splice(Number(sec.dataset.g), 1); render(); }
+        else return;
+        saveDraft();
+      });
+      $('add-group').addEventListener('click', function () { state.groups.push({ supplier_id: '', lines: [{ product_id: '', qty: '', cost: '' }] }); render(); saveDraft(); });
+
+      // ---- Send: one request per supplier, each to the Office Manager ----
+      $('form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var bad = null;
+        state.groups.forEach(function (g, gi) {
+          var lines = g.lines.filter(function (l) { return l.product_id || l.qty; });
+          var msg = !g.supplier_id ? 'Choose the supplier.'
+            : !lines.length ? 'Add at least one product.'
+            : lines.some(function (l) { return !l.product_id || !(Number(l.qty) >= 1); }) ? 'Each line needs a product and a quantity of 1 or more.'
+            : lines.some(function (l) { return !(Number(l.cost) > 0); }) ? 'Enter the unit cost for each line (per supplier unit).' : '';
+          $('g' + gi + '-error').textContent = msg;
+          if (msg && bad === null) bad = gi;
+        });
+        if (bad !== null) { $('g' + bad + '-sup').focus(); return; }
+        var branch = $('branch') ? $('branch').value : me.branch_id;
+        var made = state.groups.map(function (g) {
+          var po = S.insert('purchase_orders', {
+            po_no: P.nextNo(), supplier_id: g.supplier_id, branch_id: branch, date: S.today(), status: 'For approval', payment_status: 'Unpaid',
+            approved_by: null, requested_by: me.id, expected_date: $('expected').value || S.today(), note: $('note').value.trim() || null
+          });
+          g.lines.filter(function (l) { return l.product_id; }).forEach(function (l) {
+            S.insert('purchase_order_items', { po_id: po.id, product_id: l.product_id, qty_ordered: Math.round(Number(l.qty)), qty_received: 0, unit_cost: Math.round(Number(l.cost) * 100) / 100 });
+          });
+          CNS.history.log({ action: 'Create', module: P.MODULE, record_type: 'purchase_orders', record_id: po.id, field: 'status',
+            new_value: po.po_no + ' · For approval · ' + fmt.money(P.total(po.id)) + ' (' + kind + ')' });
+          return po.po_no;
+        });
+        try { sessionStorage.removeItem('centennial-reorder-handoff'); localStorage.removeItem(DRAFT); } catch (err) { /* nothing to clear */ }
+        CNS.ui.flash(made.join(', ') + (made.length === 1 ? ' was' : ' were') + ' sent to the Office Manager for approval.');
+        location.href = 'list.html?status=For approval';
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

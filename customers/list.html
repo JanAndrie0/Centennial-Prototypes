@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customer Accounts · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .money-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    #customers-table .truncate { max-width: 30ch; }
+  </style>
+</head>
+<body>
+  <!-- 5.1 Maintain Customer Accounts (list) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><span aria-current="page">Customer Accounts &amp; Payments</span></li></ol>
+    </nav>
+
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Customer Accounts</h1>
+        <p class="page-desc">Hardware stores, their balance and credit. One account per store for all branches.</p>
+      </div>
+      <div class="page-head__actions"><button type="button" class="btn btn--primary" id="add-customer"></button></div>
+    </div>
+
+    <form id="filters" role="search" aria-label="Find customers" onsubmit="return false">
+      <div class="search">
+        <label class="sr-only" for="q">Search by store, contact person or address</label>
+        <span id="search-icon"></span>
+        <input class="input" type="search" id="q" placeholder="Search by store, contact person or town" autocomplete="off">
+      </div>
+      <div class="filters">
+        <div class="field">
+          <label class="label" for="f-agent">Agent</label>
+          <select class="input input--compact" id="f-agent"><option value="">All agents</option></select>
+        </div>
+        <div class="field">
+          <label class="label" for="f-status">Show</label>
+          <select class="input input--compact" id="f-status">
+            <option value="">All customers</option>
+            <option value="overdue">Overdue</option>
+            <option value="over-limit">Over credit limit</option>
+          </select>
+        </div>
+        <button type="button" class="btn-link" id="clear">Clear filters</button>
+      </div>
+    </form>
+
+    <p class="result-count" id="count" aria-live="polite"></p>
+    <div class="table-wrap">
+      <table class="table table--clickable" id="customers-table">
+        <thead><tr>
+          <th scope="col">Store and address</th><th scope="col">Contact</th><th scope="col">Agent</th>
+          <th scope="col" class="num-col">Credit limit</th><th scope="col" class="num-col">Balance</th><th scope="col">Overdue</th><th scope="col">Last order</th>
+        </tr></thead>
+        <tbody id="customers-body"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>
+        <span id="empty-icon"></span>
+        <p class="empty__title">No customers match.</p>
+        <p class="empty__text">Check the spelling, or clear the filters.</p>
+        <button type="button" class="btn btn--secondary" id="empty-clear">Clear filters</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'customers' });
+      if (!session) return;
+
+      var R = CNS.ROLES;
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var MODULE = 'Customer Accounts & Payments';
+      var me = session.user;
+      var canSetCredit = me.role === R.OM;   // 5.1: the Office Manager sets credit limits
+
+      $('search-icon').outerHTML = CNS.icon('magnifying-glass');
+      $('empty-icon').outerHTML = CNS.icon('building-storefront');
+      $('add-customer').innerHTML = CNS.icon('plus-circle') + 'Add customer';
+
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+
+      function fillAgents() {
+        var keep = $('f-agent').value;
+        $('f-agent').innerHTML = '<option value="">All agents</option>' + S.where('users', function (u) {
+          return u.role === R.AGENT && (scope() === 'all' || u.branch_id === scope());
+        }).map(function (u) {
+          return '<option value="' + esc(u.id) + '"' + (u.id === keep ? ' selected' : '') + '>' + esc(u.full_name) + '</option>';
+        }).join('');
+      }
+
+      function overdueBadge(c) {
+        var amount = S.clientOverdue(c.id);
+        if (!amount) return '<span class="cell-sub">None</span>';
+        var days = S.clientOverdueDays(c.id);
+        return CNS.ui.badge('error', 'exclamation-circle', 'Overdue · ' + days + (days === 1 ? ' day' : ' days')) +
+          '<span class="cell-sub">' + esc(fmt.money(amount)) + '</span>';
+      }
+
+      function render() {
+        var q = $('q').value.trim().toLowerCase();
+        var words = q ? q.split(/\s+/) : [];
+        var agent = $('f-agent').value, status = $('f-status').value, sc = scope();
+        var rows = S.where('clients', function (c) {
+          var hay = (c.store_name + ' ' + c.contact_person + ' ' + c.address).toLowerCase();
+          if (words.some(function (w) { return hay.indexOf(w) < 0; })) return false;
+          if (sc !== 'all' && c.branch_id !== sc) return false;
+          if (agent && c.agent_id !== agent) return false;
+          if (status === 'overdue' && !S.clientOverdue(c.id)) return false;
+          if (status === 'over-limit' && S.clientBalance(c.id) <= c.credit_limit) return false;
+          return true;
+        }).sort(function (a, b) { return a.store_name.localeCompare(b.store_name); });
+
+        $('customers-body').innerHTML = rows.map(function (c) {
+          var bal = S.clientBalance(c.id);
+          var over = bal > c.credit_limit;
+          var agentUser = S.get('users', c.agent_id);
+          var last = S.clientLastOrder(c.id);
+          return '<tr data-id="' + esc(c.id) + '">' +
+            '<td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(c.id) + '" title="' + esc(c.store_name) + '">' + esc(c.store_name) + '</a>' +
+              '<span class="cell-sub truncate" title="' + esc(c.address) + '">' + esc((sc === 'all' ? S.branchName(c.branch_id) + ' · ' : '') + c.address) + '</span></td>' +
+            '<td class="nowrap">' + esc(c.contact_person) + '<span class="cell-sub">' + esc(c.contact_no) + '</span></td>' +
+            '<td class="nowrap">' + esc(agentUser ? agentUser.full_name : '—') + '</td>' +
+            '<td class="num-col">' + esc(fmt.money(c.credit_limit)) + '</td>' +
+            '<td class="num-col"><div class="money-cell"><span' + (over ? ' class="cell-main"' : '') + '>' + esc(fmt.money(bal)) + '</span>' +
+              (over ? CNS.ui.badge('warning', 'exclamation-triangle', 'Over limit') : '') + '</div></td>' +
+            '<td class="nowrap">' + overdueBadge(c) + '</td>' +
+            '<td class="nowrap">' + (last ? esc(fmt.date(last)) : 'No orders yet') + '</td></tr>';
+        }).join('');
+
+        $('customers-table').hidden = !rows.length;
+        $('empty').hidden = !!rows.length;
+        $('count').textContent = rows.length + (rows.length === 1 ? ' customer' : ' customers') + ' · ' + S.branchName(sc);
+      }
+
+      var timer;
+      $('q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(render, 200); });
+      $('f-agent').addEventListener('change', render);
+      $('f-status').addEventListener('change', render);
+      function clearFilters() { $('filters').reset(); render(); $('q').focus(); }
+      $('clear').addEventListener('click', clearFilters);
+      $('empty-clear').addEventListener('click', clearFilters);
+      $('customers-body').addEventListener('click', function (e) {
+        var tr = e.target.closest('tr[data-id]');
+        if (tr && !e.target.closest('a')) location.href = 'detail.html?id=' + encodeURIComponent(tr.getAttribute('data-id'));
+      });
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        fillAgents();
+        render();
+      });
+
+      // ---- Add customer (5.1) ----
+      function field(id, label, control) {
+        return '<div class="field"><label class="label" for="' + id + '">' + label + '</label>' + control + '<p class="field-error" id="' + id + '-error"></p></div>';
+      }
+
+      $('add-customer').addEventListener('click', function () {
+        var pickBranch = CNS.auth.canSwitchBranch(me);
+        var startBranch = pickBranch && session.branchView !== 'all' ? session.branchView : me.branch_id;
+        var d = document.createElement('dialog');
+        d.className = 'modal modal--form';
+        d.setAttribute('aria-labelledby', 'ac-title');
+        d.innerHTML =
+          '<h2 class="modal__title" id="ac-title">Add customer</h2>' +
+          '<p class="modal__body">A hardware store or contractor that orders from Centennial.</p>' +
+          '<form novalidate>' +
+            field('ac-name', 'Store name', '<input class="input" id="ac-name" name="store_name" autocomplete="off" aria-describedby="ac-name-error">') +
+            '<div class="form-grid">' +
+              field('ac-contact', 'Contact person', '<input class="input" id="ac-contact" name="contact_person" autocomplete="off" aria-describedby="ac-contact-error">') +
+              field('ac-phone', 'Contact no.', '<input class="input" id="ac-phone" name="contact_no" type="tel" inputmode="tel" autocomplete="off" aria-describedby="ac-phone-error">') +
+            '</div>' +
+            field('ac-address', 'Address', '<input class="input" id="ac-address" name="address" autocomplete="off" aria-describedby="ac-address-error">') +
+            '<div class="form-grid">' +
+              (pickBranch
+                ? field('ac-branch', 'Branch', '<select class="input" id="ac-branch" name="branch_id" aria-describedby="ac-branch-error">' +
+                    S.all('branches').map(function (b) { return '<option value="' + esc(b.id) + '"' + (b.id === startBranch ? ' selected' : '') + '>' + esc(b.short_name) + '</option>'; }).join('') + '</select>')
+                : '<div class="field"><span class="label">Branch</span><div class="static-value">' + esc(S.branchName(me.branch_id)) + '</div></div>') +
+              field('ac-agent', 'Sales agent', '<select class="input" id="ac-agent" name="agent_id" aria-describedby="ac-agent-error"></select>') +
+            '</div>' +
+            (canSetCredit
+              ? field('ac-credit', 'Credit limit (₱)', '<input class="input" id="ac-credit" name="credit_limit" type="number" inputmode="numeric" min="0" step="1000" aria-describedby="ac-credit-error">')
+              : '<div class="field"><span class="label">Credit limit</span><div class="static-value">' + CNS.icon('lock-closed') + 'Set by the Office Manager</div></div>') +
+            '<div class="modal__actions modal__actions--split"><span id="ac-autosave" role="status"></span>' +
+              '<div><button type="button" class="btn btn--secondary" data-cancel>Cancel</button>' +
+              '<button type="submit" class="btn btn--primary">Add customer</button></div></div>' +
+          '</form>';
+        var opener = document.activeElement;
+        document.body.appendChild(d);
+        var q = function (id) { return d.querySelector('#' + id); };
+        var form = d.querySelector('form');
+
+        function branchId() { return pickBranch ? q('ac-branch').value : me.branch_id; }
+        function fillAgentSelect() {
+          var keep = q('ac-agent').value;
+          q('ac-agent').innerHTML = '<option value="">Choose an agent</option>' + S.where('users', function (u) {
+            return u.role === R.AGENT && u.is_active && u.branch_id === branchId();
+          }).map(function (u) { return '<option value="' + esc(u.id) + '"' + (u.id === keep ? ' selected' : '') + '>' + esc(u.full_name) + '</option>'; }).join('');
+        }
+        fillAgentSelect();
+        if (pickBranch) q('ac-branch').addEventListener('change', fillAgentSelect);
+        var draft = CNS.autosave.attach(form, { key: 'customer-new', status: q('ac-autosave') });
+        fillAgentSelect();   // the draft may have changed the branch
+
+        d.addEventListener('close', function () { d.remove(); if (opener && document.contains(opener)) opener.focus(); });
+        d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+        d.querySelector('[data-cancel]').addEventListener('click', function () { d.close(); });
+
+        function setError(id, msg) {
+          q(id + '-error').textContent = msg || '';
+          if (msg) q(id).setAttribute('aria-invalid', 'true'); else q(id).removeAttribute('aria-invalid');
+          return !msg;
+        }
+
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var name = q('ac-name').value.trim().replace(/\s+/g, ' ');
+          var dup = S.where('clients', function (c) { return c.store_name.toLowerCase() === name.toLowerCase(); })[0];
+          var credit = canSetCredit ? q('ac-credit').value : '0';
+          var ok = [
+            setError('ac-name', !name ? 'Enter the store name.' : dup ? 'This store is already a customer (' + S.branchName(dup.branch_id) + ').' : ''),
+            setError('ac-contact', q('ac-contact').value.trim() ? '' : 'Enter the contact person.'),
+            setError('ac-phone', /^[0-9 ()+-]{7,}$/.test(q('ac-phone').value.trim()) ? '' : 'Enter a phone number, e.g. 0917 555 0101.'),
+            setError('ac-address', q('ac-address').value.trim() ? '' : 'Enter the address.'),
+            setError('ac-agent', q('ac-agent').value ? '' : 'Choose the agent who visits this store.'),
+            canSetCredit ? setError('ac-credit', /^\d+$/.test(credit) ? '' : 'Enter the credit limit in pesos, 0 or more.') : true
+          ];
+          if (ok.indexOf(false) >= 0) { form.querySelector('[aria-invalid="true"]').focus(); return; }
+
+          var c = S.insert('clients', {
+            store_name: name, contact_person: q('ac-contact').value.trim(), contact_no: q('ac-phone').value.trim(),
+            address: q('ac-address').value.trim(), credit_limit: Number(credit), branch_id: branchId(), agent_id: q('ac-agent').value
+          });
+          CNS.history.log({ action: 'Create', module: MODULE, record_type: 'clients', record_id: c.id, new_value: name + ' · credit limit ' + fmt.money(c.credit_limit) });
+          draft.clear();
+          d.close();
+          render();
+          CNS.ui.toast(name + ' added.' + (canSetCredit ? '' : ' Ask the Office Manager to set the credit limit.'));
+        });
+
+        d.showModal();
+        q('ac-name').focus();
+      });
+
+      fillAgents();
+      render();
+    })();
+  </script>
+</body>
+</html>

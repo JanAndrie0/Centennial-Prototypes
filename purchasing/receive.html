@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Receive delivery · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .rcv { display: grid; gap: var(--space-4); margin-bottom: var(--space-5); }
+    .rcv-line { padding: var(--space-4) var(--space-5); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+    .rcv-line h2 { margin: 0; font-size: 18px; }
+    .rcv-grid { display: grid; grid-template-columns: 150px minmax(0, 2fr) minmax(0, 1fr) auto; gap: var(--space-4); align-items: end; margin-top: var(--space-3); }
+    .rcv-grid .field { margin: 0; }
+    .adds { display: block; font-size: 22px; font-weight: 800; color: var(--color-success); font-variant-numeric: tabular-nums; }
+    .adds--split { font-size: 18px; }
+    .split { margin-top: var(--space-3); padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
+    .split-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) 140px minmax(0, 1fr); gap: var(--space-3); align-items: end; }
+    .split-grid .field { margin: 0; }
+    @media (max-width: 900px) { .rcv-grid, .split-grid { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+  <!-- 4.4 Receive Supplier Delivery: supplier units converted into selling units (Problem B5), stock added in 3.0 -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Purchasing &amp; Suppliers</a></li><li><span aria-current="page">Receive delivery</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+    <h1 class="page-title" id="title">Receive delivery</h1>
+    <p class="page-desc" id="desc">Count what arrived. The system converts the supplier's units into the units you sell.</p>
+    <div id="pick"></div>
+    <form id="form" novalidate hidden>
+      <div class="rcv" id="lines"></div>
+      <section class="card card--pad form-section" aria-labelledby="pay-title" style="max-width:none">
+        <h2 class="form-section__title" id="pay-title">Payment for this delivery</h2>
+        <fieldset class="check-list"><legend class="sr-only">Payment</legend>
+          <label class="check-row"><input type="radio" name="paid" value="no" checked> Unpaid (the Office Manager verifies it later)</label>
+          <label class="check-row"><input type="radio" name="paid" value="yes"> Already paid</label>
+        </fieldset>
+        <div class="field" style="margin-top:var(--space-3)"><label class="label" for="invoice">Supplier invoice photo <span class="main-tag">(optional)</span></label>
+          <input type="file" id="invoice" accept="image/*,.pdf"></div>
+      </section>
+      <div class="save-bar" style="max-width:none">
+        <span class="cell-sub" id="summary" aria-live="polite"></span>
+        <div class="save-bar__actions"><a class="btn btn--secondary" id="cancel">Cancel</a><button type="submit" class="btn btn--primary" id="post"></button></div>
+      </div>
+    </form>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/po-actions.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      var session = CNS.layout.desktop({ active: 'purchasing', roles: [R.CEO, R.OM, R.SS, R.STAFF] });
+      if (!session) return;
+      var S = CNS.store, P = CNS.poActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      CNS.layout.moduleTabs('purchasing', 'receive', session);
+      $('post').innerHTML = CNS.icon('arrow-down-tray') + 'Post receipt';
+
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+      var po = S.get('purchase_orders', new URLSearchParams(location.search).get('id'));
+
+      // ---- No PO chosen: list the ones waiting for delivery ----
+      if (!po || ['Ordered', 'Partially received'].indexOf(po.status) < 0) {
+        var open = S.where('purchase_orders', function (p) { return ['Ordered', 'Partially received'].indexOf(p.status) >= 0 && (scope() === 'all' || p.branch_id === scope()); });
+        $('pick').innerHTML = open.length
+          ? '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">PO no.</th><th scope="col">Supplier</th><th scope="col">Expected</th><th scope="col">Status</th><th scope="col" class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+            open.map(function (p) {
+              return '<tr><td class="cell-main nowrap">' + esc(p.po_no) + '</td><td>' + esc(S.get('suppliers', p.supplier_id).company_name) + '<span class="cell-sub">' + esc(S.branchName(p.branch_id)) + '</span></td>' +
+                '<td class="nowrap">' + esc(fmt.date(p.expected_date)) + '</td><td>' + P.statusBadge(p.status) + '</td>' +
+                '<td class="actions"><a class="btn btn--secondary" href="receive.html?id=' + encodeURIComponent(p.id) + '">' + CNS.icon('arrow-down-tray') + 'Receive<span class="sr-only"> ' + esc(p.po_no) + '</span></a></td></tr>';
+            }).join('') + '</tbody></table></div>'
+          : '<div class="card empty"><p class="empty__title">Nothing to receive.</p><p class="empty__text">Issued purchase orders show up here until they arrive.</p></div>';
+        return;
+      }
+
+      var supplier = S.get('suppliers', po.supplier_id);
+      var areas = S.where('storage', function (a) { return a.branch_id === po.branch_id; });
+      var supplierProducts = S.where('product_supplier', function (ps) { return ps.supplier_id === po.supplier_id; }).map(function (ps) { return S.get('products', ps.product_id); });
+      $('title').textContent = 'Receive ' + po.po_no;
+      $('desc').textContent = supplier.company_name + ' · deliver to ' + S.branchName(po.branch_id) + '. Count what arrived; the system converts it into the units you sell.';
+      $('cancel').href = 'detail.html?id=' + encodeURIComponent(po.id);
+      $('form').hidden = false;
+
+      function defaultArea(pid) {
+        var loc = S.where('stock_locations', function (l) { return l.product_id === pid && areas.some(function (a) { return a.id === l.area_id; }); })[0];
+        return loc ? loc.area_id : areas[0].id;
+      }
+      function areaSelect(id, pid) {
+        var def = defaultArea(pid);
+        return '<select class="input" id="' + id + '">' + areas.map(function (a) { return '<option value="' + esc(a.id) + '"' + (a.id === def ? ' selected' : '') + '>' + esc(a.name) + '</option>'; }).join('') + '</select>';
+      }
+
+      var items = P.items(po.id).filter(function (it) { return it.qty_received < it.qty_ordered; });
+      $('lines').innerHTML = items.map(function (it) {
+        var p = S.get('products', it.product_id), l = P.link(p.id, po.supplier_id);
+        var unit = l ? l.purchase_unit : 'unit', conv = l ? l.conversion : 1, left = it.qty_ordered - it.qty_received;
+        var others = supplierProducts.filter(function (x) { return x && x.id !== p.id && x.unit_id === p.unit_id; });
+        return '<section class="rcv-line" data-item="' + esc(it.id) + '" data-conv="' + conv + '" aria-labelledby="h-' + esc(it.id) + '">' +
+          '<h2 id="h-' + esc(it.id) + '">' + esc(p.name) + '</h2>' +
+          '<p class="cell-sub" style="margin:2px 0 0">Ordered ' + fmt.number(it.qty_ordered) + ' ' + esc(unit) + ' · received so far ' + fmt.number(it.qty_received) + ' · 1 ' + esc(unit) + ' = ' + esc(fmt.qty(conv, p.unit_id)) + '</p>' +
+          '<div class="rcv-grid">' +
+            '<div class="field"><label class="label" for="q-' + esc(it.id) + '">Received (' + esc(unit) + ')</label><input class="input input--qty" id="q-' + esc(it.id) + '" type="number" min="0" max="' + left + '" step="1" value="' + left + '"></div>' +
+            '<div><span class="label">Adds to stock</span><span class="adds" data-adds></span></div>' +
+            '<div class="field"><label class="label" for="a-' + esc(it.id) + '">Put in</label>' + areaSelect('a-' + it.id, p.id) + '</div>' +
+            '<div>' + (others.length ? '<button type="button" class="btn btn--secondary" data-split>' + CNS.icon('arrow-path') + 'Split into two products</button>' : '') + '</div>' +
+          '</div>' +
+          (others.length ? '<div class="split" data-split-box hidden><p class="cell-sub" style="margin:0 0 var(--space-2)">For mixed boxes, e.g. one mother box with both epoxy A and B. The rest stays as ' + esc(p.name) + '.</p><div class="split-grid">' +
+            '<div class="field"><label class="label" for="sp-' + esc(it.id) + '">Second product</label><select class="input" id="sp-' + esc(it.id) + '">' +
+              others.map(function (o) { return '<option value="' + esc(o.id) + '">' + esc(o.name) + '</option>'; }).join('') + '</select></div>' +
+            '<div class="field"><label class="label" for="sq-' + esc(it.id) + '">How many (' + esc(fmt.unit(p.unit_id, 2)) + ')</label><input class="input input--qty" id="sq-' + esc(it.id) + '" type="number" min="0" step="1"></div>' +
+            '<div class="field"><label class="label" for="sa-' + esc(it.id) + '">Put in</label>' + areaSelect('sa-' + it.id, others[0].id) + '</div>' +
+          '</div></div>' : '') +
+          '<p class="field-error" id="e-' + esc(it.id) + '"></p></section>';
+      }).join('');
+
+      function read() {
+        return Array.prototype.map.call(document.querySelectorAll('.rcv-line'), function (sec) {
+          var id = sec.dataset.item, it = S.get('purchase_order_items', id), conv = Number(sec.dataset.conv);
+          var rec = Math.round(Number($('q-' + id).value) || 0);
+          var total = rec * conv;
+          var box = sec.querySelector('[data-split-box]');
+          var splitQty = box && !box.hidden ? Math.round(Number($('sq-' + id).value) || 0) : 0;
+          var parts = [{ product_id: it.product_id, qty: total - splitQty, area_id: $('a-' + id).value }];
+          if (splitQty) parts.push({ product_id: $('sp-' + id).value, qty: splitQty, area_id: $('sa-' + id).value });
+          return { sec: sec, item_id: id, it: it, received: rec, total: total, splitQty: splitQty, parts: parts };
+        });
+      }
+
+      function update() {
+        var lines = read(), n = 0;
+        lines.forEach(function (l) {
+          var p = S.get('products', l.it.product_id);
+          l.sec.querySelector('[data-adds]').classList.toggle('adds--split', !!l.splitQty);
+          l.sec.querySelector('[data-adds]').textContent = l.splitQty
+            ? l.parts.map(function (pt) { return '+' + fmt.qty(pt.qty, p.unit_id) + ' ' + S.get('products', pt.product_id).name; }).join(' · ')
+            : '+' + fmt.qty(l.total, p.unit_id);
+          if (l.received) n++;
+        });
+        $('summary').textContent = n + ' of ' + lines.length + (lines.length === 1 ? ' line' : ' lines') + ' received';
+      }
+      $('form').addEventListener('input', update);
+      $('lines').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-split]');
+        if (!b) return;
+        var box = b.closest('.rcv-line').querySelector('[data-split-box]');
+        box.hidden = !box.hidden;
+        b.innerHTML = CNS.icon(box.hidden ? 'arrow-path' : 'x-mark') + (box.hidden ? 'Split into two products' : 'Don\'t split');
+        if (!box.hidden) {
+          var l = read().filter(function (x) { return x.sec === box.closest('.rcv-line'); })[0];
+          box.querySelector('input').value = Math.floor(l.total / 2);   // e.g. 250 pcs → 125 + 125
+          box.querySelector('select').focus();
+        }
+        update();
+      });
+      update();
+
+      $('form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var lines = read(), bad = false;
+        lines.forEach(function (l) {
+          var left = l.it.qty_ordered - l.it.qty_received;
+          var msg = l.received > left ? 'Only ' + left + ' left to receive on this line.' : l.splitQty > l.total ? 'The split is more than what arrived.' : '';
+          $('e-' + l.item_id).textContent = msg;
+          if (msg) bad = true;
+        });
+        if (bad) return;
+        if (!lines.some(function (l) { return l.received; })) {
+          CNS.ui.confirm({ title: 'Nothing received', body: 'Type how many arrived on at least one line.', confirm: 'OK', icon: 'information-circle', alertOnly: true });
+          return;
+        }
+        var paid = document.querySelector('input[name="paid"]:checked').value === 'yes';
+        var full = lines.every(function (l) { return l.it.qty_received + l.received >= l.it.qty_ordered; }) && items.length === P.items(po.id).filter(function (it) { return it.qty_received < it.qty_ordered; }).length;
+        CNS.ui.confirm({
+          title: 'Post receipt for ' + po.po_no + '?',
+          body: 'The items are added to stock at ' + S.branchName(po.branch_id) + '. ' + (full ? 'This completes the order.' : 'The rest stays open as Partially received.'),
+          confirm: 'Post receipt', icon: 'arrow-down-tray'
+        }).then(function (ok) {
+          if (!ok) return;
+          var inv = $('invoice').files[0];
+          po = P.receive(po, lines.map(function (l) { return { item_id: l.item_id, received: l.received, parts: l.parts }; }), paid, session);
+          if (inv) CNS.history.log({ action: 'Edit', module: P.MODULE, record_type: 'purchase_orders', record_id: po.id, field: 'invoice', new_value: 'Supplier invoice attached: ' + inv.name });
+          CNS.ui.flash(po.po_no + ': stock added. Status ' + po.status + '.');
+          location.href = 'detail.html?id=' + encodeURIComponent(po.id);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "contract": "Surface: Login (1.1 Verify User Login), desktop and mobile, per CLAUDE.md §4 Login and docs/modules/01-user-accounts-history-log.md Step 1. Job: staff and agents aged 30-50 sign in with an individual username and password from their Office Manager. Primary action: Log in (one full-width red button). Hierarchy: company name and system title above the card; then logo, 'Log in', one-line description, Username, Password (Forgot password? on the right, Show/Hide inside), Log in, shared-device note; demo accounts and footer below. Direction: team Figma system (#f8fafc page, white card, brand red #b91c1c as the only accent, Archivo, faint hardware doodles as the signature detail, Heroicons outline 24, real company logo). References: CLAUDE.md §6 tokens and UX rules; docs/modules/foundation.md 0.2-0.7.",
+  "targetViewports": ["1440x900", "390x844"],
+  "accessibility": {
+    "status": "pass",
+    "evidence": "Checked in Chrome on 2026-10-23: tab order Username > Forgot password > Password > Show > Log in > Demo accounts, each with a visible 2px red outline; all controls at least 44px tall (forgot 125x44, Show 89x44, Log in 52px); text contrast 4.55:1 (footer) to 17.7:1, all passing AA; logo has alt text, all 6 inline Heroicons and the doodles are aria-hidden; field errors linked by aria-describedby, banner and status are live regions; Caps Lock, blur errors and loading are announced; reduced-motion rules remove all movement."
+  },
+  "responsive": {
+    "status": "pass",
+    "evidence": "Rendered at 1440x900 (no horizontal scroll, whole page fits) and 390x844 (scrollWidth 375 within 390, body text 16px, logo 220px, phone version of the shared-device note shown); also checked at 320px earlier the same day with no horizontal scroll."
+  },
+  "contentStates": {
+    "loading": { "status": "pass", "evidence": "Submitting shows a spinner and 'Logging in…' in the button, the form is locked with aria-busy, the button keeps focus, and 'Logging in…' is announced; layout does not shift." },
+    "empty": { "status": "not-applicable", "reason": "The login page shows no data collection; its starting state is the blank form, and blank-field submits are covered by the error state." },
+    "error": { "status": "pass", "evidence": "Wrong username or password shows 'Wrong username or password.' with an icon under the Password field, clears and focuses the field; blank fields show 'Enter your username/password.'; connection failure shows an error banner and keeps the password so the user can retry. Verified in Chrome on 2026-10-23 after the plan 01 copy change." },
+    "partial": { "status": "not-applicable", "reason": "The login page loads no remote data, so there is no partially loaded view; it is a single form." },
+    "success": { "status": "pass", "evidence": "Success shows a green banner with a check icon 'Welcome. You're logged in as <role>.', the button reads 'Logged in', and the password is hidden again. Redirect to the role dashboard is pending until dashboards exist." },
+    "permission": { "status": "pass", "evidence": "A locked account (or 5 wrong tries) shows the banner 'Too many tries. Ask your Office Manager to unlock your account.'; Forgot password opens a modal dialog 'Ask your Office Manager to reset it. There's no email reset.' Dialog checked with real keys: focus moves to OK, Tab stays inside, Escape, OK and backdrop click all close it, and focus returns to 'Forgot password?'." }
+  },
+  "renderedEvidence": [
+    { "viewport": "1440x900", "artifact": "login-1440x900-demo-open.jpg", "observation": "Default state rendered in a 1440x900 frame (shown at 60% scale) with the 6px red stripe, 'from your Office Manager' description, real logo, Heroicons, and the 'Demo: log in as…' panel open showing one 44px+ button per role; no horizontal overflow." },
+    { "viewport": "390x844", "artifact": "login-390x844-forgot-dialog.jpg", "observation": "Forgot-password dialog open in a 390x844 frame (shown at 90% scale): dimmed page behind, info icon, title, 16px body text, full-width 52px OK button with visible focus ring; dialog 343px wide, no horizontal scroll." }
+  ]
+}

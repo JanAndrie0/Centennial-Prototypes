@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Purchase approvals · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .approvals { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+    .queue { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+    .queue button { display: grid; gap: 4px; width: 100%; padding: var(--space-3) var(--space-4); font: inherit; text-align: left; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; }
+    .queue button[aria-current="true"] { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-focus-ring); }
+    .queue button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .queue__top { display: flex; justify-content: space-between; gap: var(--space-2); font-weight: 700; }
+    .detail-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); }
+    .detail-head h2 { margin: 0; font-size: 22px; }
+    .detail-total strong { display: block; font-size: 22px; text-align: right; font-variant-numeric: tabular-nums; }
+    .detail-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-5); }
+    @media (max-width: 1100px) { .approvals { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <!-- 4.2 → 4.3: the Office Manager approves purchase requests before they become purchase orders -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Purchasing &amp; Suppliers</a></li><li><span aria-current="page">Approvals</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+    <h1 class="page-title">Purchase approvals</h1>
+    <p class="page-desc" id="desc">Check why each item is needed and what is still owed to the supplier, then approve or reject.</p>
+    <div class="approvals" id="approvals">
+      <section aria-label="Waiting for approval"><p class="result-count" id="queue-count" aria-live="polite"></p><ul class="queue" id="queue"></ul></section>
+      <section class="card card--pad" id="detail" aria-live="polite"></section>
+    </div>
+    <div class="card empty" id="empty" hidden>
+      <span id="empty-icon"></span>
+      <p class="empty__title">No purchase requests waiting.</p>
+      <p class="empty__text">Requests from the reorder list show up here.</p>
+      <a class="btn btn--secondary" href="../products/reorder.html">Open the reorder list</a>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/po-actions.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      var session = CNS.layout.desktop({ active: 'purchasing', roles: [R.CEO, R.OM, R.SS] });
+      if (!session) return;
+      var S = CNS.store, P = CNS.poActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var selected = new URLSearchParams(location.search).get('id');
+      $('empty-icon').outerHTML = CNS.icon('check-circle');
+      if (me.role !== R.OM) $('desc').textContent = 'Purchase requests waiting for the Office Manager. View only.';
+
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+      function canDecide(po) { return me.role === R.OM && po.branch_id === me.branch_id; }
+
+      function render() {
+        CNS.layout.moduleTabs('purchasing', 'approvals', session);
+        var sc = scope();
+        var list = S.where('purchase_orders', function (p) { return p.status === 'For approval' && (sc === 'all' || p.branch_id === sc); })
+          .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+        $('approvals').hidden = !list.length;
+        $('empty').hidden = !!list.length;
+        if (!list.length) return;
+        if (!list.some(function (p) { return p.id === selected; })) selected = list[0].id;
+        $('queue-count').textContent = list.length + (list.length === 1 ? ' request waiting' : ' requests waiting') + ' · oldest first';
+        $('queue').innerHTML = list.map(function (p) {
+          var s = S.get('suppliers', p.supplier_id), by = S.get('users', p.requested_by);
+          return '<li><button type="button" data-id="' + esc(p.id) + '" aria-current="' + (p.id === selected) + '">' +
+            '<span class="queue__top"><span>' + esc(p.po_no) + '</span><span>' + esc(fmt.money(P.total(p.id))) + '</span></span>' +
+            '<span>' + esc(s ? s.company_name : '') + '</span>' +
+            '<span class="cell-sub">' + esc((by ? by.full_name + ' (' + by.role + ')' : '') + ' · ' + S.branchName(p.branch_id)) + '</span></button></li>';
+        }).join('');
+        renderDetail();
+      }
+
+      function renderDetail() {
+        var po = S.get('purchase_orders', selected);
+        var s = S.get('suppliers', po.supplier_id);
+        var unpaid = P.supplierUnpaid(po.supplier_id);
+        $('detail').innerHTML =
+          '<div class="detail-head"><div><h2>' + esc(po.po_no) + ' · ' + esc(s.company_name) + '</h2>' +
+            '<p class="cell-sub">Requested ' + esc(fmt.date(po.date)) + ' · Expected ' + esc(fmt.date(po.expected_date)) + ' · Deliver to ' + esc(S.branchName(po.branch_id)) + '</p>' +
+            (po.note ? '<p class="cell-sub">Note: ' + esc(po.note) + '</p>' : '') + '</div>' +
+            '<div class="detail-total"><span class="cell-sub">Total</span><strong>' + esc(fmt.money(P.total(po.id))) + '</strong></div></div>' +
+          '<p class="alert" data-tone="' + (unpaid ? 'warning' : 'success') + '">' + (unpaid ? 'Still owed to ' + esc(s.company_name) + ': ' + esc(fmt.money(unpaid)) + '.' : 'Nothing owed to this supplier.') + '</p>' +
+          '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Qty</th><th scope="col">= Selling units</th>' +
+            '<th scope="col" class="num-col">Unit cost</th><th scope="col" class="num-col">Amount</th><th scope="col">Why</th></tr></thead><tbody>' +
+            P.items(po.id).map(function (it) {
+              var p = S.get('products', it.product_id), l = P.link(p.id, po.supplier_id);
+              var conv = l ? l.conversion : 1;
+              return '<tr><td><span class="truncate cell-main" title="' + esc(p.name) + '">' + esc(p.name) + '</span></td>' +
+                '<td class="num-col nowrap">' + fmt.number(it.qty_ordered) + ' ' + esc(l ? l.purchase_unit : '') + '</td>' +
+                '<td class="nowrap">' + esc(fmt.qty(it.qty_ordered * conv, p.unit_id)) + '</td>' +
+                '<td class="num-col">' + esc(fmt.money(it.unit_cost)) + '</td><td class="num-col">' + esc(fmt.money(it.qty_ordered * it.unit_cost)) + '</td>' +
+                '<td>' + CNS.ui.stockBadge(S.stockStatus(p.id, po.branch_id)) + '<span class="cell-sub">Available ' + esc(fmt.qty(S.available(p.id, po.branch_id), p.unit_id)) + '</span></td></tr>';
+            }).join('') + '</tbody></table></div>' +
+          (canDecide(po)
+            ? '<div class="detail-actions"><button type="button" class="btn btn--secondary" id="reject">' + CNS.icon('x-mark') + 'Reject</button>' +
+                '<button type="button" class="btn btn--primary" id="approve">' + CNS.icon('check') + 'Approve</button></div>'
+            : '<p class="notice notice--info">' + CNS.icon('information-circle') + '<span>' + (me.role === R.OM ? 'This request belongs to ' + esc(S.branchName(po.branch_id)) + '; its own Office Manager approves it.' : 'Only the Office Manager approves purchase requests.') + '</span></p>');
+
+        if (canDecide(po)) {
+          $('approve').addEventListener('click', function () {
+            P.approve(po, session);
+            CNS.ui.flash(po.po_no + ' approved. Issue the purchase order to send it to the supplier.');
+            location.href = 'detail.html?id=' + encodeURIComponent(po.id);
+          });
+          $('reject').addEventListener('click', function () {
+            var d = document.createElement('dialog');
+            d.className = 'modal modal--form';
+            d.setAttribute('aria-labelledby', 'rj-title');
+            d.innerHTML = CNS.icon('x-mark', 'modal__icon') + '<h2 class="modal__title" id="rj-title">Reject ' + esc(po.po_no) + '?</h2>' +
+              '<form novalidate><div class="field"><label class="label" for="rj">Reason</label><input class="input" id="rj" autocomplete="off" aria-describedby="rj-error"><p class="field-error" id="rj-error"></p></div>' +
+              '<div class="modal__actions"><button type="button" class="btn btn--secondary" data-cancel>Cancel</button><button type="submit" class="btn btn--primary">Reject request</button></div></form>';
+            var opener = document.activeElement;
+            document.body.appendChild(d);
+            d.addEventListener('close', function () { d.remove(); if (opener && document.contains(opener)) opener.focus(); });
+            d.querySelector('[data-cancel]').addEventListener('click', function () { d.close(); });
+            d.querySelector('form').addEventListener('submit', function (e) {
+              e.preventDefault();
+              var t = d.querySelector('#rj').value.trim();
+              if (!t) { d.querySelector('#rj-error').textContent = 'Give the reason.'; d.querySelector('#rj').setAttribute('aria-invalid', 'true'); d.querySelector('#rj').focus(); return; }
+              P.reject(po, t, session);
+              d.close();
+              CNS.ui.toast(po.po_no + ' rejected.');
+              render();
+            });
+            d.showModal();
+            d.querySelector('#rj').focus();
+          });
+        }
+      }
+
+      $('queue').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-id]');
+        if (!b) return;
+        selected = b.getAttribute('data-id');
+        render();
+        $('queue').querySelector('[data-id="' + selected + '"]').focus();
+      });
+      document.addEventListener('cns:branchchange', function (e) { session.branchView = e.detail.branchView; render(); });
+      render();
+    })();
+  </script>
+</body>
+</html>

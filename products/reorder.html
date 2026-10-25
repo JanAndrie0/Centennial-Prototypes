@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reorder list · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .select-hit { display: inline-flex; padding: 0 var(--space-2); cursor: pointer; }
+    #reorder-view .save-bar { margin-top: var(--space-4); max-width: none; }
+    .suggest { font-weight: 700; }
+    .truncate.supplier { max-width: 16ch; }
+    #reorder-table .row-link.truncate { max-width: 24ch; }
+  </style>
+</head>
+<body>
+  <!-- 3.4 Monitor Stock Levels: low-stock alerts and the reorder list → 4.2 Prepare Purchase Request -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Products &amp; Inventory</a></li><li><span aria-current="page">Reorder list</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <h1 class="page-title">Reorder list</h1>
+    <p class="page-desc">Products at or below the reorder point, and products over the ceiling.</p>
+
+    <div class="alert" id="banner" role="status"></div>
+
+    <div class="segmented" role="group" aria-label="Show">
+      <button type="button" aria-pressed="true" data-view="reorder" id="view-reorder"></button>
+      <button type="button" aria-pressed="false" data-view="over" id="view-over"></button>
+    </div>
+
+    <!-- Needs reorder -->
+    <section id="reorder-view" aria-labelledby="view-reorder">
+      <div class="table-wrap">
+        <table class="table" id="reorder-table">
+          <thead><tr id="reorder-head"></tr></thead>
+          <tbody id="reorder-body"></tbody>
+        </table>
+        <div class="empty" id="reorder-empty" hidden>
+          <span id="ok-icon"></span>
+          <p class="empty__title">Nothing needs reordering.</p>
+          <p class="empty__text">Every product is above its reorder point.</p>
+        </div>
+      </div>
+      <div class="save-bar" id="action-bar">
+        <span id="selected-count" role="status"></span>
+        <div class="save-bar__actions"><button type="button" class="btn btn--primary" id="send"></button></div>
+      </div>
+    </section>
+
+    <!-- Over ceiling (overstock alert) -->
+    <section id="over-view" aria-labelledby="view-over" hidden>
+      <div class="table-wrap">
+        <table class="table" id="over-table">
+          <thead><tr>
+            <th scope="col">Product</th><th scope="col">Unit</th><th scope="col" class="num-col">On hand</th>
+            <th scope="col" class="num-col">Ceiling</th><th scope="col" class="num-col">Over by</th><th scope="col">Status</th><th scope="col">Main supplier</th>
+          </tr></thead>
+          <tbody id="over-body"></tbody>
+        </table>
+        <div class="empty" id="over-empty" hidden>
+          <span id="ok-icon-2"></span>
+          <p class="empty__title">No overstock.</p>
+          <p class="empty__text">Every product is at or under its ceiling.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'products' });
+      if (!session) return;
+
+      var R = CNS.ROLES;
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var NEEDS = ['backordered', 'below-floor', 'low'];   // most urgent first
+      // The Sales Supervisor sends a stock order request; everyone else prepares a purchase request. Both feed 4.2.
+      var isSS = session.user.role === R.SS;
+      var selected = {};
+
+      $('ok-icon').outerHTML = CNS.icon('check-circle');
+      $('ok-icon-2').outerHTML = CNS.icon('check-circle');
+      $('send').innerHTML = CNS.icon('shopping-cart') + (isSS ? 'Send stock order request' : 'Create purchase request');
+
+      function scope() { return session.branchView; }
+
+      function branchesStocking(productId) {
+        var ids = [];
+        S.where('stock_locations', function (l) { return l.product_id === productId; }).forEach(function (l) {
+          var a = S.get('storage', l.area_id);
+          if (a && ids.indexOf(a.branch_id) < 0) ids.push(a.branch_id);
+        });
+        return ids;
+      }
+
+      // Per branch, then added up, so one branch's surplus never hides another's shortage (combined needs, E2/E4)
+      function need(p) {
+        var sc = scope();
+        var branches = branchesStocking(p.id).filter(function (b) { return sc === 'all' || b === sc; });
+        var short = branches.filter(function (b) { return NEEDS.indexOf(S.stockStatus(p.id, b)) >= 0; });
+        return {
+          branches: short,
+          suggested: short.reduce(function (t, b) { return t + S.suggestedReorder(p.id, b); }, 0),
+          available: S.available(p.id, sc),
+          status: S.stockStatus(p.id, sc)
+        };
+      }
+
+      function supplierName(p) { var s = S.get('suppliers', p.supplier_id); return s ? s.company_name : '—'; }
+
+      function rowsNeeding() {
+        return S.lowStock(scope()).map(function (p) { return { p: p, n: need(p) }; })
+          .sort(function (a, b) { return (NEEDS.indexOf(a.n.status) - NEEDS.indexOf(b.n.status)) || a.p.name.localeCompare(b.p.name); });
+      }
+
+      function rowsOver() {
+        var sc = scope();
+        return S.all('products').filter(function (p) {
+          // Company-wide: over ceiling in any branch that stocks it
+          var bs = branchesStocking(p.id).filter(function (b) { return sc === 'all' || b === sc; });
+          return bs.some(function (b) { return S.onHand(p.id, b) > p.ceiling_qty; });
+        });
+      }
+
+      function renderReorder() {
+        var rows = rowsNeeding();
+        var all = scope() === 'all';
+        $('reorder-head').innerHTML =
+          '<th scope="col" class="select-col"><label class="select-hit"><input type="checkbox" id="select-all"><span class="sr-only">Select all</span></label></th>' +
+          // Company-wide: show each short branch's own stock instead of a total that would hide the shortage
+          '<th scope="col">Product</th><th scope="col">Status</th>' +
+          (all ? '<th scope="col">Short at</th>' : '<th scope="col" class="num-col">Available</th>') +
+          '<th scope="col" class="num-col">Reorder point</th><th scope="col" class="num-col">Floor</th>' +
+          '<th scope="col" class="num-col">Ceiling</th><th scope="col" class="num-col">Suggested</th><th scope="col">Main supplier</th>';
+
+        $('reorder-body').innerHTML = rows.map(function (r) {
+          var p = r.p, n = r.n;
+          var on = !!selected[p.id];
+          return '<tr data-id="' + esc(p.id) + '"' + (on ? ' class="is-selected"' : '') + '>' +
+            '<td class="select-col"><label class="select-hit"><input type="checkbox" data-select="' + esc(p.id) + '"' + (on ? ' checked' : '') + '>' +
+              '<span class="sr-only">Select ' + esc(p.name) + '</span></label></td>' +
+            '<td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(p.id) + '" title="' + esc(p.name) + '">' + esc(p.name) + '</a></td>' +
+            '<td>' + CNS.ui.stockBadge(n.status) + '</td>' +
+            (all
+              ? '<td class="nowrap">' + n.branches.map(function (b) {
+                  var a = S.available(p.id, b);
+                  return '<span class="cell-sub"' + (a < 0 ? ' style="color:var(--color-info);font-weight:700"' : '') + '>' +
+                    esc(S.branchName(b) + ': ' + fmt.qty(a, p.unit_id)) + '</span>';
+                }).join('') + '</td>'
+              : '<td class="num-col' + (n.available < 0 ? ' qty-neg' : '') + '">' + esc(fmt.qty(n.available, p.unit_id)) + '</td>') +
+            '<td class="num-col">' + fmt.number(p.critical_qty) + '</td>' +
+            '<td class="num-col">' + fmt.number(p.floor_qty) + '</td>' +
+            '<td class="num-col">' + fmt.number(p.ceiling_qty) + '</td>' +
+            '<td class="num-col suggest">' + (n.suggested ? esc(fmt.qty(n.suggested, p.unit_id)) : '—') + '</td>' +
+            '<td><span class="truncate supplier" title="' + esc(supplierName(p)) + '">' + esc(supplierName(p)) + '</span></td></tr>';
+        }).join('');
+
+        $('reorder-table').hidden = !rows.length;
+        $('reorder-empty').hidden = !!rows.length;
+        $('action-bar').hidden = !rows.length;
+
+        // Drop selections that are no longer on the list (e.g. after a branch change)
+        Object.keys(selected).forEach(function (id) {
+          if (!rows.some(function (r) { return r.p.id === id; })) delete selected[id];
+        });
+        updateSelection(rows);
+        $('select-all').addEventListener('change', function () {
+          var on = this.checked;
+          rows.forEach(function (r) { if (on) selected[r.p.id] = true; else delete selected[r.p.id]; });
+          renderReorder();
+          $('select-all').focus();
+        });
+        return rows;
+      }
+
+      function updateSelection(rows) {
+        var n = Object.keys(selected).length;
+        $('selected-count').textContent = n ? n + (n === 1 ? ' product selected' : ' products selected') : 'Select the products to order.';
+        $('select-all').checked = rows.length > 0 && n === rows.length;
+        $('select-all').indeterminate = n > 0 && n < rows.length;
+      }
+
+      function renderOver() {
+        var sc = scope();
+        var rows = rowsOver();
+        $('over-body').innerHTML = rows.map(function (p) {
+          var hand = S.onHand(p.id, sc);
+          return '<tr><td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(p.id) + '" title="' + esc(p.name) + '">' + esc(p.name) + '</a></td>' +
+            '<td class="nowrap">' + esc(fmt.unit(p.unit_id, 2)) + '</td>' +
+            '<td class="num-col">' + fmt.number(hand) + '</td><td class="num-col">' + fmt.number(p.ceiling_qty) + '</td>' +
+            '<td class="num-col suggest">' + fmt.number(Math.max(0, hand - p.ceiling_qty)) + '</td>' +
+            '<td>' + CNS.ui.stockBadge('over-ceiling') + '</td>' +
+            '<td><span class="truncate">' + esc(supplierName(p)) + '</span></td></tr>';
+        }).join('');
+        $('over-table').hidden = !rows.length;
+        $('over-empty').hidden = !!rows.length;
+        return rows;
+      }
+
+      function render() {
+        CNS.layout.moduleTabs('products', 'reorder', session);
+        var needing = renderReorder();
+        var over = renderOver();
+        var where = scope() === 'all' ? 'across all branches' : 'at ' + S.branchName(scope());
+        $('view-reorder').innerHTML = CNS.icon('bell') + 'Needs reorder (' + needing.length + ')';
+        $('view-over').innerHTML = CNS.icon('arrow-up-circle') + 'Over ceiling (' + over.length + ')';
+        var banner = $('banner');
+        if (needing.length) {
+          banner.dataset.tone = 'warning';
+          banner.textContent = needing.length + (needing.length === 1 ? ' product is' : ' products are') + ' low on stock ' + where + '.';
+        } else {
+          banner.dataset.tone = 'success';
+          banner.textContent = 'Stock is above the reorder point ' + where + '.';
+        }
+      }
+
+      // ---- Interactions ----
+      $('reorder-body').addEventListener('change', function (e) {
+        var id = e.target.getAttribute('data-select');
+        if (!id) return;
+        if (e.target.checked) selected[id] = true; else delete selected[id];
+        e.target.closest('tr').classList.toggle('is-selected', e.target.checked);
+        updateSelection(rowsNeeding());
+      });
+
+      Array.prototype.forEach.call(document.querySelectorAll('.segmented button'), function (b) {
+        b.addEventListener('click', function () {
+          var view = b.getAttribute('data-view');
+          Array.prototype.forEach.call(document.querySelectorAll('.segmented button'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+          $('reorder-view').hidden = view !== 'reorder';
+          $('over-view').hidden = view !== 'over';
+        });
+      });
+
+      // Hand the selection to 4.2 Prepare Purchase Request (module 04), grouped by main supplier there
+      $('send').addEventListener('click', function () {
+        var ids = Object.keys(selected);
+        if (!ids.length) {
+          CNS.ui.confirm({ title: 'Nothing selected', body: 'Tick the products you want to order first.', confirm: 'OK', icon: 'information-circle', alertOnly: true });
+          return;
+        }
+        var items = ids.map(function (id) {
+          var p = S.get('products', id);
+          return { product_id: id, supplier_id: p.supplier_id, qty: need(p).suggested };
+        });
+        try {
+          sessionStorage.setItem('centennial-reorder-handoff', JSON.stringify({
+            branch: scope(), kind: isSS ? 'stock order request' : 'purchase request', items: items, at: new Date().toISOString()
+          }));
+        } catch (e) { /* storage blocked: the request screen starts empty */ }
+        location.href = '../purchasing/new.html';   // 4.2 Prepare Purchase Request opens with these items, grouped by supplier
+      });
+
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        render();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

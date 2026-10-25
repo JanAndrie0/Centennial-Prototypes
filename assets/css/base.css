@@ -1,0 +1,70 @@
+/* Base: reset, body, accessibility helpers and the shared motion keyframes. Load after tokens.css. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  font-family: var(--font);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3 { text-wrap: balance; }
+
+/* The hidden attribute always wins over component display rules (e.g. .empty is a grid) */
+[hidden] { display: none !important; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* First Tab stop on every app page; visible only when focused */
+.skip-link {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 100;
+  padding: var(--space-3) var(--space-4);
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-primary);
+  border-radius: var(--radius-md);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus { transform: none; outline: 2px solid var(--color-text); outline-offset: 2px; }
+
+/* Inline Heroicons (CNS.icon): 20px by default, inherit the text color */
+.icon { flex: none; width: 20px; height: 20px; }
+
+/* Shared motion (motion-foundations: tokens only, transform/opacity only) */
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Gentle shake when a submit fails; added and removed from JS */
+.is-shaking { animation: shake 320ms var(--ease-sharp); }
+
+@keyframes shake {
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-shaking { animation: none; }
+}

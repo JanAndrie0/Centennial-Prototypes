@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New order · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .wide { max-width: none; }
+    .customer-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-5); align-items: start; }
+    .customer-card { padding: var(--space-4); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .customer-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); margin: 0; }
+    .customer-card dt { font-size: var(--text-small); color: var(--color-text-secondary); }
+    .customer-card dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .customer-card .is-bad { color: var(--color-error); }
+    .customer-card .is-warn { color: var(--color-warning); }
+    .slip-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .slip-thumb { width: 72px; height: 72px; object-fit: cover; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .file-input:focus-visible + .btn, .btn:has(+ .file-input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .lines td { vertical-align: top; }
+    .lines td.num-col, .lines td[data-unit] { padding-top: 22px; }
+    .lines td.num-col:has(input) { padding-top: var(--space-3); }
+    .lines .product-cell { min-width: 280px; }
+    .totals { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
+    .totals strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+    #warnings ul { margin: 0; padding-left: var(--space-5); }
+    @media (max-width: 900px) { .customer-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <!-- 2.1 Record Sales Order (staff encoding) + 2.2 Review and Validate Order (warnings, never blocks) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Sales Orders &amp; Deliveries</a></li><li><span aria-current="page">New order</span></li></ol>
+    </nav>
+    <h1 class="page-title">New order</h1>
+    <p class="page-desc">Encode the order in the same order as the slip. Warnings don't stop the order; the Office Manager decides.</p>
+
+    <form id="form" novalidate>
+      <!-- 1. Customer -->
+      <section class="card card--pad form-section wide" aria-labelledby="s-customer">
+        <h2 class="form-section__title" id="s-customer">1 · Customer</h2>
+        <div class="customer-grid">
+          <div class="field">
+            <label class="label" for="customer">Store</label>
+            <input class="input" id="customer" name="customer" list="customers-list" autocomplete="off" placeholder="Type the store name" aria-describedby="customer-error">
+            <datalist id="customers-list"></datalist>
+            <p class="field-error" id="customer-error"></p>
+          </div>
+          <div class="customer-card" id="customer-card" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <!-- 2–3. Slip photo + Read with AI -->
+      <section class="card card--pad form-section wide" aria-labelledby="s-slip">
+        <h2 class="form-section__title" id="s-slip">2 · Order slip</h2>
+        <p class="form-section__desc">Optional for office encoding. A photo, PDF or Excel file.</p>
+        <div class="slip-row">
+          <img class="slip-thumb" id="slip-thumb" alt="Order slip" hidden>
+          <label class="btn btn--secondary" for="slip-file" id="slip-label"></label>
+          <input class="file-input" type="file" id="slip-file" accept="image/*,.pdf,.xlsx,.xls">
+          <input type="hidden" name="slip_photo" id="slip-photo">
+          <span id="slip-name" class="cell-sub"></span>
+          <button type="button" class="btn btn--secondary" id="read-ai"></button>
+        </div>
+      </section>
+
+      <!-- 4–5. Lines with inline validation -->
+      <section class="card card--pad form-section wide" aria-labelledby="s-lines">
+        <h2 class="form-section__title" id="s-lines">3 · Products</h2>
+        <p class="form-section__desc">Type a product, press Enter to go to the quantity, and Enter again for the next line.</p>
+        <datalist id="products-list"></datalist>
+        <div class="table-wrap">
+          <table class="table lines">
+            <thead><tr>
+              <th scope="col" class="num-col">#</th><th scope="col">Product</th><th scope="col">Unit</th><th scope="col" class="num-col">Qty</th>
+              <th scope="col" class="num-col">Unit price</th><th scope="col" class="num-col">Available</th><th scope="col" class="num-col">Amount</th>
+              <th scope="col" class="actions"><span class="sr-only">Remove</span></th>
+            </tr></thead>
+            <tbody id="lines"></tbody>
+          </table>
+        </div>
+        <div class="totals">
+          <button type="button" class="btn btn--secondary" id="add-line"></button>
+          <span><span id="line-count"></span> · Total <strong id="total"></strong></span>
+        </div>
+        <div class="alert" id="warnings" data-tone="warning" role="status" style="margin-top:var(--space-4)"></div>
+      </section>
+
+      <!-- 6–7. Delivery and note -->
+      <section class="card card--pad form-section wide" aria-labelledby="s-delivery">
+        <h2 class="form-section__title" id="s-delivery">4 · Delivery</h2>
+        <div class="form-grid">
+          <div class="field">
+            <label class="label" for="delivery">Delivery date</label>
+            <input class="input" type="date" id="delivery" name="delivery_date" aria-describedby="delivery-error delivery-hint">
+            <p class="cell-sub" id="delivery-hint" style="margin-top:4px">Usually the same day next week.</p>
+            <p class="field-error" id="delivery-error"></p>
+          </div>
+          <div class="field">
+            <label class="label" for="note">Internal note <span class="main-tag">(optional)</span></label>
+            <input class="input" id="note" name="internal_note" autocomplete="off" placeholder="e.g. Combined with next week's order">
+          </div>
+        </div>
+      </section>
+
+      <div class="save-bar wide">
+        <span id="autosave" role="status"></span>
+        <div class="save-bar__actions">
+          <button type="button" class="btn btn--secondary" id="save-draft"></button>
+          <button type="submit" class="btn btn--primary" id="send"></button>
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script src="../assets/js/slip-reader.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'orders' });
+      if (!session) return;
+
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var MODULE = 'Sales Orders & Deliveries';
+      var me = session.user;
+      var DRAFT_KEY = 'order-new';
+
+      $('slip-label').innerHTML = CNS.icon('arrow-up-circle') + 'Attach slip';
+      $('read-ai').innerHTML = CNS.icon('clipboard-document-list') + 'Read slip with AI';
+      $('add-line').innerHTML = CNS.icon('plus-circle') + 'Add line';
+      $('save-draft').innerHTML = 'Save as draft';
+      $('send').innerHTML = CNS.icon('check') + 'Send for approval';
+
+      // ---- Customers in scope (management: header branch; others: own branch) ----
+      var sc = CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id;
+      var customers = S.where('clients', function (c) { return sc === 'all' || c.branch_id === sc; })
+        .sort(function (a, b) { return a.store_name.localeCompare(b.store_name); });
+      $('customers-list').innerHTML = customers.map(function (c) {
+        return '<option value="' + esc(c.store_name) + '">' + esc(S.branchName(c.branch_id)) + '</option>';
+      }).join('');
+
+      var products = S.all('products').slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+      $('products-list').innerHTML = products.map(function (p) { return '<option value="' + esc(p.code + ' — ' + p.name) + '">'; }).join('');
+
+      function customer() {
+        var v = $('customer').value.trim().toLowerCase();
+        return customers.filter(function (c) { return c.store_name.toLowerCase() === v; })[0] || null;
+      }
+      function productFrom(value) {
+        var v = (value || '').trim().toLowerCase();
+        if (!v) return null;
+        return products.filter(function (p) { return (p.code + ' — ' + p.name).toLowerCase() === v || p.code.toLowerCase() === v; })[0] || null;
+      }
+      function branchId() { var c = customer(); return c ? c.branch_id : (sc === 'all' ? me.branch_id : sc); }
+
+      // ---- Lines ----
+      var seq = 0;
+      function addLine(data, focus) {
+        var n = seq++;
+        var tr = document.createElement('tr');
+        tr.dataset.row = n;
+        tr.innerHTML =
+          '<td class="num-col" data-no></td>' +
+          '<td class="product-cell"><label class="sr-only" for="lp-' + n + '">Product</label>' +
+            '<input class="input input--cell" id="lp-' + n + '" name="line_product_' + n + '" list="products-list" autocomplete="off" placeholder="Name or code">' +
+            '<div data-warn></div></td>' +
+          '<td data-unit class="nowrap"></td>' +
+          '<td class="num-col"><label class="sr-only" for="lq-' + n + '">Quantity</label>' +
+            '<input class="input input--cell input--qty" id="lq-' + n + '" name="line_qty_' + n + '" type="number" inputmode="numeric" min="1" step="1"></td>' +
+          '<td class="num-col" data-price></td><td class="num-col" data-avail></td><td class="num-col cell-main" data-amount></td>' +
+          '<td class="actions"><button type="button" class="btn btn--secondary" data-remove>' + CNS.icon('x-mark') + '<span class="sr-only">Remove line</span></button></td>';
+        $('lines').appendChild(tr);
+        if (data) {
+          var p = S.get('products', data.product_id);
+          tr.querySelector('[name^=line_product]').value = p ? p.code + ' — ' + p.name : '';
+          tr.querySelector('[name^=line_qty]').value = data.qty || '';
+        }
+        if (focus) tr.querySelector('[name^=line_product]').focus();
+        return tr;
+      }
+      function lineRows() { return Array.prototype.slice.call($('lines').children); }
+      function readLines() {
+        return lineRows().map(function (tr) {
+          var p = productFrom(tr.querySelector('[name^=line_product]').value);
+          var q = Number(tr.querySelector('[name^=line_qty]').value);
+          return { tr: tr, product: p, qty: q > 0 ? Math.round(q) : 0, typed: tr.querySelector('[name^=line_product]').value.trim() };
+        });
+      }
+
+      // ---- Live 2.2 validation: minimum order, backorder, credit (warnings only) ----
+      function update() {
+        var lines = readLines();
+        var b = branchId();
+        var perProduct = {};
+        lines.forEach(function (l) { if (l.product) perProduct[l.product.id] = (perProduct[l.product.id] || 0) + l.qty; });
+        var total = 0, backordered = 0, belowMin = 0;
+
+        lines.forEach(function (l, i) {
+          var tr = l.tr, p = l.product;
+          tr.querySelector('[data-no]').textContent = i + 1;
+          tr.querySelector('[data-remove]').hidden = lines.length === 1;
+          var warn = [];
+          if (!p) {
+            ['[data-unit]', '[data-price]', '[data-avail]', '[data-amount]'].forEach(function (s) { tr.querySelector(s).textContent = ''; });
+            if (l.typed) warn.push('<p class="line-warn line-warn--warning">' + CNS.icon('exclamation-triangle') + 'Pick a product from the list.</p>');
+          } else {
+            var now = S.available(p.id, b);
+            var after = now - perProduct[p.id];
+            var amount = l.qty * p.selling_price;
+            total += amount;
+            tr.querySelector('[data-unit]').textContent = fmt.unit(p.unit_id, 2);
+            tr.querySelector('[data-price]').textContent = fmt.money(p.selling_price);
+            tr.querySelector('[data-amount]').textContent = l.qty ? fmt.money(amount) : '';
+            tr.querySelector('[data-avail]').innerHTML = '<span' + (now < 0 || (l.qty && after < 0) ? ' class="qty-neg"' : '') + '>' + fmt.number(now) + '</span>';
+            if (l.qty && after < 0) {
+              backordered++;
+              warn.push('<p class="line-warn line-warn--info">' + CNS.icon('information-circle') +
+                'Backordered: ' + esc(fmt.qty(Math.min(l.qty, -after), p.unit_id)) + ' will come from the supplier.</p>');
+            }
+            if (l.qty && l.qty < p.min_order_qty) {
+              belowMin++;
+              warn.push('<p class="line-warn line-warn--warning">' + CNS.icon('exclamation-triangle') +
+                'Below minimum order (min ' + esc(fmt.qty(p.min_order_qty, p.unit_id)) + '). Allowed if part of a combined order.</p>');
+            }
+          }
+          tr.querySelector('[data-warn]').innerHTML = warn.join('');
+        });
+
+        $('total').textContent = fmt.money(total);
+        var filled = lines.filter(function (l) { return l.product && l.qty; }).length;
+        $('line-count').textContent = filled + (filled === 1 ? ' line' : ' lines');
+
+        // Customer card + credit check (Problems F5 and F6)
+        var c = customer();
+        var overCredit = 0;
+        if (c) {
+          var bal = S.clientBalance(c.id), overdue = S.clientOverdue(c.id);
+          var agent = S.get('users', c.agent_id);
+          overCredit = Math.max(0, bal + total - c.credit_limit);
+          $('customer-card').innerHTML = '<dl>' +
+            '<div><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
+            '<div><dt>Current balance</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
+            '<div><dt>Overdue</dt><dd' + (overdue ? ' class="is-bad"' : '') + '>' + esc(fmt.money(overdue)) + (overdue ? ' · ' + S.clientOverdueDays(c.id) + ' days' : '') + '</dd></div>' +
+            '<div><dt>Agent · branch</dt><dd>' + esc((agent ? agent.full_name : '—') + ' · ' + S.branchName(c.branch_id)) + '</dd></div>' +
+            '<div><dt>Balance after this order</dt><dd' + (overCredit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal + total)) + '</dd></div>' +
+            '<div><dt>Credit left after this order</dt><dd' + (overCredit ? ' class="is-warn"' : '') + '>' + esc(overCredit ? 'Over by ' + fmt.money(overCredit) : fmt.money(c.credit_limit - bal - total)) + '</dd></div>' +
+            '</dl>';
+        } else {
+          $('customer-card').innerHTML = '<p class="cell-sub" style="margin:0">Choose a store to see its credit and balance.</p>';
+        }
+
+        var items = [];
+        if (overCredit) items.push('Over credit limit by ' + fmt.money(overCredit) + '. The order still goes to the Office Manager, with a flag.');
+        if (c && S.clientOverdue(c.id)) items.push('This store has an overdue balance of ' + fmt.money(S.clientOverdue(c.id)) + '.');
+        if (backordered) items.push(backordered + (backordered === 1 ? ' line is' : ' lines are') + ' backordered. That is normal; the order still goes through.');
+        if (belowMin) items.push(belowMin + (belowMin === 1 ? ' line is' : ' lines are') + ' below the minimum order.');
+        $('warnings').innerHTML = items.length ? '<div><strong>Check before sending</strong><ul>' + items.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' : '';
+      }
+
+      // ---- Keyboard flow: Enter on product → qty; Enter on qty → next (new) line ----
+      $('lines').addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        var el = e.target;
+        if (!el.name) return;
+        e.preventDefault();
+        var tr = el.closest('tr');
+        if (el.name.indexOf('line_product') === 0) { tr.querySelector('[name^=line_qty]').focus(); return; }
+        var next = tr.nextElementSibling;
+        if (next) next.querySelector('[name^=line_product]').focus();
+        else { addLine(null, true); update(); }
+      });
+      $('lines').addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-remove]');
+        if (!btn) return;
+        var tr = btn.closest('tr');
+        var focusTo = tr.nextElementSibling || tr.previousElementSibling;
+        tr.remove();
+        update();
+        $('form').dispatchEvent(new Event('input'));
+        if (focusTo) focusTo.querySelector('[name^=line_product]').focus();
+      });
+      $('add-line').addEventListener('click', function () { addLine(null, true); update(); });
+
+      // ---- Slip: shrink photos so they fit in the demo's browser storage ----
+      function showSlip(value, name) {
+        $('slip-photo').value = value || '';
+        var isImage = !!value && value.indexOf('data:image') === 0;
+        $('slip-thumb').hidden = !isImage;
+        if (isImage) $('slip-thumb').src = value;
+        $('slip-name').textContent = name || (value ? (isImage ? 'Slip photo attached' : value.replace(/^file:/, '')) : '');
+        $('slip-label').innerHTML = CNS.icon('arrow-up-circle') + (value ? 'Change slip' : 'Attach slip');
+      }
+      $('slip-file').addEventListener('change', function () {
+        var file = this.files[0];
+        if (!file) return;
+        if (file.type.indexOf('image/') !== 0) {
+          showSlip('file:' + file.name, file.name);   // PDF / Excel: kept by name only in the prototype
+          $('form').dispatchEvent(new Event('input'));
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function () {
+          var img = new Image();
+          img.onload = function () {
+            var scale = Math.min(1, 900 / Math.max(img.width, img.height));
+            var canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            showSlip(canvas.toDataURL('image/jpeg', 0.7), file.name);
+            $('form').dispatchEvent(new Event('input'));
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      // ---- Read slip with AI: confirmed lines fill empty rows first, then add rows ----
+      $('read-ai').addEventListener('click', function () {
+        CNS.slipReader.open({
+          onAdd: function (found) {
+            found.forEach(function (l) {
+              var empty = readLines().filter(function (x) { return !x.typed; })[0];
+              if (empty) {
+                var p = S.get('products', l.product_id);
+                empty.tr.querySelector('[name^=line_product]').value = p.code + ' — ' + p.name;
+                empty.tr.querySelector('[name^=line_qty]').value = l.qty;
+              } else addLine(l, false);
+            });
+            update();
+            $('form').dispatchEvent(new Event('input'));
+            CNS.ui.toast(found.length + (found.length === 1 ? ' line' : ' lines') + ' added from the slip. Check them before sending.');
+          }
+        });
+      });
+
+      // ---- Defaults, draft restore, autosave ----
+      var nextWeek = new Date();
+      nextWeek.setDate(nextWeek.getDate() + 7);   // same weekday next week (interview habit)
+      $('delivery').value = nextWeek.getFullYear() + '-' + String(nextWeek.getMonth() + 1).padStart(2, '0') + '-' + String(nextWeek.getDate()).padStart(2, '0');
+
+      var draftLines = 0;
+      try {
+        var d = JSON.parse(localStorage.getItem('centennial-draft:' + DRAFT_KEY));
+        if (d && d.data) draftLines = Object.keys(d.data).filter(function (k) { return k.indexOf('line_product_') === 0; }).length;
+      } catch (e) { /* no draft */ }
+      for (var i = 0; i < Math.max(3, draftLines); i++) addLine(null, false);
+      var draft = CNS.autosave.attach($('form'), { key: DRAFT_KEY, status: $('autosave') });
+      if ($('slip-photo').value) showSlip($('slip-photo').value);
+
+      $('form').addEventListener('input', update);
+      $('customer').addEventListener('change', update);
+      update();
+
+      // ---- Save: only missing data blocks; warnings travel with the order ----
+      function nextOrderNo() {
+        var max = 0;
+        S.all('sales_orders').forEach(function (o) { var m = /(\d+)$/.exec(o.order_no); if (m) max = Math.max(max, Number(m[1])); });
+        return 'SO-' + new Date().getFullYear() + '-' + String(max + 1).padStart(4, '0');
+      }
+
+      function save(status) {
+        var c = customer();
+        var lines = readLines().filter(function (l) { return l.product && l.qty; });
+        var unmatched = readLines().filter(function (l) { return l.typed && !l.product; }).length;
+        $('customer-error').textContent = c ? '' : 'Choose a store from the list.';
+        if (c) $('customer').removeAttribute('aria-invalid'); else $('customer').setAttribute('aria-invalid', 'true');
+        $('delivery-error').textContent = $('delivery').value ? '' : 'Choose the delivery date.';
+        if (!c) { $('customer').focus(); return; }
+        if (!lines.length || unmatched) {
+          CNS.ui.confirm({ title: unmatched ? 'Some products aren\'t matched' : 'No products yet',
+            body: unmatched ? 'Pick each product from the list, or remove the line.' : 'Add at least one product with a quantity.',
+            confirm: 'OK', icon: 'information-circle', alertOnly: true });
+          return;
+        }
+        if (!$('delivery').value) { $('delivery').focus(); return; }
+
+        var o = S.insert('sales_orders', {
+          order_no: nextOrderNo(), client_id: c.id, agent_id: c.agent_id, encoded_by: me.id, branch_id: c.branch_id,
+          order_date: S.today(), status: status, delivery_date: $('delivery').value, approved_by: null,
+          internal_note: $('note').value.trim() || null, slip_photo: $('slip-photo').value || null
+        });
+        lines.forEach(function (l) {
+          S.insert('sales_order_items', { order_id: o.id, product_id: l.product.id, qty: l.qty, unit_price: l.product.selling_price });
+        });
+        CNS.history.log({ action: 'Create', module: MODULE, record_type: 'sales_orders', record_id: o.id,
+          field: 'status', new_value: o.order_no + ' · ' + status + ' · ' + fmt.money(S.orderTotal(o.id)) });
+        draft.clear();
+        CNS.ui.flash(o.order_no + (status === 'Draft' ? ' saved as a draft.' : ' sent to the Office Manager for approval.'));
+        location.href = 'list.html?status=' + encodeURIComponent(status);
+      }
+
+      $('form').addEventListener('submit', function (e) { e.preventDefault(); save('For approval'); });
+      $('save-draft').addEventListener('click', function () { save('Draft'); });
+
+      $('customer').focus();
+    })();
+  </script>
+</body>
+</html>

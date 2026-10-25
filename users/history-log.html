@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>History Log · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    #log-table .truncate { max-width: 18ch; }
+    .report-head { margin-bottom: 12px; }
+    .report-head p { margin: 0; font-size: 12px; }
+    .report-head__company { color: var(--color-primary); font-weight: 600; }
+    .report-head__title { margin: 2px 0 4px; font-size: 20px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <!-- 1.3 Retrieve Activity Records + 1.4 Produce History Log Report (CEO only) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">User Accounts &amp; History Log</a></li><li><span aria-current="page">History Log</span></li></ol>
+    </nav>
+    <nav aria-label="User Accounts and History Log">
+      <ul class="tabs">
+        <li><a href="list.html" id="tab-users"></a></li>
+        <li><a href="history-log.html" aria-current="page" id="tab-history"></a></li>
+        <li><a href="account.html" id="tab-account"></a></li>
+      </ul>
+    </nav>
+
+    <!-- Shows only on paper: the History Log Report heading -->
+    <div class="print-only report-head">
+      <p class="report-head__company">Centennial Nail and Screw Construction Corporation</p>
+      <p class="report-head__title">History Log Report</p>
+      <p id="print-filters"></p>
+      <p id="print-meta"></p>
+    </div>
+
+    <div class="page-head no-print">
+      <div>
+        <h1 class="page-title">History Log</h1>
+        <p class="page-desc">Every login and change: who did it, when, and the old and new value.</p>
+      </div>
+      <div class="page-head__actions">
+        <button type="button" class="btn btn--secondary" id="export"></button>
+        <button type="button" class="btn btn--primary" id="print"></button>
+      </div>
+    </div>
+
+    <form class="filters no-print" id="filters" aria-label="Filter the history log" onsubmit="return false">
+      <div class="field">
+        <label class="label" for="f-from">From</label>
+        <input class="input input--compact" type="date" id="f-from">
+      </div>
+      <div class="field">
+        <label class="label" for="f-to">To</label>
+        <input class="input input--compact" type="date" id="f-to">
+      </div>
+      <div class="field">
+        <label class="label" for="f-user">User</label>
+        <select class="input input--compact" id="f-user"><option value="">All users</option></select>
+      </div>
+      <div class="field">
+        <label class="label" for="f-module">Module</label>
+        <select class="input input--compact" id="f-module"><option value="">All modules</option></select>
+      </div>
+      <div class="field">
+        <label class="label" for="f-action">Action</label>
+        <select class="input input--compact" id="f-action"><option value="">All actions</option></select>
+      </div>
+      <button type="button" class="btn-link" id="clear">Clear filters</button>
+    </form>
+
+    <p class="result-count no-print" id="count" aria-live="polite"></p>
+    <div class="table-wrap">
+      <table class="table" id="log-table">
+        <thead><tr id="log-head"></tr></thead>
+        <tbody id="log-body"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>
+        <span id="empty-icon"></span>
+        <p class="empty__title">No activity for these filters.</p>
+        <button type="button" class="btn btn--secondary" id="empty-clear">Clear filters</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      var session = CNS.layout.desktop({ active: 'users', roles: [R.CEO] });
+      if (!session) return;
+
+      var esc = CNS.escape;
+      var fmt = CNS.format;
+      var $ = function (id) { return document.getElementById(id); };
+
+      var MODULES = ['User Accounts & History Log', 'Sales Orders & Deliveries', 'Products & Inventory',
+        'Purchasing & Suppliers', 'Customer Accounts & Payments', 'Reports'];
+      // Short names for the table column, so rows stay one line; filters and exports keep the full names
+      var MODULE_SHORT = {
+        'User Accounts & History Log': 'User Accounts', 'Sales Orders & Deliveries': 'Sales Orders',
+        'Products & Inventory': 'Products', 'Purchasing & Suppliers': 'Purchasing',
+        'Customer Accounts & Payments': 'Customers', 'Reports': 'Reports'
+      };
+      var ACTIONS = ['Login', 'Create', 'Edit', 'Delete', 'Approve', 'Reject', 'Stock change'];
+
+      // Plain-word field names; money fields are shown in pesos
+      var FIELDS = {
+        full_name: 'Full name', username: 'Username', role: 'Role', is_active: 'Status', password: 'Password',
+        status: 'Status', ceiling_qty: 'Ceiling', floor_qty: 'Floor', critical_qty: 'Reorder point',
+        min_order_qty: 'Minimum order', selling_price: 'Selling price', credit_limit: 'Credit limit',
+        qty_change: 'Quantity', verified_by: 'Verified by', payment_status: 'Payment status',
+        name: 'Name', code: 'Code', category_id: 'Category', unit_id: 'Selling unit', supplier_id: 'Main supplier',
+        supplier_units: 'Supplier units', storage: 'Storage', item: 'Order item',
+        schedule_date: 'Delivery date', truck_id: 'Truck', driver_id: 'Driver'
+      };
+      var MONEY = ['selling_price', 'credit_limit'];
+
+      $('tab-users').innerHTML = CNS.icon('user-group') + 'User Accounts';
+      $('tab-history').innerHTML = CNS.icon('clipboard-document-list') + 'History Log';
+      $('tab-account').innerHTML = CNS.icon('user-circle') + 'My account';
+      $('export').innerHTML = CNS.icon('arrow-down-tray') + 'Export';
+      $('print').innerHTML = CNS.icon('printer') + 'Print report';
+      $('empty-icon').outerHTML = CNS.icon('clipboard-document-list');
+
+      MODULES.forEach(function (m) { $('f-module').insertAdjacentHTML('beforeend', '<option>' + esc(m) + '</option>'); });
+      ACTIONS.forEach(function (a) { $('f-action').insertAdjacentHTML('beforeend', '<option>' + esc(a) + '</option>'); });
+
+      function fillUsers() {
+        var current = $('f-user').value;
+        var scope = session.branchView;
+        $('f-user').innerHTML = '<option value="">All users</option>' + CNS.store.where('users', function (u) {
+          return scope === 'all' || u.branch_id === scope;
+        }).sort(function (a, b) { return a.full_name.localeCompare(b.full_name); }).map(function (u) {
+          return '<option value="' + esc(u.id) + '"' + (u.id === current ? ' selected' : '') + '>' + esc(u.full_name) + '</option>';
+        }).join('');
+      }
+
+      // ---- Turning a log row into words ----
+      function recordLabel(h) {
+        var r = h.record_id ? safeGet(h.record_type, h.record_id) : null;
+        switch (h.record_type) {
+          case 'users': return r ? r.full_name : h.record_id;
+          case 'products': return r ? r.name : h.record_id;
+          case 'sales_orders': return r ? r.order_no : h.record_id;
+          case 'purchase_orders': return r ? r.po_no : h.record_id;
+          case 'clients': return r ? r.store_name : h.record_id;
+          case 'payments': return r ? 'Payment ' + (r.reference_no || fmt.money(r.amount)) : h.record_id;
+          default: return h.record_id; // stock movements keep their reference, e.g. ADJ-0001
+        }
+      }
+
+      // A record type with no table (or a deleted record) just shows its reference
+      function safeGet(table, id) {
+        try { return CNS.store.get(table, id); } catch (e) { return null; }
+      }
+
+      function value(h, v) {
+        if (v == null || v === '') return null;
+        return MONEY.indexOf(h.field) >= 0 && !isNaN(v) ? fmt.money(Number(v)) : v;
+      }
+
+      function changeHtml(h) {
+        var oldV = value(h, h.old_value);
+        var newV = value(h, h.new_value);
+        if (!oldV && !newV) return '<span class="cell-sub">—</span>';
+        if (!oldV) return '<span class="change__new">' + esc(newV) + '</span>';
+        return '<span class="change"><span class="change__old"><span class="sr-only">from </span>' + esc(oldV) + '</span>' +
+          '<span class="change__arrow" aria-hidden="true">→</span><span class="change__new"><span class="sr-only">to </span>' + esc(newV || '—') + '</span></span>';
+      }
+
+      function fieldLabel(h) {
+        return h.field ? (FIELDS[h.field] || h.field.replace(/_/g, ' ')) : '';
+      }
+
+      // ---- Filtering ----
+      function dayOf(iso) {
+        var d = new Date(iso);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+
+      function filtered() {
+        var f = { from: $('f-from').value, to: $('f-to').value, user: $('f-user').value, module: $('f-module').value, action: $('f-action').value };
+        var scope = session.branchView;
+        return CNS.store.where('history_logs', function (h) {
+          var d = dayOf(h.datetime);
+          return (scope === 'all' || h.branch_id === scope) &&
+            (!f.from || d >= f.from) && (!f.to || d <= f.to) &&
+            (!f.user || h.user_id === f.user) &&
+            (!f.module || h.module === f.module) &&
+            (!f.action || h.action === f.action);
+        }).sort(function (a, b) { return a.datetime < b.datetime ? 1 : -1; });
+      }
+
+      function render() {
+        var rows = filtered();
+        var showBranch = session.branchView === 'all';
+        $('log-head').innerHTML = ['Date and time', 'User', 'Module', 'Action', 'Record', 'Field', 'Old value → New value']
+          .map(function (c) { return '<th scope="col">' + c + '</th>'; }).join('');
+
+        $('log-body').innerHTML = rows.map(function (h) {
+          var u = h.user_id && CNS.store.get('users', h.user_id);
+          var label = recordLabel(h);
+          return '<tr>' +
+            '<td class="nowrap">' + esc(fmt.dateTime(h.datetime)) + '</td>' +
+            '<td class="nowrap"><span class="cell-main">' + esc(u ? u.full_name : 'Unknown user') + '</span>' +
+              // With All branches selected, the branch rides under the role instead of taking its own column
+              (u ? '<span class="cell-sub">' + esc(u.role) + (showBranch ? ' · ' + esc(CNS.store.branchName(h.branch_id)) : '') + '</span>' : '') + '</td>' +
+            '<td class="nowrap" title="' + esc(h.module) + '">' + esc(MODULE_SHORT[h.module] || h.module) + '</td>' +
+            '<td class="nowrap">' + esc(h.action) + '</td>' +
+            '<td><span class="truncate" title="' + esc(label) + '">' + esc(label) + '</span></td>' +
+            '<td class="nowrap">' + esc(fieldLabel(h)) + '</td>' +
+            '<td class="change-cell">' + changeHtml(h) + '</td>' +
+            '</tr>';
+        }).join('');
+
+        $('log-table').hidden = !rows.length;
+        $('empty').hidden = !!rows.length;
+        $('count').textContent = rows.length + (rows.length === 1 ? ' entry' : ' entries') + ' · ' + CNS.store.branchName(session.branchView) + ' · newest first';
+        return rows;
+      }
+
+      function clearFilters() {
+        $('filters').reset();
+        render();
+        $('f-from').focus();
+      }
+
+      ['f-from', 'f-to', 'f-user', 'f-module', 'f-action'].forEach(function (id) { $(id).addEventListener('change', render); });
+      $('clear').addEventListener('click', clearFilters);
+      $('empty-clear').addEventListener('click', clearFilters);
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        fillUsers();
+        render();
+      });
+
+      // ---- 1.4 Produce History Log Report: print and export ----
+      function filterSummary() {
+        var parts = ['Branch: ' + CNS.store.branchName(session.branchView)];
+        var from = $('f-from').value, to = $('f-to').value;
+        parts.push('Dates: ' + (from || to ? (from ? fmt.date(from) : 'start') + ' to ' + (to ? fmt.date(to) : 'today') : 'all'));
+        if ($('f-user').value) parts.push('User: ' + $('f-user').selectedOptions[0].text);
+        if ($('f-module').value) parts.push('Module: ' + $('f-module').value);
+        if ($('f-action').value) parts.push('Action: ' + $('f-action').value);
+        return parts.join(' · ');
+      }
+
+      $('print').addEventListener('click', function () {
+        var rows = render();
+        $('print-filters').textContent = filterSummary() + ' · ' + rows.length + ' entries';
+        $('print-meta').textContent = 'Printed ' + fmt.dateTime(new Date()) + ' by ' + session.user.full_name + ' (' + session.user.role + ')';
+        window.print();
+      });
+
+      $('export').addEventListener('click', function () {
+        var header = ['Date and time', 'User', 'Role', 'Branch', 'Module', 'Action', 'Record', 'Field', 'Old value', 'New value'];
+        var lines = [header].concat(filtered().map(function (h) {
+          var u = h.user_id && CNS.store.get('users', h.user_id);
+          return [fmt.dateTime(h.datetime), u ? u.full_name : '', u ? u.role : '', CNS.store.branchName(h.branch_id), h.module,
+            h.action, recordLabel(h), fieldLabel(h), value(h, h.old_value) || '', value(h, h.new_value) || ''];
+        })).map(function (cells) {
+          return cells.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(',');
+        });
+        var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'history-log-' + CNS.store.today() + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+        CNS.ui.toast('History Log exported.');
+      });
+
+      fillUsers();
+      render();
+    })();
+  </script>
+</body>
+</html>

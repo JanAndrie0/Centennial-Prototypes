@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Delivery · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .title-row .page-title { margin: 0; }
+    .meta { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
+    .meta a { color: var(--color-primary); text-underline-offset: 3px; }
+    .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: var(--space-5); align-items: start; }
+    .sub-title { margin: 0 0 var(--space-3); font-size: var(--text-card-title); font-weight: 700; }
+    @media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <!-- 2.6 Schedule and Track Delivery: truck and driver (recorded only), pick list with storage areas, Mark as shipped -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Deliveries</a></li><li><span aria-current="page" id="crumb"></span></li></ol>
+    </nav>
+
+    <div class="page-head">
+      <div>
+        <div class="title-row"><h1 class="page-title" id="title"></h1><span id="badge"></span></div>
+        <p class="meta" id="meta"></p>
+      </div>
+      <div class="page-head__actions" id="actions"></div>
+    </div>
+    <div id="status-note"></div>
+
+    <div class="grid2">
+      <section class="card card--pad" aria-labelledby="sched-title">
+        <h2 class="sub-title" id="sched-title">Schedule</h2>
+        <form id="sched" novalidate>
+          <div class="field">
+            <label class="label" for="date">Delivery date</label>
+            <input class="input" type="date" id="date" aria-describedby="date-error">
+            <p class="field-error" id="date-error"></p>
+          </div>
+          <div class="field">
+            <label class="label" for="truck">Truck</label>
+            <select class="input" id="truck" aria-describedby="truck-error"><option value="">Choose a truck</option></select>
+            <p class="field-error" id="truck-error"></p>
+          </div>
+          <div class="field">
+            <label class="label" for="driver">Driver</label>
+            <select class="input" id="driver" aria-describedby="driver-error"><option value="">Choose a driver</option></select>
+            <p class="field-error" id="driver-error"></p>
+          </div>
+          <p class="cell-sub" style="margin:0 0 var(--space-4)">Drivers don't log in; this is recorded for the load list.</p>
+          <button type="submit" class="btn btn--secondary" id="save-sched"></button>
+        </form>
+      </section>
+
+      <section aria-labelledby="pick-title">
+        <h2 class="sub-title" id="pick-title">Pick list</h2>
+        <div class="table-wrap" id="pick"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/order-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'orders' });
+      if (!session) return;
+      var S = CNS.store, A = CNS.orderActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+
+      var params = new URLSearchParams(location.search);
+      var d = params.get('id') ? S.get('deliveries', params.get('id')) : null;
+      var o = d ? S.get('sales_orders', d.order_id) : S.get('sales_orders', params.get('order'));
+      if (!o) { location.replace('list.html'); return; }
+      if (!d) d = A.deliveryFor(o.id);   // already scheduled: open it instead of making a second one
+      if (!d && o.status !== 'Approved') { location.replace('../orders/detail.html?id=' + encodeURIComponent(o.id)); return; }
+
+      S.all('trucks').forEach(function (t) { $('truck').insertAdjacentHTML('beforeend', '<option value="' + esc(t.id) + '">' + esc(t.name + ' · ' + t.plate_no) + '</option>'); });
+      S.all('drivers').forEach(function (r) { $('driver').insertAdjacentHTML('beforeend', '<option value="' + esc(r.id) + '">' + esc(r.full_name) + '</option>'); });
+
+      function userName(uid) { var u = uid && S.get('users', uid); return u ? u.full_name : '—'; }
+
+      function render() {
+        o = S.get('sales_orders', o.id);
+        if (d) d = S.get('deliveries', d.id);
+        var c = S.get('clients', o.client_id);
+        document.title = 'Delivery ' + o.order_no + ' · Centennial Sales & Inventory';
+        $('crumb').textContent = o.order_no;
+        $('title').textContent = 'Delivery · ' + o.order_no;
+        $('badge').innerHTML = !d ? CNS.ui.badge('warning', 'exclamation-triangle', 'Not scheduled')
+          : d.status === 'Completed' ? CNS.ui.badge('success', 'check-circle', 'Completed')
+          : d.status === 'Shipped' ? CNS.ui.badge('info', 'arrow-right-start-on-rectangle', 'Shipped')
+          : CNS.ui.badge('neutral', 'clipboard-document-list', 'Scheduled');
+        $('meta').innerHTML = '<a href="../orders/detail.html?id=' + encodeURIComponent(o.id) + '">' + esc(o.order_no) + '</a> · ' +
+          esc(c ? c.store_name + ' · ' + c.address : '') + ' · Requested ' + esc(fmt.date(o.delivery_date));
+
+        // Form: editable until shipped
+        var locked = d && d.status !== 'Scheduled';
+        $('date').value = d ? d.schedule_date : o.delivery_date;
+        $('truck').value = d ? d.truck_id : '';
+        $('driver').value = d ? d.driver_id : '';
+        ['date', 'truck', 'driver'].forEach(function (id) { $(id).disabled = !!locked; });
+        $('save-sched').hidden = !!locked;
+        // One primary per screen: Save schedule until scheduled, then Mark as shipped
+        $('save-sched').className = 'btn ' + (d ? 'btn--secondary' : 'btn--primary');
+        $('save-sched').innerHTML = d ? 'Save changes' : CNS.icon('check') + 'Save schedule';
+
+        var actions = '<a class="btn btn--secondary" href="../orders/receipt.html?id=' + encodeURIComponent(o.id) + '">' + CNS.icon('printer') + 'Receipt</a>';
+        if (d) actions += '<a class="btn btn--secondary" href="load-list.html?date=' + d.schedule_date + '&amp;truck=' + encodeURIComponent(d.truck_id) + '">' + CNS.icon('printer') + 'Truck load list</a>';
+        if (d && d.status === 'Scheduled') actions += '<button type="button" class="btn btn--primary" id="ship">' + CNS.icon('arrow-right-start-on-rectangle') + 'Mark as shipped</button>';
+        $('actions').innerHTML = actions;
+        if ($('ship')) $('ship').addEventListener('click', ship);
+
+        $('status-note').innerHTML = !d ? '' : d.status === 'Shipped'
+          ? '<p class="alert" data-tone="info">Shipped ' + esc(fmt.dateTime(d.shipped_at)) + '. The agent confirms when it is delivered.</p>'
+          : d.status === 'Completed'
+          ? '<p class="alert" data-tone="success">Delivered. Confirmed by ' + esc(userName(d.confirmed_by)) + ' on ' + esc(fmt.dateTime(d.completed_at)) + '.</p>' : '';
+
+        // Pick list: products with the storage area to pick from
+        $('pick').innerHTML = '<table class="table"><thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Qty</th><th scope="col">Pick from</th><th scope="col" class="num-col">On hand there</th></tr></thead><tbody>' +
+          A.items(o.id).map(function (it) {
+            var p = S.get('products', it.product_id);
+            var area = A.areaFor(p.id, o.branch_id);
+            var have = area ? S.areaOnHand(p.id, area.id) : 0;
+            return '<tr><td><span class="truncate cell-main" title="' + esc(p.name) + '">' + esc(p.name) + '</span></td>' +
+              '<td class="num-col">' + esc(fmt.qty(it.qty, p.unit_id)) + '</td><td class="nowrap">' + esc(area ? area.name : '—') + '</td>' +
+              '<td class="num-col' + (have < it.qty && (!d || d.status === 'Scheduled') ? ' qty-neg' : '') + '">' + fmt.number(have) + '</td></tr>';
+          }).join('') + '</tbody></table>';
+      }
+
+      $('sched').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var ok = true;
+        [['date', 'Choose the delivery date.'], ['truck', 'Choose a truck.'], ['driver', 'Choose a driver.']].forEach(function (f) {
+          var bad = !$(f[0]).value;
+          $(f[0] + '-error').textContent = bad ? f[1] : '';
+          if (bad) { $(f[0]).setAttribute('aria-invalid', 'true'); ok = false; } else $(f[0]).removeAttribute('aria-invalid');
+        });
+        if (!ok) { document.querySelector('[aria-invalid="true"]').focus(); return; }
+        var first = !d;
+        d = A.schedule(o, { schedule_date: $('date').value, truck_id: $('truck').value, driver_id: $('driver').value }, session);
+        history.replaceState(null, '', 'detail.html?id=' + encodeURIComponent(d.id));
+        render();
+        CNS.ui.toast(first ? 'Delivery scheduled for ' + fmt.date(d.schedule_date) + '. The order is now For delivery.' : 'Schedule saved.');
+      });
+
+      function ship() {
+        CNS.ui.confirm({
+          title: 'Mark ' + o.order_no + ' as shipped?',
+          body: 'Do this when the truck leaves the warehouse. The items are deducted from stock and the agent is asked to confirm the delivery.',
+          confirm: 'Mark as shipped', icon: 'arrow-right-start-on-rectangle'
+        }).then(function (yes) {
+          if (!yes) return;
+          d = A.ship(d, session);
+          render();
+          CNS.ui.toast(o.order_no + ' shipped. Stock deducted.');
+        });
+      }
+
+      render();
+    })();
+  </script>
+</body>
+</html>

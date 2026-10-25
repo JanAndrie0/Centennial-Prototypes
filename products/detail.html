@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .title-row .page-title { margin: 0; }
+    .meta { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
+    .panel-card { max-width: 760px; }
+    .table tfoot td { font-weight: 700; border-top: 1px solid var(--color-border); }
+    .qty-pos { color: var(--color-success); font-weight: 600; }
+    .qty-out { font-weight: 600; }
+    .panel-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); }
+  </style>
+</head>
+<body>
+  <!-- 3.1 Maintain Product Records (view) + 3.3 Check Stock Availability -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html" id="crumb-list">Products &amp; Inventory</a></li><li><span aria-current="page" id="crumb-name"></span></li></ol>
+    </nav>
+
+    <div id="not-found" class="card empty" hidden>
+      <span id="nf-icon"></span>
+      <h1 class="empty__title">Product not found</h1>
+      <p class="empty__text">It may have been removed, or the link is wrong.</p>
+      <a class="btn btn--secondary" href="list.html">Back to products</a>
+    </div>
+
+    <div id="product" hidden>
+      <div class="page-head">
+        <div>
+          <div class="title-row"><h1 class="page-title" id="p-name"></h1><span id="p-badge"></span></div>
+          <p class="meta" id="p-meta"></p>
+        </div>
+        <div class="page-head__actions">
+          <a class="btn btn--primary" id="edit-link"></a>
+        </div>
+      </div>
+
+      <!-- Four tiles in one row (Unleashed): Available · Allocated · Floor · Ceiling -->
+      <section class="stats" aria-label="Stock summary" id="stats"></section>
+
+      <div class="tabs" role="tablist" aria-label="Product details" id="tablist">
+        <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview">Overview</button>
+        <button type="button" role="tab" id="tab-locations" aria-controls="panel-locations">Stock by location</button>
+        <button type="button" role="tab" id="tab-movements" aria-controls="panel-movements">Movements</button>
+        <button type="button" role="tab" id="tab-units" aria-controls="panel-units">Units</button>
+        <button type="button" role="tab" id="tab-history" aria-controls="panel-history">History</button>
+      </div>
+
+      <section class="tab-panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
+        <div class="card card--pad panel-card"><dl class="details" id="overview"></dl></div>
+      </section>
+
+      <section class="tab-panel" role="tabpanel" id="panel-locations" aria-labelledby="tab-locations" tabindex="0" hidden>
+        <div class="panel-actions">
+          <button type="button" class="btn btn--secondary" id="adjust-btn"></button>
+          <button type="button" class="btn btn--secondary" id="transfer-btn"></button>
+        </div>
+        <div class="table-wrap panel-card">
+          <table class="table">
+            <thead><tr><th scope="col">Branch</th><th scope="col">Storage area</th><th scope="col" class="num-col">On hand</th></tr></thead>
+            <tbody id="locations"></tbody>
+            <tfoot><tr><td colspan="2">Total</td><td class="num-col" id="locations-total"></td></tr></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <section class="tab-panel" role="tabpanel" id="panel-movements" aria-labelledby="tab-movements" tabindex="0" hidden>
+        <p class="result-count" id="movements-count"></p>
+        <div class="table-wrap">
+          <table class="table" id="movements-table">
+            <thead><tr><th scope="col">Date and time</th><th scope="col">Type</th><th scope="col" class="num-col">Quantity</th><th scope="col">Where</th><th scope="col">Reference</th><th scope="col">By</th><th scope="col">Reason</th></tr></thead>
+            <tbody id="movements"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tab-panel" role="tabpanel" id="panel-units" aria-labelledby="tab-units" tabindex="0" hidden>
+        <div class="card card--pad panel-card">
+          <dl class="details" id="unit-sell"></dl>
+        </div>
+        <h2 class="card__title" style="margin-top:var(--space-5)">Supplier units</h2>
+        <div class="table-wrap panel-card">
+          <table class="table">
+            <thead><tr><th scope="col">Supplier</th><th scope="col">Supplier sells by</th><th scope="col">Conversion</th></tr></thead>
+            <tbody id="units"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tab-panel" role="tabpanel" id="panel-history" aria-labelledby="tab-history" tabindex="0" hidden>
+        <div class="table-wrap" id="history-wrap">
+          <table class="table" id="history-table">
+            <thead><tr><th scope="col">Date and time</th><th scope="col">User</th><th scope="col">Action</th><th scope="col">Field</th><th scope="col">Old value → New value</th></tr></thead>
+            <tbody id="history"></tbody>
+          </table>
+          <div class="empty" id="history-empty" hidden>
+            <span id="he-icon"></span>
+            <p class="empty__title">No changes yet.</p>
+            <p class="empty__text">Edits to this product will show here with the old and new values.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/stock-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'products' });
+      if (!session) return;
+
+      var S = CNS.store;
+      var fmt = CNS.format;
+      var esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+
+      var id = new URLSearchParams(location.search).get('id');
+      var p = id && S.get('products', id);
+      if (!p) {
+        $('not-found').hidden = false;
+        $('nf-icon').outerHTML = CNS.icon('cube');
+        $('crumb-name').textContent = 'Not found';
+        return;
+      }
+
+      // Back to the same search the user came from
+      if (document.referrer.indexOf('/products/list.html') >= 0) $('crumb-list').href = document.referrer;
+
+      var FIELDS = {
+        name: 'Name', code: 'Code', category_id: 'Category', unit_id: 'Selling unit', selling_price: 'Selling price',
+        min_order_qty: 'Minimum order', floor_qty: 'Floor', critical_qty: 'Reorder point', ceiling_qty: 'Ceiling', supplier_id: 'Main supplier',
+        supplier_units: 'Supplier units', storage: 'Storage'
+      };
+      var TYPE_BADGE = {
+        'Sale': ['neutral', 'shopping-cart'], 'Receive': ['success', 'arrow-down-tray'], 'Adjust': ['warning', 'pencil-square'],
+        'Transfer out': ['info', 'arrow-right-start-on-rectangle'], 'Transfer in': ['info', 'arrow-down-tray'], 'Count': ['warning', 'clipboard-document-list']
+      };
+
+      document.title = p.name + ' · Centennial Sales & Inventory';
+      $('crumb-name').textContent = p.name;
+      $('p-name').textContent = p.name;
+      $('edit-link').href = 'form.html?id=' + encodeURIComponent(p.id);
+      $('edit-link').innerHTML = CNS.icon('pencil-square') + 'Edit product';
+      $('he-icon').outerHTML = CNS.icon('clipboard-document-list');
+
+      function qty(n) { return fmt.qty(n, p.unit_id); }
+
+      // Branches that keep this product, within the header branch view
+      function branchesInScope() {
+        var sc = session.branchView;
+        var ids = [];
+        S.where('stock_locations', function (l) { return l.product_id === p.id; }).forEach(function (l) {
+          var a = S.get('storage', l.area_id);
+          if (a && (sc === 'all' || a.branch_id === sc) && ids.indexOf(a.branch_id) < 0) ids.push(a.branch_id);
+        });
+        return ids;
+      }
+
+      function suggested() {
+        // Per branch, then added up, so one branch's surplus doesn't hide another's shortage
+        return branchesInScope().reduce(function (t, b) { return t + S.suggestedReorder(p.id, b); }, 0);
+      }
+
+      function render() {
+        var sc = session.branchView;
+        var hand = S.onHand(p.id, sc);
+        var alloc = S.allocated(p.id, sc);
+        var avail = hand - alloc;
+        var status = S.stockStatus(p.id, sc);
+        var cat = S.get('categories', p.category_id);
+        var supplier = S.get('suppliers', p.supplier_id);
+        var mover = S.mover(p.id, sc);
+
+        $('p-badge').innerHTML = CNS.ui.stockBadge(status);
+        $('p-meta').textContent = p.code + ' · ' + (cat ? cat.name : '') + ' · Unit: ' + fmt.unit(p.unit_id, 2) + ' · ' + S.branchName(sc);
+
+        // ---- Tiles ----
+        var u = '<small> ' + esc(fmt.unit(p.unit_id, 2)) + '</small>';
+        $('stats').innerHTML =
+          '<div class="stat' + (avail < 0 ? ' stat--info' : '') + '"><p class="stat__label">Available</p>' +
+            '<p class="stat__value">' + fmt.number(avail) + u + '</p>' +
+            '<p class="stat__sub">' + (avail < 0 ? 'Backordered · ' : '') + 'On hand ' + fmt.number(hand) + '</p></div>' +
+          '<div class="stat"><p class="stat__label">Allocated</p><p class="stat__value">' + fmt.number(alloc) + u + '</p>' +
+            '<p class="stat__sub">Reserved for approved orders</p></div>' +
+          (p.ceiling_qty
+            ? '<div class="stat"><p class="stat__label">Floor</p><p class="stat__value">' + fmt.number(p.floor_qty) + u + '</p>' +
+                '<p class="stat__sub">Reorder point: ' + fmt.number(p.critical_qty) + '</p></div>' +
+              '<div class="stat"><p class="stat__label">Ceiling</p><p class="stat__value">' + fmt.number(p.ceiling_qty) + u + '</p>' +
+                '<p class="stat__sub">Most to keep in stock</p></div>'
+            // Stock levels not set yet: say so instead of showing zeros
+            : '<div class="stat"><p class="stat__label">Floor</p><p class="stat__value"><small>Not set</small></p><p class="stat__sub">The Office Manager sets it</p></div>' +
+              '<div class="stat"><p class="stat__label">Ceiling</p><p class="stat__value"><small>Not set</small></p><p class="stat__sub">The Office Manager sets it</p></div>');
+
+        // ---- Overview ----
+        var rows = [
+          ['Selling price', fmt.money(p.selling_price) + ' per ' + fmt.unit(p.unit_id, 1)],
+          ['Minimum order', qty(p.min_order_qty)],
+          ['Main supplier', supplier ? supplier.company_name : '—'],
+          ['Stock status', CNS.ui.stockBadge(status), true],
+          ['Suggested reorder', suggested() ? qty(suggested()) : 'None needed'],
+          ['On order from suppliers', qty(S.onOrder(p.id, sc))],
+          ['Sold in the last 30 days', qty(S.soldQty(p.id, sc, 30)) + (mover ? ' · ' + (mover === 'fast' ? 'Fast-moving' : 'Slow-moving') : '')]
+        ];
+        $('overview').innerHTML = rows.map(function (r) {
+          return '<dt>' + esc(r[0]) + '</dt><dd>' + (r[2] ? r[1] : esc(r[1])) + '</dd>';
+        }).join('');
+
+        // ---- Stock by location (on hand per storage area, from movements) ----
+        var locs = S.where('stock_locations', function (l) { return l.product_id === p.id; })
+          .map(function (l) { return S.get('storage', l.area_id); })
+          .filter(function (a) { return a && (sc === 'all' || a.branch_id === sc); });
+        var total = 0;
+        $('locations').innerHTML = locs.map(function (a) {
+          var n = S.where('stock_movements', function (m) { return m.product_id === p.id && m.area_id === a.id; })
+            .reduce(function (t, m) { return t + m.qty_change; }, 0);
+          total += n;
+          return '<tr><td>' + esc(S.branchName(a.branch_id)) + '</td><td>' + esc(a.name) + '</td><td class="num-col">' + esc(qty(n)) + '</td></tr>';
+        }).join('') || '<tr><td colspan="3">Not stocked in ' + esc(S.branchName(sc)) + '.</td></tr>';
+        $('locations-total').textContent = qty(total);
+
+        // ---- Movements (newest first) ----
+        var moves = S.where('stock_movements', function (m) {
+          return m.product_id === p.id && (sc === 'all' || m.branch_id === sc);
+        }).sort(function (a, b) { return a.datetime < b.datetime ? 1 : -1; });
+        $('movements-count').textContent = moves.length + (moves.length === 1 ? ' movement' : ' movements') + ' · ' + S.branchName(sc) + ' · newest first';
+        $('movements').innerHTML = moves.map(function (m) {
+          var b = TYPE_BADGE[m.type] || ['neutral', 'cube'];
+          var area = S.get('storage', m.area_id);
+          var user = S.get('users', m.user_id);
+          var sign = m.qty_change > 0 ? '+' : '';
+          return '<tr><td class="nowrap">' + esc(fmt.dateTime(m.datetime)) + '</td>' +
+            '<td>' + CNS.ui.badge(b[0], b[1], m.type) + '</td>' +
+            '<td class="num-col ' + (m.qty_change > 0 ? 'qty-pos' : 'qty-out') + '">' + sign + esc(qty(m.qty_change)) + '</td>' +
+            '<td class="nowrap">' + esc(S.branchName(m.branch_id) + (area ? ' · ' + area.name : '')) + '</td>' +
+            '<td class="nowrap">' + esc(m.ref || '—') + '</td>' +
+            '<td class="nowrap">' + esc(user ? user.full_name : '—') + '</td>' +
+            '<td>' + esc(m.reason || '—') + '</td></tr>';
+        }).join('');
+
+        // ---- Units and conversion ----
+        $('unit-sell').innerHTML = '<dt>Selling unit</dt><dd>' + esc(fmt.unit(p.unit_id, 1)) + ' (one unit for all branches)</dd>';
+        $('units').innerHTML = S.where('product_supplier', function (ps) { return ps.product_id === p.id; }).map(function (ps) {
+          var s = S.get('suppliers', ps.supplier_id);
+          return '<tr><td>' + esc(s ? s.company_name : ps.supplier_id) + '</td><td>' + esc(ps.purchase_unit) + '</td>' +
+            '<td class="nowrap">1 ' + esc(ps.purchase_unit) + ' = ' + esc(qty(ps.conversion)) + '</td></tr>';
+        }).join('') || '<tr><td colspan="3">No supplier units yet.</td></tr>';
+
+        // ---- History (this product's audit trail) ----
+        var logs = S.where('history_logs', function (h) { return h.record_type === 'products' && h.record_id === p.id; })
+          .sort(function (a, b) { return a.datetime < b.datetime ? 1 : -1; });
+        $('history').innerHTML = logs.map(function (h) {
+          var user = S.get('users', h.user_id);
+          var money = h.field === 'selling_price';
+          var v = function (x) { return x == null ? null : money && !isNaN(x) ? fmt.money(Number(x)) : x; };
+          var oldV = v(h.old_value), newV = v(h.new_value);
+          var change = oldV
+            ? '<span class="change"><span class="change__old"><span class="sr-only">from </span>' + esc(oldV) + '</span><span class="change__arrow" aria-hidden="true">→</span><span class="change__new"><span class="sr-only">to </span>' + esc(newV || '—') + '</span></span>'
+            : '<span class="change__new">' + esc(newV || '—') + '</span>';
+          return '<tr><td class="nowrap">' + esc(fmt.dateTime(h.datetime)) + '</td><td class="nowrap">' + esc(user ? user.full_name : '—') + '</td>' +
+            '<td>' + esc(h.action) + '</td><td class="nowrap">' + esc(FIELDS[h.field] || h.field || '—') + '</td><td class="change-cell">' + change + '</td></tr>';
+        }).join('');
+        $('history-table').hidden = !logs.length;
+        $('history-empty').hidden = !!logs.length;
+      }
+
+      // 3.2 Update Stock Levels from this product
+      $('adjust-btn').innerHTML = CNS.icon('pencil-square') + 'Adjust stock';
+      $('transfer-btn').innerHTML = CNS.icon('arrow-path') + 'Transfer';
+      $('adjust-btn').addEventListener('click', function () {
+        CNS.stockActions.adjust({ session: session, productId: p.id, onDone: render });
+      });
+      $('transfer-btn').addEventListener('click', function () {
+        CNS.stockActions.transfer({ session: session, productId: p.id, onDone: render });
+      });
+
+      $('product').hidden = false;
+      render();
+      CNS.ui.tabs($('tablist'));
+
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        render();
+      });
+    })();
+  </script>
+</body>
+</html>

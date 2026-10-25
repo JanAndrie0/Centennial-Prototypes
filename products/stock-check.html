@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock check · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+</head>
+<body>
+  <!-- 3.3 Check Stock Availability (view only) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="list.html">Products &amp; Inventory</a></li><li><span aria-current="page">Stock check</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <h1 class="page-title">Stock check</h1>
+    <p class="page-desc">Is it in stock? Search a product to see what's available.</p>
+
+    <form role="search" aria-label="Stock check" onsubmit="return false">
+      <div class="search">
+        <label class="sr-only" for="q">Product name or code</label>
+        <span id="search-icon"></span>
+        <input class="input" type="search" id="q" placeholder="e.g. epoxy, teflon, PVC-050" autocomplete="off">
+      </div>
+    </form>
+    <p class="result-count" id="status" role="status"></p>
+    <ul class="stock-cards" id="results"></ul>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/stock-check.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'products' });
+      if (!session) return;
+      var $ = function (id) { return document.getElementById(id); };
+
+      $('search-icon').outerHTML = CNS.icon('magnifying-glass');
+      function reorderTab() { CNS.layout.moduleTabs('products', 'check', session); }
+      reorderTab();
+
+      var check = CNS.stockCheck.mount({
+        input: $('q'), results: $('results'), status: $('status'), linkToDetail: true,
+        branch: function () { return session.branchView; }
+      });
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        reorderTab();
+        check.render();
+      });
+      $('q').focus();
+    })();
+  </script>
+</body>
+</html>
