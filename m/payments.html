@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payments · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .step { margin-bottom: var(--space-4); }
+    .step-title { margin: 0 0 var(--space-3); font-size: 18px; font-weight: 700; }
+    .cust-card { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-3); margin: 0; padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
+    .cust-card dt { font-size: var(--text-small); color: var(--color-text-secondary); }
+    .cust-card dd { margin: 0; font-weight: 700; }
+    .cust-card .is-bad { color: var(--color-error); }
+    .items { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; min-width: 0; }
+    .item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); min-height: 56px;
+      padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .item:has(input:checked) { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-focus-ring); }
+    .item input { width: 22px; height: 22px; margin: 0; accent-color: var(--color-primary); }
+    .item__main { display: grid; gap: 2px; min-width: 0; }
+    .item__amount { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+    .methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); margin: 0 0 var(--space-4); padding: 0; border: 0; }
+    .methods legend { margin-bottom: var(--space-2); font-weight: 600; }
+    .methods label { display: grid; place-items: center; min-height: var(--tap); padding: var(--space-2); font-weight: 600; text-align: center;
+      border: 1px solid var(--color-input-border); border-radius: var(--radius-md); cursor: pointer; }
+    .methods label:has(input:checked) { color: var(--color-primary); border-color: var(--color-primary); background: var(--color-error-bg); }
+    .methods label:has(input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .methods input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .proof-thumb { display: block; width: 100%; max-height: 220px; object-fit: cover; margin-bottom: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .file-input:focus-visible + label { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .left-line { display: flex; justify-content: space-between; margin: 0 0 var(--space-3); font-size: 18px; font-weight: 700; }
+    .section-title { margin: var(--space-6) 0 var(--space-2); font-size: 18px; font-weight: 700; }
+    .rows { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+    .row { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+    .row__main { display: grid; gap: 2px; min-width: 0; }
+    .row__amount { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+    /* Receipt to show the store owner */
+    .m-receipt { padding: var(--space-5) var(--space-4); text-align: center; }
+    .m-receipt img { height: 24px; width: auto; }
+    .m-receipt__title { margin: var(--space-3) 0 0; font-size: 14px; font-weight: 800; letter-spacing: .08em; }
+    .m-receipt__amount { margin: var(--space-3) 0 0; font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .m-receipt .details { grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-4); margin: var(--space-4) 0 0; text-align: left; }
+    .m-receipt .details dd { text-align: right; }
+    .receipt-actions { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+  </style>
+</head>
+<body>
+  <!-- 5.2 Record Customer Payment (field payments with the proof photo; replaces paper notes, Problem F8) -->
+  <main id="main">
+    <div id="form-view">
+      <h1 class="page-title">Record payment</h1>
+      <p class="page-desc">Money you collected from a store. The office verifies it.</p>
+
+      <form id="form" novalidate>
+        <section class="card card--pad step" aria-labelledby="t1">
+          <h2 class="step-title" id="t1">1 · Store</h2>
+          <div class="field">
+            <label class="label" for="customer">Store</label>
+            <select class="input" id="customer" name="client_id" aria-describedby="customer-error"><option value="">Choose a store</option></select>
+            <p class="field-error" id="customer-error"></p>
+          </div>
+          <dl class="cust-card" id="cust-card" hidden></dl>
+        </section>
+
+        <section class="card card--pad step" aria-labelledby="t2" id="s-items" hidden>
+          <h2 class="step-title" id="t2">2 · What it pays</h2>
+          <fieldset class="items" id="items"></fieldset>
+          <p class="field-error" id="items-error"></p>
+        </section>
+
+        <section class="card card--pad step" aria-labelledby="t3" id="s-pay" hidden>
+          <h2 class="step-title" id="t3">3 · Payment</h2>
+          <div class="field">
+            <label class="label" for="amount">Amount (₱)</label>
+            <input class="input" type="number" inputmode="decimal" min="0" step="0.01" id="amount" name="amount" aria-describedby="amount-error">
+            <p class="field-error" id="amount-error"></p>
+          </div>
+          <fieldset class="methods">
+            <legend>Method</legend>
+            <label><input type="radio" name="method" value="Cash" checked>Cash</label>
+            <label><input type="radio" name="method" value="Cheque">Cheque</label>
+            <label><input type="radio" name="method" value="Bank transfer">Bank transfer</label>
+          </fieldset>
+          <div class="field">
+            <label class="label" for="reference" id="reference-label">Reference no.</label>
+            <input class="input" id="reference" name="reference_no" autocomplete="off" aria-describedby="reference-error">
+            <p class="field-error" id="reference-error"></p>
+          </div>
+          <div class="field">
+            <span class="label" id="proof-label">Proof of payment photo</span>
+            <img class="proof-thumb" id="proof-img" alt="Proof of payment" hidden>
+            <input class="file-input" type="file" id="proof-file" accept="image/*" capture="environment" aria-labelledby="proof-label proof-btn" aria-describedby="proof-error">
+            <label class="btn btn--secondary btn--block" for="proof-file" id="proof-btn"></label>
+            <input type="hidden" name="proof_photo" id="proof-photo">
+            <p class="field-error" id="proof-error"></p>
+          </div>
+        </section>
+
+        <div id="s-save" hidden>
+          <p class="left-line"><span>Left after this</span><span id="left"></span></p>
+          <div class="save-bar">
+            <span id="autosave" role="status" class="sr-only"></span>
+            <button type="submit" class="btn btn--primary" id="save"></button>
+          </div>
+        </div>
+      </form>
+
+      <h2 class="section-title">My recent payments</h2>
+      <ul class="rows" id="recent"></ul>
+    </div>
+
+    <div id="receipt-view" hidden>
+      <h1 class="page-title">Payment receipt</h1>
+      <p class="page-desc">Show this to the store owner.</p>
+      <article class="card m-receipt" id="receipt" aria-label="Payment receipt"></article>
+      <div class="receipt-actions">
+        <button type="button" class="btn btn--primary" id="share"></button>
+        <a class="btn btn--secondary" href="payments.html" id="done"></a>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script src="../assets/js/payment-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.mobile({ active: 'payments' });
+      if (!session) return;
+      var S = CNS.store, P = CNS.payActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var params = new URLSearchParams(location.search);
+
+      // ---- Receipt view (?receipt=id) ----
+      var shown = params.get('receipt') && S.get('payments', params.get('receipt'));
+      if (shown && shown.received_by === me.id) {
+        $('form-view').hidden = true;
+        $('receipt-view').hidden = false;
+        var c0 = S.get('clients', shown.client_id), o0 = S.get('sales_orders', shown.order_id);
+        var s0 = shown.schedule_id && S.get('installment_schedules', shown.schedule_id);
+        var adj = P.pending(shown) ? shown.amount : 0;   // still waiting: show what will be left once verified
+        var leftItem = s0 ? Math.max(0, s0.amount_due - s0.amount_paid - adj) : Math.max(0, P.orderRemaining(o0.id) - adj);
+        var leftAll = S.clientBalance(c0.id) - adj;
+        $('receipt').innerHTML = '<img src="../assets/img/logo.jpg" alt="Centennial N&amp;S Construction Corporation">' +
+          '<p class="m-receipt__title">PAYMENT RECEIPT · ' + esc(P.receiptNo(shown)) + '</p>' +
+          '<p class="m-receipt__amount">' + esc(fmt.money(shown.amount)) + '</p>' +
+          '<dl class="details"><dt>From</dt><dd>' + esc(c0.store_name) + '</dd>' +
+            '<dt>Date</dt><dd>' + esc(fmt.date(shown.date)) + '</dd>' +
+            '<dt>Method</dt><dd>' + esc(shown.method + (shown.reference_no ? ' · ' + shown.reference_no : '')) + '</dd>' +
+            '<dt>For</dt><dd>' + esc(o0.order_no + (s0 ? ' · due ' + fmt.date(s0.due_date) : '')) + '</dd>' +
+            '<dt>Left on it</dt><dd><strong>' + esc(fmt.money(leftItem)) + '</strong></dd>' +
+            '<dt>Account balance</dt><dd><strong>' + esc(fmt.money(leftAll)) + '</strong></dd>' +
+            '<dt>Collected by</dt><dd>' + esc(me.full_name) + '</dd>' +
+            '<dt>Status</dt><dd>' + P.statusBadge(shown) + '</dd></dl>' +
+          '<p class="cell-sub" style="margin-top:var(--space-4)">Balances after the office verifies this payment.</p>';
+        $('share').innerHTML = CNS.icon('arrow-up-circle') + 'Share receipt';
+        $('done').innerHTML = CNS.icon('check') + 'Done';
+        var text = 'Centennial payment receipt ' + P.receiptNo(shown) + ': ' + fmt.money(shown.amount) + ' from ' + c0.store_name + ' on ' + fmt.date(shown.date) +
+          ' (' + shown.method + '). Remaining balance after verification: ' + fmt.money(leftAll) + '.';
+        $('share').addEventListener('click', function () {
+          if (navigator.share) { navigator.share({ title: 'Payment receipt', text: text }).catch(function () { /* closed */ }); return; }
+          try { navigator.clipboard.writeText(text); CNS.ui.toast('Receipt copied. Paste it in Viber or Messenger.'); }
+          catch (e) { CNS.ui.toast('Show this screen to the store owner.'); }
+        });
+        return;
+      }
+
+      // ---- Form view ----
+      $('save').innerHTML = CNS.icon('check') + 'Save payment';
+      $('proof-btn').innerHTML = CNS.icon('arrow-up-circle') + 'Take photo';
+      var stores = S.where('clients', function (c) { return c.agent_id === me.id; }).sort(function (a, b) { return a.store_name.localeCompare(b.store_name); });
+      stores.forEach(function (c) { $('customer').insertAdjacentHTML('beforeend', '<option value="' + esc(c.id) + '">' + esc(c.store_name) + '</option>'); });
+
+      var items = [];
+      function method() { return document.querySelector('input[name=method]:checked').value; }
+      function current() {
+        var ch = document.querySelector('input[name=item]:checked');
+        return ch ? items.filter(function (x) { return x.key === ch.value; })[0] : null;
+      }
+
+      function renderStore() {
+        var c = S.get('clients', $('customer').value);
+        $('cust-card').hidden = !c;
+        $('s-items').hidden = !c;
+        if (!c) { $('s-pay').hidden = $('s-save').hidden = true; return; }
+        var bal = S.clientBalance(c.id), od = S.clientOverdue(c.id);
+        $('cust-card').innerHTML = '<div><dt>Balance</dt><dd>' + esc(fmt.money(bal)) + '</dd></div>' +
+          '<div><dt>Overdue</dt><dd' + (od ? ' class="is-bad"' : '') + '>' + esc(fmt.money(od)) + '</dd></div>';
+        var keep = current() ? current().key : null;
+        items = P.openItems(c.id);
+        if (!items.some(function (x) { return x.key === keep; }) && items.length) keep = (items.filter(function (x) { return x.overdue; })[0] || items[0]).key;
+        $('items').innerHTML = items.length ? '<legend class="sr-only">Order or installment this payment is for</legend>' + items.map(function (x) {
+          var sub = x.due_date ? (x.overdue ? 'Was due ' : 'Due ') + fmt.date(x.due_date) : 'Whole order';
+          return '<label class="item"><input type="radio" name="item" value="' + esc(x.key) + '"' + (x.key === keep ? ' checked' : '') + '>' +
+            '<span class="item__main"><strong>' + esc(x.order_no) + '</strong><span class="cell-sub">' + esc(sub) + '</span>' +
+              (x.overdue ? '<span>' + CNS.ui.badge('error', 'exclamation-circle', 'Overdue') + '</span>' : '') +
+              (x.waiting ? '<span class="cell-sub">' + esc(fmt.money(x.waiting)) + ' already waiting</span>' : '') + '</span>' +
+            '<span class="item__amount">' + esc(fmt.money(x.remaining)) + '</span></label>';
+        }).join('') : '<p class="empty-line">Nothing to pay. This store is fully paid.</p>';
+        $('s-pay').hidden = $('s-save').hidden = !items.length;
+        renderLeft();
+      }
+
+      function renderLeft() {
+        var it = current();
+        if (!it) return;
+        $('left').textContent = fmt.money(Math.max(0, it.remaining - (Number($('amount').value) || 0)));
+      }
+
+      function renderMethod() {
+        var m = method();
+        $('reference-label').textContent = m === 'Cheque' ? 'Cheque no. and bank' : m === 'Bank transfer' ? 'Transfer reference no.' : 'Reference no. (optional)';
+      }
+
+      function showProof(v) {
+        $('proof-photo').value = v || '';
+        $('proof-img').hidden = !v;
+        if (v) $('proof-img').src = v;
+        $('proof-btn').innerHTML = CNS.icon('arrow-up-circle') + (v ? 'Retake photo' : 'Take photo');
+      }
+      $('proof-file').addEventListener('change', function () {
+        var file = this.files[0];
+        if (!file) return;
+        P.readPhoto(file, function (data) {
+          $('proof-error').textContent = data ? '' : 'That file is not a photo.';
+          if (data) { showProof(data); draft.save(); }
+        });
+        this.value = '';
+      });
+
+      function setError(id, msg) {
+        $(id + '-error').textContent = msg || '';
+        var el = { proof: $('proof-file'), items: null }[id];
+        if (el === undefined) el = $(id);
+        if (el) { if (msg) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid'); }
+        return !msg;
+      }
+
+      $('customer').addEventListener('change', function () { renderStore(); prefill(true); });
+      $('items').addEventListener('change', function () { prefill(true); });
+      $('amount').addEventListener('input', renderLeft);
+      Array.prototype.forEach.call(document.querySelectorAll('input[name=method]'), function (r) { r.addEventListener('change', renderMethod); });
+      function prefill(force) {
+        var it = current();
+        if (it && (force || !$('amount').value)) $('amount').value = Math.max(0, it.remaining - it.waiting) || it.remaining;
+        renderLeft();
+      }
+
+      var draft = CNS.autosave.attach($('form'), { key: 'payment-field', status: $('autosave') });
+      if (params.get('client') && stores.some(function (c) { return c.id === params.get('client'); })) $('customer').value = params.get('client');
+      showProof($('proof-photo').value);
+      renderMethod();
+      renderStore();
+      prefill(false);
+
+      $('form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var c = S.get('clients', $('customer').value), it = current(), amount = Number($('amount').value), m = method();
+        var ok = [
+          setError('customer', c ? '' : 'Choose the store.'),
+          setError('items', !c || it ? '' : 'Choose what it pays.'),
+          setError('amount', !c ? '' : !(amount > 0) ? 'Enter the amount you received.' : it && !it.schedule_id && amount > it.remaining + 0.001 ? 'More than the ' + fmt.money(it.remaining) + ' left.' : ''),
+          setError('reference', m !== 'Cash' && !$('reference').value.trim() ? (m === 'Cheque' ? 'Enter the cheque number.' : 'Enter the transfer reference.') : ''),
+          setError('proof', c && !$('proof-photo').value ? 'Take a photo of the ' + (m === 'Cash' ? 'cash count or the store\'s note' : m === 'Cheque' ? 'cheque' : 'transfer slip') + '.' : '')
+        ];
+        if (ok.indexOf(false) >= 0) {
+          var bad = document.querySelector('[aria-invalid="true"]');
+          if (bad) (bad.id === 'proof-file' ? $('proof-btn') : bad).focus();
+          return;
+        }
+        var row = P.record({
+          client_id: c.id, order_id: it.order_id, schedule_id: it.schedule_id, amount: amount, method: m,
+          reference_no: $('reference').value.trim(), date: S.today(), proof_photo: $('proof-photo').value, channel: 'Field'
+        }, session);
+        draft.clear();
+        location.href = 'payments.html?receipt=' + encodeURIComponent(row.id);
+      });
+
+      // ---- My recent field payments ----
+      var mine = S.where('payments', function (p) { return p.received_by === me.id; })
+        .sort(function (a, b) { return (a.recorded_at || a.date) < (b.recorded_at || b.date) ? 1 : -1; }).slice(0, 8);
+      $('recent').innerHTML = mine.map(function (p) {
+        var c = S.get('clients', p.client_id);
+        return '<li class="row"><span class="row__main"><strong>' + esc(c ? c.store_name : '') + '</strong>' +
+          '<span class="cell-sub">' + esc(fmt.date(p.date) + ' · ' + p.method + ' · ' + P.receiptNo(p)) + '</span>' +
+          '<span>' + P.statusBadge(p) + '</span>' + (p.reject_reason ? '<span class="cell-sub">' + esc(p.reject_reason) + '</span>' : '') + '</span>' +
+          '<span class="row__amount">' + esc(fmt.money(p.amount)) + '</span></li>';
+      }).join('') || '<li class="row"><span>No payments yet.</span></li>';
+    })();
+  </script>
+</body>
+</html>

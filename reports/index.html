@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reports · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+    .report-card { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: var(--space-4); height: 100%; padding: var(--space-4) var(--space-5);
+      color: var(--color-text); text-decoration: none; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+      transition: border-color var(--dur-fast) var(--ease-sharp), box-shadow var(--dur-fast) var(--ease-sharp); }
+    .report-card:hover { border-color: var(--color-text-secondary); box-shadow: var(--shadow-md); }
+    .report-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .report-card__icon { display: grid; place-items: center; width: 48px; height: 48px; color: var(--color-primary); background: var(--color-error-bg); border-radius: var(--radius-md); }
+    .report-card__icon .icon { width: 26px; height: 26px; }
+    .report-card__name { margin: 0; font-size: 17px; font-weight: 700; }
+    .report-card__desc { margin: 4px 0 0; font-size: var(--text-small); color: var(--color-text-secondary); }
+    .report-card > .icon { color: var(--color-text-secondary); }
+    .group-title { margin: var(--space-6) 0 var(--space-3); font-size: 18px; font-weight: 700; }
+    .group-title:first-of-type { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <!-- 6.1 Receive Report Request: pick a report; it opens for this month and the user's branch -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><span aria-current="page">Reports</span></li></ol>
+    </nav>
+    <h1 class="page-title">Reports</h1>
+    <p class="page-desc" id="desc">Pick a report. You can change the dates and filters inside it, then print or export.</p>
+    <div id="groups"></div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/reports.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      var session = CNS.layout.desktop({ active: 'reports' });
+      if (!session) return;
+      var esc = CNS.escape, me = session.user;
+      if (!CNS.auth.canSwitchBranch(me)) {
+        document.getElementById('desc').textContent = 'Pick a report for ' + CNS.store.branchName(me.branch_id) + '. Change the dates inside it, then print or export.';
+      }
+
+      var GROUPS = [
+        ['Sales and customers', ['sales', 'backorders', 'deliveries', 'payments']],
+        ['Stock', ['inventory', 'reorder', 'movers', 'adjustments']],
+        ['Purchasing', ['purchasing']]
+      ];
+      function card(r) {
+        return '<li><a class="report-card" href="view.html?type=' + encodeURIComponent(r.id) + '">' +
+          '<span class="report-card__icon">' + CNS.icon(r.icon) + '</span>' +
+          '<span><p class="report-card__name">' + esc(r.name) + '</p><p class="report-card__desc">' + esc(r.desc) + '</p></span>' +
+          CNS.icon('chevron-right') + '</a></li>';
+      }
+      var html = GROUPS.map(function (g) {
+        return '<h2 class="group-title">' + esc(g[0]) + '</h2><ul class="report-grid">' + g[1].map(function (id) { return card(CNS.reports.get(id)); }).join('') + '</ul>';
+      }).join('');
+      // The History Log Report stays in 1.0 (CEO only); point to it so the CEO finds every report from here
+      if (me.role === R.CEO) {
+        html += '<h2 class="group-title">Audit</h2><ul class="report-grid"><li><a class="report-card" href="../users/history-log.html">' +
+          '<span class="report-card__icon">' + CNS.icon('clipboard-document-list') + '</span>' +
+          '<span><p class="report-card__name">History Log Report</p><p class="report-card__desc">Who changed what, and when. Opens in User Accounts &amp; History Log.</p></span>' +
+          CNS.icon('chevron-right') + '</a></li></ul>';
+      }
+      document.getElementById('groups').innerHTML = html;
+    })();
+  </script>
+</body>
+</html>

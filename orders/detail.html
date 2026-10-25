@@ -78,6 +78,7 @@
   <script src="../assets/js/auth.js"></script>
   <script src="../assets/js/layout.js"></script>
   <script src="../assets/js/order-actions.js"></script>
+  <script src="../assets/js/payment-actions.js"></script>
   <script>
     (function () {
       var session = CNS.layout.desktop({ active: 'orders' });
@@ -276,17 +277,28 @@
           : '<div class="table-wrap">' + emptyLine('Attached file: ' + s.replace(/^file:/, '')) + '</div>';
       }
 
+      // 5.2 / 5.1 shortcuts once the order is billed and money is still owed
+      function payActionsHtml(left) {
+        if (['Approved', 'For delivery', 'Shipped', 'Completed'].indexOf(o.status) < 0 || left <= 0) return '';
+        var plan = CNS.payActions.planFor(o.id);
+        return '<p style="display:flex;flex-wrap:wrap;gap:var(--space-4);margin:var(--space-4) 0 0">' +
+          '<a class="btn-link" href="../payments/record.html?client=' + encodeURIComponent(o.client_id) + (plan ? '' : '&item=' + encodeURIComponent('o:' + o.id)) + '">' + CNS.icon('banknotes') + 'Record payment</a>' +
+          (plan ? '' : '<a class="btn-link" href="../customers/detail.html?id=' + encodeURIComponent(o.client_id) + '&plan=' + encodeURIComponent(o.id) + '#view=installments">' + CNS.icon('clipboard-document-list') + 'Set up installment plan</a>') + '</p>';
+      }
+
       function renderPayments() {
         var pays = S.where('payments', function (p) { return p.order_id === o.id; });
         var total = S.orderTotal(o.id), paid = paidOnOrder();
         $('payments').innerHTML = '<div class="card card--pad panel-card" style="margin-bottom:var(--space-4)"><dl class="details">' +
             '<dt>Order total</dt><dd>' + esc(fmt.money(total)) + '</dd><dt>Paid (verified)</dt><dd>' + esc(fmt.money(paid)) + '</dd>' +
-            '<dt>Remaining on this order</dt><dd>' + esc(fmt.money(Math.max(0, total - paid))) + '</dd></dl></div>' +
+            '<dt>Remaining on this order</dt><dd>' + esc(fmt.money(Math.max(0, total - paid))) + '</dd>' +
+            (CNS.payActions.planFor(o.id) ? '<dt>Installment plan</dt><dd><a href="../customers/detail.html?id=' + encodeURIComponent(o.client_id) + '#view=installments">View schedule</a></dd>' : '') +
+            '</dl>' + payActionsHtml(total - paid) + '</div>' +
           '<div class="table-wrap">' + (pays.length
-            ? '<table class="table"><thead><tr><th scope="col">Date</th><th scope="col" class="num-col">Amount</th><th scope="col">Method</th><th scope="col">Reference</th><th scope="col">Channel</th><th scope="col">Status</th></tr></thead><tbody>' +
+            ? '<table class="table"><thead><tr><th scope="col">Date</th><th scope="col">Receipt no.</th><th scope="col" class="num-col">Amount</th><th scope="col">Method</th><th scope="col">Reference</th><th scope="col">Channel</th><th scope="col">Status</th></tr></thead><tbody>' +
               pays.map(function (p) {
-                var st = p.bounced ? CNS.ui.badge('error', 'x-mark', 'Bounced') : p.verified_by ? CNS.ui.badge('success', 'check-circle', 'Verified') : CNS.ui.badge('warning', 'exclamation-triangle', 'For verification');
-                return '<tr><td class="nowrap">' + esc(fmt.date(p.date)) + '</td><td class="num-col">' + esc(fmt.money(p.amount)) + '</td><td>' + esc(p.method) + '</td><td>' + esc(p.reference_no || '—') + '</td><td>' + esc(p.channel) + '</td><td>' + st + '</td></tr>';
+                var st = CNS.payActions.statusBadge(p);
+                return '<tr><td class="nowrap">' + esc(fmt.date(p.date)) + '</td><td class="nowrap"><a class="row-link" href="../payments/receipt.html?id=' + encodeURIComponent(p.id) + '">' + esc(CNS.payActions.receiptNo(p)) + '</a></td><td class="num-col">' + esc(fmt.money(p.amount)) + '</td><td>' + esc(p.method) + '</td><td>' + esc(p.reference_no || '—') + '</td><td>' + esc(p.channel) + '</td><td>' + st + '</td></tr>';
               }).join('') + '</tbody></table>'
             : emptyLine('No payments on this order yet.')) + '</div>';
       }

@@ -22,6 +22,7 @@
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <ol><li><a href="../dashboard.html">Home</a></li><li><span aria-current="page">Customer Accounts &amp; Payments</span></li></ol>
     </nav>
+    <nav id="module-tabs"></nav>
 
     <div class="page-head">
       <div>
@@ -81,6 +82,7 @@
   <script src="../assets/js/auth.js"></script>
   <script src="../assets/js/layout.js"></script>
   <script src="../assets/js/autosave.js"></script>
+  <script src="../assets/js/payment-actions.js"></script>
   <script>
     (function () {
       var session = CNS.layout.desktop({ active: 'customers' });
@@ -167,6 +169,7 @@
       });
       document.addEventListener('cns:branchchange', function (e) {
         session.branchView = e.detail.branchView;
+        CNS.layout.moduleTabs('customers', 'list', session);
         fillAgents();
         render();
       });
@@ -263,6 +266,7 @@
         q('ac-name').focus();
       });
 
+      CNS.layout.moduleTabs('customers', 'list', session);
       fillAgents();
       render();
     })();

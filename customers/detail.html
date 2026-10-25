@@ -20,6 +20,12 @@
     .plan__title { margin: 0; font-size: var(--text-card-title); font-weight: 700; }
     .plan__meta { margin: 0; font-size: var(--text-small); color: var(--color-text-secondary); }
     .no-photo { font-size: var(--text-small); color: var(--color-text-secondary); }
+    .plans-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+    .preview-wrap { max-height: 320px; overflow: auto; margin-top: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .preview-wrap .table { margin: 0; }
+    .preview-wrap .input--cell { width: 100%; min-width: 140px; }
+    .preview-sum { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-2); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .proof-thumb { width: 48px; height: 48px; border-radius: var(--radius-sm); object-fit: cover; }
   </style>
 </head>
 <body>
@@ -42,7 +48,10 @@
           <h1 class="page-title" id="c-name"></h1>
           <p class="meta" id="c-meta"></p>
         </div>
-        <div class="page-head__actions"><button type="button" class="btn btn--secondary" id="edit-btn" hidden></button></div>
+        <div class="page-head__actions">
+          <button type="button" class="btn btn--secondary" id="edit-btn" hidden></button>
+          <a class="btn btn--primary" id="pay-btn" href="#"></a>
+        </div>
       </div>
 
       <!-- Credit limit · Current balance · Available credit · Overdue amount -->
@@ -69,6 +78,7 @@
       </section>
 
       <section class="tab-panel" role="tabpanel" id="panel-installments" aria-labelledby="tab-installments" tabindex="0" hidden>
+        <div class="plans-bar"><button type="button" class="btn btn--secondary" id="plan-btn"></button><span class="cell-sub" id="plan-hint"></span></div>
         <div id="plans"></div>
       </section>
 
@@ -86,6 +96,7 @@
   <script src="../assets/js/history.js"></script>
   <script src="../assets/js/auth.js"></script>
   <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/payment-actions.js"></script>
   <script>
     (function () {
       var session = CNS.layout.desktop({ active: 'customers' });
@@ -93,6 +104,7 @@
 
       var R = CNS.ROLES;
       var S = CNS.store;
+      var P = CNS.payActions;
       var fmt = CNS.format;
       var esc = CNS.escape;
       var $ = function (id) { return document.getElementById(id); };
@@ -180,18 +192,20 @@
         var pays = S.where('payments', function (p) { return p.client_id === c.id; })
           .sort(function (a, b) { return a.date < b.date ? 1 : -1; });
         $('payments-wrap').innerHTML = pays.length
-          ? '<table class="table"><thead><tr><th scope="col">Date</th><th scope="col">Order</th><th scope="col" class="num-col">Amount</th>' +
+          ? '<table class="table"><thead><tr><th scope="col">Date</th><th scope="col">Receipt no.</th><th scope="col">Order</th><th scope="col" class="num-col">Amount</th>' +
               '<th scope="col">Method</th><th scope="col">Reference</th><th scope="col">Proof</th><th scope="col">Channel</th><th scope="col">Received by</th><th scope="col">Status</th></tr></thead><tbody>' +
             pays.map(function (p) {
               var o = p.order_id && S.get('sales_orders', p.order_id);
-              var status = p.bounced ? CNS.ui.badge('error', 'x-mark', 'Bounced')
-                : p.verified_by ? CNS.ui.badge('success', 'check-circle', 'Verified')
-                : CNS.ui.badge('warning', 'exclamation-triangle', 'For verification');
-              return '<tr><td class="nowrap">' + esc(fmt.date(p.date)) + '</td><td class="nowrap">' + esc(o ? o.order_no : '—') + '</td>' +
+              var canBounce = me.role === R.OM && c.branch_id === me.branch_id && p.verified_by && !p.bounced && p.method === 'Cheque';
+              return '<tr><td class="nowrap">' + esc(fmt.date(p.date)) + '</td>' +
+                '<td class="nowrap"><a class="row-link" href="../payments/receipt.html?id=' + encodeURIComponent(p.id) + '">' + esc(P.receiptNo(p)) + '</a></td>' +
+                '<td class="nowrap">' + esc(o ? o.order_no : '—') + '</td>' +
                 '<td class="num-col cell-main">' + esc(fmt.money(p.amount)) + '</td><td class="nowrap">' + esc(p.method) + '</td>' +
                 '<td class="nowrap">' + esc(p.reference_no || '—') + '</td>' +
-                '<td>' + (p.proof_photo ? '<img src="' + esc(p.proof_photo) + '" alt="Proof of payment" width="48" height="48" style="border-radius:6px;object-fit:cover">' : '<span class="no-photo">No photo</span>') + '</td>' +
-                '<td>' + esc(p.channel) + '</td><td class="nowrap">' + esc(userName(p.received_by)) + '</td><td>' + status + '</td></tr>';
+                '<td>' + (p.proof_photo ? '<img class="proof-thumb" src="' + esc(p.proof_photo) + '" alt="Proof of payment ' + esc(P.receiptNo(p)) + '" width="48" height="48">' : '<span class="no-photo">No photo</span>') + '</td>' +
+                '<td>' + esc(p.channel) + '</td><td class="nowrap">' + esc(userName(p.received_by)) + '</td><td>' + P.statusBadge(p) +
+                (p.reject_reason ? '<span class="cell-sub">' + esc(p.reject_reason) + '</span>' : '') +
+                (canBounce ? '<button type="button" class="btn-link" data-bounce="' + esc(p.id) + '">Mark as bounced</button>' : '') + '</td></tr>';
             }).join('') + '</tbody></table>'
           : emptyLine('No payments yet.');
 
@@ -206,20 +220,20 @@
             .sort(function (a, b) { return a.due_date < b.due_date ? -1 : 1; });
           var left = sched.reduce(function (t, s) { return t + (s.amount_due - s.amount_paid); }, 0);
           return '<section class="plan"><div class="plan__head"><h2 class="plan__title">' + esc(o ? o.order_no : pl.order_id) + ' · ' + esc(fmt.money(pl.total)) + '</h2>' +
-            '<p class="plan__meta">' + pl.no_of_payments + ' payments · ' + esc(pl.frequency) + ' · ' + esc(fmt.money(left)) + ' remaining</p></div>' +
+            '<p class="plan__meta">' + (pl.down_payment ? esc(fmt.money(pl.down_payment)) + ' down · ' : '') + pl.no_of_payments + ' payments · ' + esc(pl.frequency) + ' · ' + esc(fmt.money(left)) + ' remaining</p></div>' +
             '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">No.</th><th scope="col">Due date</th><th scope="col" class="num-col">Amount due</th>' +
             '<th scope="col" class="num-col">Paid</th><th scope="col" class="num-col">Remaining</th><th scope="col">Status</th></tr></thead><tbody>' +
             sched.map(function (s, i) {
               var rem = s.amount_due - s.amount_paid;
-              var badge = rem <= 0 ? CNS.ui.badge('success', 'check-circle', 'Paid')
-                : s.due_date < today ? CNS.ui.badge('error', 'exclamation-circle', 'Overdue')
-                : s.amount_paid > 0 ? CNS.ui.badge('info', 'information-circle', 'Partially paid')
-                : CNS.ui.badge('neutral', 'clipboard-document-list', 'Due');
-              return '<tr><td>' + (i + 1) + '</td><td class="nowrap">' + esc(fmt.date(s.due_date)) + '</td>' +
+              var badge = P.scheduleBadge(P.scheduleStatus(s, today));
+              return '<tr><td>' + (pl.down_payment ? (i === 0 ? 'Down' : i) : i + 1) + '</td><td class="nowrap">' + esc(fmt.date(s.due_date)) + '</td>' +
                 '<td class="num-col">' + esc(fmt.money(s.amount_due)) + '</td><td class="num-col">' + esc(fmt.money(s.amount_paid)) + '</td>' +
                 '<td class="num-col cell-main">' + esc(fmt.money(rem)) + '</td><td>' + badge + '</td></tr>';
             }).join('') + '</tbody></table></div></section>';
         }).join('') : '<div class="table-wrap">' + emptyLine('No installment plans.') + '</div>';
+        var plannable = P.plannable(c.id);
+        $('plan-btn').disabled = !plannable.length;
+        $('plan-hint').textContent = plannable.length ? '' : 'Every billed order already has a plan or is fully paid.';
 
         // ---- History (this customer's audit trail) ----
         var logs = S.where('history_logs', function (h) { return h.record_type === 'clients' && h.record_id === c.id; })
@@ -343,9 +357,100 @@
         $('edit-btn').addEventListener('click', openEdit);
       }
 
+      // ---- 5.2 Record payment, 5.1 Set up installment plan ----
+      $('pay-btn').innerHTML = CNS.icon('banknotes') + 'Record payment';
+      $('pay-btn').href = '../payments/record.html?client=' + encodeURIComponent(c.id);
+      $('plan-btn').innerHTML = CNS.icon('plus-circle') + 'Set up installment plan';
+      $('plan-btn').addEventListener('click', function () { openPlan(); });
+
+      function openPlan(orderId) {
+        var orders = P.plannable(c.id);
+        if (!orders.length) return;
+        var d = dialog('Set up installment plan', 'The plan covers what is left to pay on the order.',
+          field('ip-order', 'Order', '<select class="input" id="ip-order">' + orders.map(function (o) {
+            return '<option value="' + esc(o.id) + '"' + (o.id === orderId ? ' selected' : '') + '>' + esc(o.order_no + ' · ' + fmt.date(o.order_date) + ' · ' + fmt.money(P.orderRemaining(o.id)) + ' left') + '</option>';
+          }).join('') + '</select>') +
+          '<div class="form-grid">' +
+            '<div class="field"><span class="label">Total amount</span><div class="static-value" id="ip-total"></div></div>' +
+            field('ip-down', 'Down payment (₱, optional)', '<input class="input" id="ip-down" type="number" inputmode="decimal" min="0" step="0.01" value="0" aria-describedby="ip-down-error">') +
+            field('ip-n', 'Number of payments', '<input class="input" id="ip-n" type="number" inputmode="numeric" min="1" max="24" value="3" aria-describedby="ip-n-error">') +
+            field('ip-freq', 'Frequency', '<select class="input" id="ip-freq">' + P.FREQUENCIES.map(function (f) { return '<option' + (f === 'Every 15 days' ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select>') +
+            field('ip-first', 'First due date', '<input class="input" id="ip-first" type="date" aria-describedby="ip-first-error">') +
+          '</div>' +
+          '<div class="preview-wrap"><table class="table"><thead><tr><th scope="col">No.</th><th scope="col">Due date</th><th scope="col" class="num-col">Amount due</th></tr></thead><tbody id="ip-rows"></tbody></table></div>' +
+          '<div class="preview-sum"><span>Schedule total</span><span id="ip-sum"></span></div><p class="field-error" id="ip-rows-error" role="alert"></p>',
+          'Save plan');
+        d.classList.add('modal--wide');
+        d.q('ip-first').value = P.addDays(S.today(), 15);
+        function total() { return P.orderRemaining(d.q('ip-order').value); }
+        function rows() {
+          return Array.prototype.map.call(d.q('ip-rows').querySelectorAll('tr'), function (tr) {
+            return { due_date: tr.querySelector('[type=date]').value, amount_due: Number(tr.querySelector('[type=number]').value) || 0 };
+          });
+        }
+        function sumUp() {
+          var t = rows().reduce(function (a, r) { return a + r.amount_due; }, 0);
+          d.q('ip-sum').textContent = fmt.money(t) + ' of ' + fmt.money(total());
+        }
+        function preview() {
+          d.q('ip-total').textContent = fmt.money(total());
+          var n = Math.max(1, Math.min(24, parseInt(d.q('ip-n').value, 10) || 1));
+          var down = Math.max(0, Number(d.q('ip-down').value) || 0);
+          if (!d.q('ip-first').value) return;
+          var list = P.previewSchedule(total(), down, n, d.q('ip-freq').value, d.q('ip-first').value);
+          d.q('ip-rows').innerHTML = list.map(function (r, i) {
+            var no = down > 0 ? (i === 0 ? 'Down' : i) : i + 1;
+            return '<tr><td>' + no + '</td><td><label class="sr-only" for="ip-d' + i + '">Due date ' + no + '</label><input class="input input--cell" type="date" id="ip-d' + i + '" value="' + r.due_date + '"></td>' +
+              '<td class="num-col"><label class="sr-only" for="ip-a' + i + '">Amount due ' + no + '</label><input class="input input--cell input--qty" type="number" step="0.01" min="0" id="ip-a' + i + '" value="' + r.amount_due.toFixed(2) + '"></td></tr>';
+          }).join('');
+          sumUp();
+        }
+        ['ip-order', 'ip-down', 'ip-n', 'ip-freq', 'ip-first'].forEach(function (k) { d.q(k).addEventListener('input', preview); d.q(k).addEventListener('change', preview); });
+        d.q('ip-rows').addEventListener('input', sumUp);
+        preview();
+        d.q('ip-order').focus();
+
+        d.querySelector('form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          var down = Number(d.q('ip-down').value) || 0;
+          var n = parseInt(d.q('ip-n').value, 10);
+          var list = rows();
+          var t = list.reduce(function (a, r) { return a + r.amount_due; }, 0);
+          var ok = [
+            d.setError('ip-down', down < 0 || down >= total() ? 'The down payment must be less than the total.' : ''),
+            d.setError('ip-n', !(n >= 1 && n <= 24) ? 'Enter 1 to 24 payments.' : ''),
+            d.setError('ip-first', d.q('ip-first').value ? '' : 'Enter the first due date.')
+          ];
+          var rowErr = list.some(function (r) { return !r.due_date || !(r.amount_due > 0); }) ? 'Every row needs a due date and an amount.'
+            : Math.abs(t - total()) > 0.009 ? 'The amounts add up to ' + fmt.money(t) + '. They must add up to ' + fmt.money(total()) + '.' : '';
+          d.q('ip-rows-error').textContent = rowErr;
+          if (ok.indexOf(false) >= 0 || rowErr) { var bad = d.querySelector('[aria-invalid="true"]'); if (bad) bad.focus(); return; }
+          P.createPlan(d.q('ip-order').value, total(), down, d.q('ip-freq').value, list, session);
+          d.close();
+          render();
+          CNS.ui.toast('Installment plan saved.');
+        });
+      }
+
+      // A verified cheque that bounces stops counting (Office Manager, own branch)
+      document.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-bounce]');
+        if (!b) return;
+        var p = S.get('payments', b.getAttribute('data-bounce'));
+        CNS.ui.confirm({ title: 'Mark this cheque as bounced?', body: fmt.money(p.amount) + ' · ' + (p.reference_no || P.receiptNo(p)) + '. The amount goes back on the balance and shows in the payment record.', confirm: 'Mark as bounced' })
+          .then(function (yes) {
+            if (!yes) return;
+            P.reject(p, 'Cheque bounced', session);
+            render();
+            CNS.ui.toast('Cheque marked as bounced.');
+          });
+      });
+
       $('customer').hidden = false;
       render();
       CNS.ui.tabs($('tablist'));
+      var planFor = new URLSearchParams(location.search).get('plan');
+      if (planFor) openPlan(planFor);
     })();
   </script>
 </body>

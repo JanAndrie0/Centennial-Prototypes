@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Record payment · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .pay-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--space-5); align-items: start; max-width: 1080px; }
+    .cust-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-3) 0 0; }
+    .cust-card div { padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
+    .cust-card dt { font-size: var(--text-small); color: var(--color-text-secondary); }
+    .cust-card dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .cust-card .is-bad { color: var(--color-error); }
+    .items { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; }
+    .items legend { margin-bottom: var(--space-2); font-weight: 600; }
+    .item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); min-height: var(--tap);
+      padding: var(--space-3) var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; }
+    .item:hover { border-color: var(--color-text-secondary); }
+    .item:has(input:checked) { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-focus-ring); }
+    .item input { width: 20px; height: 20px; margin: 0; accent-color: var(--color-primary); }
+    .item__main { display: grid; gap: 2px; }
+    .item__label { font-weight: 700; }
+    .item__amount { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+    .proof { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .proof img { width: 96px; height: 96px; object-fit: cover; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .file-input:focus-visible + label { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .summary { position: sticky; top: calc(var(--header-h) + var(--space-4)); }
+    .summary .details { grid-template-columns: 1fr auto; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-4); }
+    .summary .details dd { text-align: right; font-variant-numeric: tabular-nums; }
+    .summary .big { font-size: 20px; font-weight: 800; }
+    @media (max-width: 1100px) { .pay-layout { grid-template-columns: 1fr; } .summary { position: static; } .cust-card { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body>
+  <!-- 5.2 Record Customer Payment (office payments with the proof of payment photo) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="../customers/list.html">Customer Accounts &amp; Payments</a></li><li><span aria-current="page">Record payment</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <h1 class="page-title">Record payment</h1>
+    <p class="page-desc">A payment received at the office. It counts toward the balance right away.</p>
+
+    <form id="form" novalidate>
+      <div class="pay-layout">
+        <div>
+          <section class="card card--pad form-section" aria-labelledby="s1">
+            <h2 class="form-section__title" id="s1">1 · Customer</h2>
+            <div class="field">
+              <label class="label" for="customer">Customer</label>
+              <select class="input" id="customer" name="client_id" aria-describedby="customer-error"></select>
+              <p class="field-error" id="customer-error"></p>
+            </div>
+            <dl class="cust-card" id="cust-card" hidden></dl>
+          </section>
+
+          <section class="card card--pad form-section" aria-labelledby="s2" id="items-section" hidden>
+            <h2 class="form-section__title" id="s2">2 · What it pays</h2>
+            <fieldset class="items" id="items" aria-describedby="items-error"></fieldset>
+            <p class="field-error" id="items-error"></p>
+          </section>
+
+          <section class="card card--pad form-section" aria-labelledby="s3" id="pay-section" hidden>
+            <h2 class="form-section__title" id="s3">3 · Payment</h2>
+            <div class="form-grid">
+              <div class="field">
+                <label class="label" for="amount">Amount (₱)</label>
+                <input class="input" type="number" inputmode="decimal" min="0" step="0.01" id="amount" name="amount" aria-describedby="amount-error amount-note">
+                <p class="field-error" id="amount-error"></p>
+              </div>
+              <div class="field">
+                <label class="label" for="method">Method</label>
+                <select class="input" id="method" name="method">
+                  <option>Cash</option><option>Cheque</option><option>Bank transfer</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="label" for="reference" id="reference-label">Reference no.</label>
+                <input class="input" id="reference" name="reference_no" autocomplete="off" aria-describedby="reference-error">
+                <p class="field-error" id="reference-error"></p>
+              </div>
+              <div class="field">
+                <label class="label" for="date">Date received</label>
+                <input class="input" type="date" id="date" name="date" aria-describedby="date-error">
+                <p class="field-error" id="date-error"></p>
+              </div>
+            </div>
+            <p class="notice notice--info" id="amount-note" hidden></p>
+            <div class="field">
+              <span class="label" id="proof-label">Proof of payment photo</span>
+              <div class="proof">
+                <img id="proof-img" alt="Proof of payment" hidden>
+                <input class="file-input" type="file" id="proof-file" accept="image/*" aria-labelledby="proof-label proof-btn" aria-describedby="proof-error">
+                <label class="btn btn--secondary" for="proof-file" id="proof-btn"></label>
+                <button type="button" class="btn-link" id="proof-remove" hidden>Remove photo</button>
+              </div>
+              <input type="hidden" name="proof_photo" id="proof-photo">
+              <p class="field-error" id="proof-error"></p>
+            </div>
+          </section>
+        </div>
+
+        <aside class="card card--pad summary" aria-labelledby="sum-title" id="summary" hidden>
+          <h2 class="card__title" id="sum-title">After this payment</h2>
+          <dl class="details" id="sum"></dl>
+          <button type="submit" class="btn btn--primary btn--block" id="save"></button>
+          <p class="autosave" id="autosave" role="status"></p>
+        </aside>
+      </div>
+    </form>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/autosave.js"></script>
+  <script src="../assets/js/payment-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'customers' });
+      if (!session) return;
+      var S = CNS.store, P = CNS.payActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var params = new URLSearchParams(location.search);
+
+      CNS.layout.moduleTabs('customers', 'record', session);
+      $('save').innerHTML = CNS.icon('check') + 'Save payment';
+      $('proof-btn').innerHTML = CNS.icon('arrow-up-circle') + 'Add photo';
+
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+
+      function fillCustomers() {
+        var keep = $('customer').value || params.get('client') || '';
+        var sc = scope();
+        $('customer').innerHTML = '<option value="">Choose a customer</option>' + S.where('clients', function (c) {
+          return sc === 'all' || c.branch_id === sc || c.id === keep;
+        }).sort(function (a, b) { return a.store_name.localeCompare(b.store_name); }).map(function (c) {
+          var open = P.openItems(c.id).length;
+          return '<option value="' + esc(c.id) + '"' + (c.id === keep ? ' selected' : '') + '>' + esc(c.store_name) +
+            (open ? '' : ' (nothing to pay)') + '</option>';
+        }).join('');
+      }
+
+      var items = [];
+      function current() {
+        var checked = document.querySelector('input[name=item]:checked');
+        return checked ? items.filter(function (x) { return x.key === checked.value; })[0] : null;
+      }
+
+      function renderCustomer() {
+        var c = S.get('clients', $('customer').value);
+        $('cust-card').hidden = !c;
+        $('items-section').hidden = !c;
+        if (!c) { $('pay-section').hidden = true; $('summary').hidden = true; return; }
+        var bal = S.clientBalance(c.id), overdue = S.clientOverdue(c.id);
+        var waiting = P.toVerify().filter(function (p) { return p.client_id === c.id; }).reduce(function (t, p) { return t + p.amount; }, 0);
+        $('cust-card').innerHTML =
+          '<div><dt>Balance</dt><dd>' + esc(fmt.money(bal)) + '</dd></div>' +
+          '<div><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
+          '<div><dt>Overdue</dt><dd' + (overdue ? ' class="is-bad"' : '') + '>' + esc(fmt.money(overdue)) + '</dd></div>' +
+          '<div><dt>Field payments to verify</dt><dd>' + esc(fmt.money(waiting)) + '</dd></div>';
+
+        var keep = current() ? current().key : params.get('item');
+        items = P.openItems(c.id);
+        if (!items.length) {
+          $('items').innerHTML = '<p class="empty-line">Nothing to pay. All billed orders are fully paid.</p>';
+        } else {
+          if (!items.some(function (x) { return x.key === keep; })) {
+            // Oldest overdue first, then the earliest due
+            keep = (items.filter(function (x) { return x.overdue; })[0] || items[0]).key;
+          }
+          $('items').innerHTML = '<legend class="sr-only">Order or installment this payment is for</legend>' + items.map(function (x) {
+            var sub = x.due_date ? (x.overdue ? 'Was due ' : 'Due ') + fmt.date(x.due_date) : 'No installment plan';
+            return '<label class="item"><input type="radio" name="item" value="' + esc(x.key) + '"' + (x.key === keep ? ' checked' : '') + '>' +
+              '<span class="item__main"><span class="item__label">' + esc(x.label) + '</span>' +
+                '<span class="cell-sub">' + esc(sub) + (x.waiting ? ' · ' + esc(fmt.money(x.waiting)) + ' waiting for verification' : '') + '</span>' +
+                (x.overdue ? '<span>' + CNS.ui.badge('error', 'exclamation-circle', 'Overdue') + '</span>' : '') + '</span>' +
+              '<span class="item__amount">' + esc(fmt.money(x.remaining)) + '<span class="cell-sub">remaining</span></span></label>';
+          }).join('');
+        }
+        $('pay-section').hidden = !items.length;
+        $('summary').hidden = !items.length;
+        renderSummary();
+      }
+
+      function renderSummary() {
+        var it = current();
+        var c = S.get('clients', $('customer').value);
+        if (!it || !c) return;
+        var amount = Number($('amount').value) || 0;
+        var bal = S.clientBalance(c.id);
+        $('sum').innerHTML =
+          '<dt>' + esc(it.label) + '</dt><dd>' + esc(fmt.money(it.remaining)) + '</dd>' +
+          '<dt>This payment</dt><dd>− ' + esc(fmt.money(amount)) + '</dd>' +
+          '<dt>Remaining on it</dt><dd class="big">' + esc(fmt.money(Math.max(0, it.remaining - amount))) + '</dd>' +
+          '<dt>Account balance</dt><dd>' + esc(fmt.money(bal - amount)) + '</dd>';
+        var note = '';
+        if (amount > 0 && amount < it.remaining) note = 'Partial payment. ' + fmt.money(it.remaining - amount) + ' stays open on this item.';
+        if (it.schedule_id && amount > it.remaining) note = 'More than this installment. The extra goes to the next installments of the same plan.';
+        $('amount-note').hidden = !note;
+        $('amount-note').innerHTML = note ? CNS.icon('information-circle') + '<span>' + esc(note) + '</span>' : '';
+      }
+
+      function renderMethod() {
+        var m = $('method').value;
+        $('reference-label').textContent = m === 'Cheque' ? 'Cheque no. and bank' : m === 'Bank transfer' ? 'Transfer reference no.' : 'Reference no. (optional)';
+      }
+
+      // ---- Proof photo ----
+      function showProof(data) {
+        $('proof-photo').value = data || '';
+        $('proof-img').hidden = !data;
+        if (data) $('proof-img').src = data;
+        $('proof-remove').hidden = !data;
+        $('proof-btn').innerHTML = CNS.icon('arrow-up-circle') + (data ? 'Change photo' : 'Add photo');
+      }
+      $('proof-file').addEventListener('change', function () {
+        var file = this.files[0];
+        if (!file) return;
+        P.readPhoto(file, function (data) {
+          if (!data) { setError('proof', 'That file is not a photo. Choose a JPG or PNG.'); return; }
+          setError('proof', '');
+          showProof(data);
+          draft.save();
+        });
+        this.value = '';
+      });
+      $('proof-remove').addEventListener('click', function () { showProof(''); draft.save(); $('proof-btn').focus(); });
+
+      function setError(id, msg) {
+        $(id + '-error').textContent = msg || '';
+        var el = id === 'proof' ? $('proof-file') : id === 'items' ? null : $(id);
+        if (el) { if (msg) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid'); }
+        return !msg;
+      }
+
+      // ---- Events ----
+      $('customer').addEventListener('change', function () { $('amount').value = ''; renderCustomer(); prefill(); });
+      $('items').addEventListener('change', function () { prefill(true); });
+      $('amount').addEventListener('input', renderSummary);
+      $('method').addEventListener('change', renderMethod);
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        CNS.layout.moduleTabs('customers', 'record', session);
+        fillCustomers();
+        renderCustomer();
+      });
+
+      // Amount starts at what is left on the chosen item
+      function prefill(force) {
+        var it = current();
+        if (it && (force || !$('amount').value)) $('amount').value = Math.max(0, it.remaining - it.waiting) || it.remaining;
+        renderSummary();
+      }
+
+      fillCustomers();
+      $('date').value = S.today();
+      var draft = CNS.autosave.attach($('form'), { key: 'payment-office', status: $('autosave') });
+      if (params.get('client')) $('customer').value = params.get('client');
+      showProof($('proof-photo').value);
+      renderMethod();
+      renderCustomer();
+      prefill();
+
+      $('form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var c = S.get('clients', $('customer').value);
+        var it = current();
+        var amount = Number($('amount').value);
+        var m = $('method').value;
+        var ok = [
+          setError('customer', c ? '' : 'Choose the customer who paid.'),
+          setError('items', !c || it ? '' : 'Choose what the payment is for.'),
+          setError('amount', !c ? '' : !(amount > 0) ? 'Enter the amount received.' : it && !it.schedule_id && amount > it.remaining + 0.001
+            ? 'More than the ' + fmt.money(it.remaining) + ' left on this order.' : ''),
+          setError('reference', m !== 'Cash' && !$('reference').value.trim() ? (m === 'Cheque' ? 'Enter the cheque number.' : 'Enter the transfer reference.') : ''),
+          setError('date', !$('date').value ? 'Enter the date received.' : $('date').value > S.today() ? 'The date can\'t be in the future.' : ''),
+          setError('proof', c && m !== 'Cash' && !$('proof-photo').value ? 'Add a photo of the ' + (m === 'Cheque' ? 'cheque' : 'transfer slip') + '.' : '')
+        ];
+        if (ok.indexOf(false) >= 0) {
+          var bad = document.querySelector('[aria-invalid="true"]') || $('items').querySelector('input');
+          if (bad) bad.focus();
+          return;
+        }
+        var row = P.record({
+          client_id: c.id, order_id: it.order_id, schedule_id: it.schedule_id, amount: amount, method: m,
+          reference_no: $('reference').value.trim(), date: $('date').value, proof_photo: $('proof-photo').value, channel: 'Office'
+        }, session);
+        draft.clear();
+        CNS.ui.flash('Payment saved. Receipt ' + P.receiptNo(row) + ' is ready to print.');
+        location.href = 'receipt.html?id=' + encodeURIComponent(row.id);
+      });
+    })();
+  </script>
+</body>
+</html>

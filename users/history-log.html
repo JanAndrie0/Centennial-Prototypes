@@ -98,6 +98,7 @@
   <script src="../assets/js/history.js"></script>
   <script src="../assets/js/auth.js"></script>
   <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/reports.js"></script>
   <script>
     (function () {
       var R = CNS.ROLES;
@@ -116,7 +117,7 @@
         'Products & Inventory': 'Products', 'Purchasing & Suppliers': 'Purchasing',
         'Customer Accounts & Payments': 'Customers', 'Reports': 'Reports'
       };
-      var ACTIONS = ['Login', 'Create', 'Edit', 'Delete', 'Approve', 'Reject', 'Stock change'];
+      var ACTIONS = ['Login', 'Create', 'Edit', 'Delete', 'Approve', 'Reject', 'Stock change', 'Export'];
 
       // Plain-word field names; money fields are shown in pesos
       var FIELDS = {
@@ -126,7 +127,7 @@
         qty_change: 'Quantity', verified_by: 'Verified by', payment_status: 'Payment status',
         name: 'Name', code: 'Code', category_id: 'Category', unit_id: 'Selling unit', supplier_id: 'Main supplier',
         supplier_units: 'Supplier units', storage: 'Storage', item: 'Order item',
-        schedule_date: 'Delivery date', truck_id: 'Truck', driver_id: 'Driver'
+        schedule_date: 'Delivery date', truck_id: 'Truck', driver_id: 'Driver', amount_paid: 'Amount paid'
       };
       var MONEY = ['selling_price', 'credit_limit'];
 
@@ -159,7 +160,14 @@
           case 'sales_orders': return r ? r.order_no : h.record_id;
           case 'purchase_orders': return r ? r.po_no : h.record_id;
           case 'clients': return r ? r.store_name : h.record_id;
-          case 'payments': return r ? 'Payment ' + (r.reference_no || fmt.money(r.amount)) : h.record_id;
+          case 'payments': return r ? (r.receipt_no || 'Payment') + ' · ' + (r.reference_no || fmt.money(r.amount)) : h.record_id;
+          case 'installment_plans': return r ? 'Installment plan · ' + ((safeGet('sales_orders', r.order_id) || {}).order_no || '') : h.record_id;
+          case 'installment_schedules': {
+            var plan = r && safeGet('installment_plans', r.plan_id);
+            var so = plan && safeGet('sales_orders', plan.order_id);
+            return r ? 'Installment due ' + fmt.date(r.due_date) + (so ? ' · ' + so.order_no : '') : h.record_id;
+          }
+          case 'reports': { var rep = CNS.reports && CNS.reports.get(h.record_id); return rep ? rep.name : h.record_id; }
           default: return h.record_id; // stock movements keep their reference, e.g. ADJ-0001
         }
       }

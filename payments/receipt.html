@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment receipt · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .receipt { max-width: 720px; padding: var(--space-6); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+    .r-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-4); border-bottom: 2px solid var(--color-text); }
+    .r-head img { height: 40px; width: auto; }
+    .r-company { margin: var(--space-2) 0 0; font-size: var(--text-small); color: var(--color-text-secondary); }
+    .r-title { margin: 0; font-size: 22px; font-weight: 800; text-align: right; }
+    .r-meta { margin: 2px 0 0; font-size: var(--text-small); text-align: right; }
+    .r-from { margin: var(--space-4) 0; font-size: var(--text-small); }
+    .r-from strong { display: block; font-size: var(--text-body); }
+    .r-amount { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); padding: var(--space-4); background: var(--color-bg); border-radius: var(--radius-md); }
+    .r-amount strong { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .r-sums { display: grid; grid-template-columns: 1fr max-content; gap: var(--space-2) var(--space-6); margin: var(--space-4) 0 0; font-variant-numeric: tabular-nums; }
+    .r-sums dt { color: var(--color-text-secondary); }
+    .r-sums dd { margin: 0; text-align: right; font-weight: 600; }
+    .r-sums .big { font-size: 18px; font-weight: 800; color: var(--color-text); }
+    .r-sign { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-7); margin-top: var(--space-7); font-size: var(--text-small); }
+    .r-sign div { padding-top: var(--space-2); border-top: 1px solid var(--color-text); }
+    .r-note { margin: var(--space-5) 0 0; font-size: var(--text-small); color: var(--color-text-secondary); }
+    .proof-img { max-width: 240px; margin-top: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    @media print { .receipt { max-width: none; padding: 0; border: 0; } .proof-img { display: none; } }
+  </style>
+</head>
+<body>
+  <!-- 5.2 Record Customer Payment: the payment receipt, with what it was applied to and the remaining balance -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="../customers/list.html">Customer Accounts &amp; Payments</a></li><li><a id="crumb-client"></a></li><li><span aria-current="page">Payment receipt</span></li></ol>
+    </nav>
+    <div class="page-head no-print">
+      <div><h1 class="page-title">Payment receipt</h1><p class="page-desc">Give a copy to the customer.</p></div>
+      <div class="page-head__actions">
+        <a class="btn btn--secondary" href="record.html" id="another"></a>
+        <button type="button" class="btn btn--primary" id="print"></button>
+      </div>
+    </div>
+    <article class="receipt" id="receipt" aria-label="Payment receipt"></article>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/payment-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.desktop({ active: 'customers' });
+      if (!session) return;
+      var S = CNS.store, P = CNS.payActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+
+      var p = S.get('payments', new URLSearchParams(location.search).get('id'));
+      if (!p) { location.replace('../customers/list.html'); return; }
+      var c = S.get('clients', p.client_id);
+      var o = p.order_id && S.get('sales_orders', p.order_id);
+      var branch = S.get('branches', c ? c.branch_id : 'b1');
+      var receiver = S.get('users', p.received_by);
+      var verifier = p.verified_by && S.get('users', p.verified_by);
+
+      // What it was applied to, and what is left on it now
+      var applied = o ? o.order_no : 'Account';
+      var left = o ? P.orderRemaining(o.id) : 0;
+      if (p.schedule_id) {
+        var s = S.get('installment_schedules', p.schedule_id);
+        var plan = s && S.get('installment_plans', s.plan_id);
+        if (plan) {
+          var rows = P.schedules(plan.id);
+          var i = rows.map(function (r) { return r.id; }).indexOf(s.id);
+          applied += plan.down_payment && i === 0 ? ' · Down payment' : ' · Installment ' + (plan.down_payment ? i : i + 1) + ' of ' + plan.no_of_payments + ' (due ' + fmt.date(s.due_date) + ')';
+          left = Math.max(0, s.amount_due - s.amount_paid);
+        }
+      }
+      var pendingNote = !p.verified_by && !p.bounced;
+
+      document.title = 'Receipt ' + P.receiptNo(p) + ' · Centennial Sales & Inventory';
+      $('crumb-client').href = '../customers/detail.html?id=' + encodeURIComponent(c.id) + '#view=payments';
+      $('crumb-client').textContent = c.store_name;
+      $('print').innerHTML = CNS.icon('printer') + 'Print receipt';
+      $('another').innerHTML = CNS.icon('plus-circle') + 'Record another';
+      $('print').addEventListener('click', function () { window.print(); });
+
+      $('receipt').innerHTML =
+        '<header class="r-head"><div><img src="../assets/img/logo.jpg" alt="Centennial N&amp;S Construction Corporation">' +
+          '<p class="r-company">' + esc(branch ? branch.name : '') + '</p></div>' +
+          '<div><p class="r-title">PAYMENT RECEIPT</p><p class="r-meta">No. ' + esc(P.receiptNo(p)) + '</p><p class="r-meta">Date: ' + esc(fmt.date(p.date)) + '</p></div></header>' +
+        '<p class="r-from"><span class="cell-sub">Received from</span><strong>' + esc(c.store_name) + '</strong>' + esc(c.address) + '</p>' +
+        '<div class="r-amount"><span>Amount received<span class="cell-sub">' + esc(p.method + (p.reference_no ? ' · ' + p.reference_no : '') + ' · ' + p.channel + ' payment') + '</span></span>' +
+          '<strong>' + esc(fmt.money(p.amount)) + '</strong></div>' +
+        '<dl class="r-sums"><dt>Applied to</dt><dd>' + esc(applied) + '</dd>' +
+          '<dt>Remaining on ' + (p.schedule_id ? 'this installment' : 'this order') + '</dt><dd class="big">' + esc(fmt.money(left)) + '</dd>' +
+          '<dt>Total account balance</dt><dd>' + esc(fmt.money(S.clientBalance(c.id))) + '</dd>' +
+          '<dt>Status</dt><dd>' + P.statusBadge(p) + '</dd></dl>' +
+        (pendingNote ? '<p class="notice notice--warning">' + CNS.icon('exclamation-triangle') + '<span>Field payment. The balance changes once the Office Manager verifies it.</span></p>' : '') +
+        '<div class="r-sign"><div>Received by: ' + esc(receiver ? receiver.full_name : '') + '</div><div>' + (verifier ? 'Verified by: ' + esc(verifier.full_name) : 'Verified by (Office Manager)') + '</div></div>' +
+        '<p class="r-note">This receipt is for the payment above only. Keep it with your copy of the sales receipt.</p>' +
+        (p.proof_photo ? '<img class="proof-img no-print" src="' + esc(p.proof_photo) + '" alt="Proof of payment for ' + esc(P.receiptNo(p)) + '">' : '');
+    })();
+  </script>
+</body>
+</html>

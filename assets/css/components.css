@@ -719,6 +719,41 @@
 .timeline__title { margin: 2px 0 0; font-weight: 700; }
 .timeline__meta { margin: 0; font-size: var(--text-small); color: var(--color-text-secondary); }
 
+/* ---- Bar charts (CNS.chart): grey bars, the highlighted bar (today) red, light grid ---- */
+
+.chart { margin: 0; }
+.chart__title { margin: 0 0 var(--space-3); font-size: var(--text-card-title); font-weight: 700; }
+.chart__empty { margin: 0; padding: var(--space-6) 0; color: var(--color-text-secondary); text-align: center; }
+.chart--cols { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); }
+.chart__axis { display: flex; flex-direction: column; justify-content: space-between; height: 200px; padding-bottom: 0; font-size: var(--text-caption); color: var(--color-text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
+.chart__plot { position: relative; display: flex; align-items: flex-end; gap: 4px; height: 200px; border-bottom: 1px solid var(--color-text-secondary);
+  background-image: linear-gradient(var(--color-chart-grid) 1px, transparent 1px); background-size: 100% 50px; background-position: 0 -1px; }
+.chart__col { position: relative; flex: 1 1 0; min-width: 4px; height: 100%; display: flex; align-items: flex-end; }
+.chart__bar { width: 100%; min-height: 1px; background: var(--color-chart-bar); border-radius: 3px 3px 0 0; }
+.chart__col.is-hi .chart__bar, .chart__hrow.is-hi .chart__hfill { background: var(--color-primary); }
+.chart__col:hover .chart__bar { opacity: .85; }
+.chart__labels { grid-column: 2; display: flex; gap: 4px; font-size: var(--text-caption); color: var(--color-text-secondary); }
+.chart__labels span { flex: 1 1 0; min-width: 4px; overflow: hidden; text-align: center; white-space: nowrap; }
+.chart__labels .is-hi { color: var(--color-primary); font-weight: 700; }
+.chart--rows { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.chart__hrow { display: grid; grid-template-columns: minmax(120px, 30%) minmax(0, 1fr) max-content; align-items: center; gap: var(--space-3); font-size: var(--text-small); }
+.chart__hlabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart__htrack { height: 18px; background: var(--color-border-subtle); border-radius: 3px; }
+.chart__hfill { height: 100%; min-width: 2px; background: var(--color-chart-bar); border-radius: 3px; }
+.chart__hvalue { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+@media (max-width: 640px) {
+  /* Phones: only the first, last and highlighted labels, so they never overlap */
+  .chart__labels span:not(.is-hi):not(.is-edge) { visibility: hidden; }
+  .chart__labels span.is-edge, .chart__labels span.is-hi { overflow: visible; }
+  .chart__labels span.is-edge:first-child { text-align: left; }
+  .chart__labels span.is-edge:last-child { text-align: right; }
+  .chart__hrow { grid-template-columns: minmax(90px, 35%) minmax(0, 1fr) max-content; }
+}
+@media print {
+  .chart__bar, .chart__hfill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .chart__axis, .chart__plot { height: 140px; }
+}
+
 /* ---- Toast: short confirmation after an action, bottom right ---- */
 
 .toast-region {

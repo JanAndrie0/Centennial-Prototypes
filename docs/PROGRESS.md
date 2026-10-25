@@ -18,11 +18,11 @@ Build order (from `docs/modules/00-overview-and-feature-map.md` §4): foundation
 | 3 | 05 Customer Accounts, part 1 | Done, approved | `customers/list.html`, `customers/detail.html` |
 | 4 | 02 Sales Orders & Deliveries | Done, browser-tested | `orders/list, new, approvals, detail, receipt`, `deliveries/list, detail, load-list`, `m/home, new-order, deliveries` |
 | 5 | 04 Purchasing & Suppliers | Done, browser-tested | `purchasing/list, suppliers, new, approvals, detail, receive` |
-| 6 | **05 Customer Accounts, part 2** | **Next** | installments, record payment (office `payments/record.html`, field `m/payments.html`), verify, receivables `payments/receivables.html`, `m/customers.html` |
-| 7 | 06 Reports | Not started | `reports/index.html`, `reports/view.html` |
-| 8 | Dashboards | Not started (placeholders exist) | `dashboard.html`, `m/home.html` (agent home is partly built) |
+| 6 | 05 Customer Accounts, part 2 | Done, browser-tested (Oct 25) | `payments/record, receipt, receivables`, installment plan modal in `customers/detail.html`, `m/customers, payments` |
+| 7 | 06 Reports | Done, browser-tested (Oct 25) | `reports/index.html`, `reports/view.html?type=…` (9 reports) |
+| 8 | **Dashboards** | **Next** (placeholders exist) | `dashboard.html`, `m/home.html` (agent home is partly built) |
 
-The sidebar already links to `reports/index.html`; those pages don't exist yet.
+After dashboards: the end-to-end walkthrough (00 §4).
 
 ## 2. Decisions (with dates and reasons)
 
@@ -55,6 +55,22 @@ The sidebar already links to `reports/index.html`; those pages don't exist yet.
 - One purchase request per supplier. Quantities are in the supplier's unit; stock is added in the selling unit using `product_supplier.conversion`. Receiving supports splitting one line into two products (mother box → Epoxy A + B).
 - Payables (Unpaid) only count POs that are Ordered or received.
 
+### Customer payments (Oct 25, confirm with the team)
+- **Office payments count right away** (the money is already at the office; `verified_by` = the person who received it). **Field payments** are "For verification" until the **Office Manager of the customer's branch** verifies them in Receivables → To verify. Only counted payments lower the balance and fill installment rows.
+- A payment applies to one item: an installment row, or a whole order without a plan. Partial payments allowed. On an installment, any extra spills into the next rows of the same plan.
+- Proof photo is required for cheque and bank transfer at the office, and for every field payment.
+- The OM can **Reject** a field payment (reason shown to the agent) and **Mark as bounced** a verified cheque on the customer's Payments tab. Both are stored as `bounced: true` plus `reject_reason`.
+- Installment plans cover what is left on a billed order; optional down payment becomes the first row (due today). Frequencies: weekly, every 15 days, monthly. Rows are editable but must add up to the total.
+- **Aging:** overdue installment rows age from their due date; everything else in the balance is "Current", because orders without a plan have no due date in the ERD (see open question).
+- New columns added to `payments`: `receipt_no` (PR-0001…), `recorded_at`, `verified_at`, `reject_reason`; to `installment_plans`: `down_payment`, `created_by`. Seed payments show receipt numbers derived from their id.
+
+### Reports (Oct 25)
+- Nine reports, computed live from the same data (numbers match 3.0: backorders, reorder list and fast/slow use the same store functions).
+- Snapshot reports (Backorder, Reorder, Receivables aging) say "As of today" instead of a date range.
+- **Inventory Summary**'s frequency is the period itself: Daily = today, Weekly = this week, Monthly = this month (or custom dates). **Sales** frequency groups the chart and table by day, week or month.
+- **Fast/slow** ranks by share of the ceiling sold (units differ between products), with the same 20% / none-sold rule as 3.0. Default range: last 30 days, so it matches the 3.0 filter.
+- Branch filter: CEO and Office Manager pick any branch or All; Sales Supervisor and staff see their own branch only. Exports are logged in the History Log (action "Export").
+
 ## 3. Open questions (ask the team or client before building these)
 
 - **D5:** which number triggers the low-stock alert. The plans treat the critical level and the reorder point as the same number.
@@ -62,6 +78,8 @@ The sidebar already links to `reports/index.html`; those pages don't exist yet.
 - **D7:** order edit window. The plans allow edits until Shipped; Chapter 3 says "until the delivery date".
 - **D8:** one selling unit per product, and no product cost stored (so no cost/ABC reports).
 - **D9:** map the Online Transaction Module for the coordinator.
+- **Payment terms for orders without an installment plan:** when are they due (e.g. 30 days after delivery)? Until decided, they stay "Current" in aging and never become overdue.
+- **Office payments verification:** confirm the Oct 25 rule above (office counts at once, only field payments need the OM).
 - Agents can't edit their own orders on the phone yet (Chapter 3 says they can add products until the delivery date). Office staff can edit items on the desktop.
 
 ## 4. How the code is organized (reuse, don't copy)
@@ -69,7 +87,7 @@ The sidebar already links to `reports/index.html`; those pages don't exist yet.
 - Every page loads `assets/js/core.js, icons.js, format.js, data.js, store.js, history.js, auth.js, layout.js` and calls `CNS.layout.desktop({ active: '<menu id>' })` or `CNS.layout.mobile({ active: '<tab id>' })`.
 - **Data:** only through `CNS.store` (localStorage). Table and column names follow the ERD. If you change the seed in `data.js`, bump `VERSION` in `store.js` so every browser reloads the sample data.
 - **Every change is logged** with `CNS.history.log(...)` or `CNS.history.logChange(module, recordType, id, field, old, new)`.
-- Shared helpers: `CNS.ui.badge / stockBadge / orderBadge / toast / flash / confirm / tabs`, `CNS.autosave.attach`, `CNS.layout.moduleTabs`, `CNS.stockActions` (adjust/transfer/receive), `CNS.orderActions` (order status steps), `CNS.poActions` (purchase order steps), `CNS.slipReader`, `CNS.stockCheck`.
+- Shared helpers: `CNS.ui.badge / stockBadge / orderBadge / toast / flash / confirm / tabs`, `CNS.autosave.attach`, `CNS.layout.moduleTabs`, `CNS.stockActions` (adjust/transfer/receive), `CNS.orderActions` (order status steps), `CNS.poActions` (purchase order steps), `CNS.slipReader`, `CNS.stockCheck`, `CNS.payActions` (installments, record / verify / reject payments, aging, due soon), `CNS.chart` (bar charts: `columns` over time, `rows` ranked; reuse for the dashboards), `CNS.reports` (the 9 report definitions).
 - Styles: only the tokens in `assets/css/tokens.css` and the classes in `components.css` / `layout.css`. No hard-coded colors.
 - Tab addresses look like `#view=items` (a plain `#items` can clash with element ids and make the page jump).
 - Icons: Heroicons v2.2.0 outline in `assets/icons/outline/`. After adding an SVG there, run `node tools/build-icons.js`.

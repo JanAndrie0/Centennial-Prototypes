@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My stores · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .store-cards { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+    .store-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4);
+      color: var(--color-text); text-decoration: none; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+    .store-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .store-card__name { margin: 0; font-weight: 700; }
+    .store-card__meta { margin: 2px 0 0; color: var(--color-text-secondary); font-size: var(--text-small); }
+    .store-card__right { display: grid; justify-items: end; gap: 4px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .back { display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--tap); margin-bottom: var(--space-2); font-weight: 600; color: var(--color-primary); text-decoration: none; }
+    .back:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+    .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin: var(--space-4) 0; }
+    .tile { padding: var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+    .tile dt { font-size: var(--text-small); color: var(--color-text-secondary); }
+    .tile dd { margin: 2px 0 0; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .tile.is-bad { border-color: var(--color-error); background: var(--color-error-bg); }
+    .tile.is-bad dd { color: var(--color-error); }
+    .tile.is-warn dd { color: var(--color-warning); }
+    .actions { display: grid; grid-template-columns: 1fr; gap: var(--space-2); margin-bottom: var(--space-4); }
+    .section-title { margin: var(--space-5) 0 var(--space-2); font-size: 18px; font-weight: 700; }
+    .rows { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+    .row { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+    .row__main { display: grid; gap: 2px; min-width: 0; }
+    .row__amount { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+    .contact a { font-weight: 700; color: var(--color-primary); }
+  </style>
+</head>
+<body>
+  <!-- 5.4 Provide Customer Balance: the agent's stores with balance, credit limit, overdue and last payments (Problem F6) -->
+  <main id="main">
+    <div id="list-view">
+      <h1 class="page-title">My stores</h1>
+      <p class="page-desc">Balance and overdue for each store you visit.</p>
+      <form role="search" aria-label="Find a store" onsubmit="return false">
+        <div class="search">
+          <label class="sr-only" for="q">Store name or town</label>
+          <span id="search-icon"></span>
+          <input class="input" type="search" id="q" placeholder="Store name or town" autocomplete="off" enterkeyhint="search">
+        </div>
+      </form>
+      <p class="result-count" id="count" role="status"></p>
+      <ul class="store-cards" id="stores"></ul>
+    </div>
+
+    <div id="detail-view" hidden>
+      <a class="back" href="customers.html" id="back"></a>
+      <h1 class="page-title" id="d-name"></h1>
+      <p class="page-desc contact" id="d-contact"></p>
+      <dl class="tiles" id="d-tiles"></dl>
+      <div class="actions">
+        <a class="btn btn--primary" id="d-pay"></a>
+        <a class="btn btn--secondary" id="d-order"></a>
+      </div>
+      <h2 class="section-title">Still to pay</h2>
+      <ul class="rows" id="d-open"></ul>
+      <h2 class="section-title">Last payments</h2>
+      <ul class="rows" id="d-pays"></ul>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/payment-actions.js"></script>
+  <script>
+    (function () {
+      var session = CNS.layout.mobile({ active: 'customers' });
+      if (!session) return;
+      var S = CNS.store, P = CNS.payActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+
+      var stores = S.where('clients', function (c) { return c.agent_id === me.id; })
+        .sort(function (a, b) { return a.store_name.localeCompare(b.store_name); });
+      var id = new URLSearchParams(location.search).get('id');
+      var c = id && stores.filter(function (x) { return x.id === id; })[0];
+
+      if (!c) {
+        $('search-icon').outerHTML = CNS.icon('magnifying-glass');
+        var renderList = function () {
+          var words = $('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+          var list = stores.filter(function (x) {
+            var hay = (x.store_name + ' ' + x.address).toLowerCase();
+            return words.every(function (w) { return hay.indexOf(w) >= 0; });
+          });
+          $('count').textContent = list.length + (list.length === 1 ? ' store' : ' stores');
+          $('stores').innerHTML = list.map(function (x) {
+            var bal = S.clientBalance(x.id), od = S.clientOverdue(x.id);
+            return '<li><a class="store-card" href="customers.html?id=' + encodeURIComponent(x.id) + '">' +
+              '<span><p class="store-card__name">' + esc(x.store_name) + '</p><p class="store-card__meta">' + esc(x.address) + '</p></span>' +
+              '<span class="store-card__right">' + esc(fmt.money(bal)) +
+                (od ? CNS.ui.badge('error', 'exclamation-circle', 'Overdue') : bal > x.credit_limit ? CNS.ui.badge('warning', 'exclamation-triangle', 'Over limit') : '') +
+              '</span></a></li>';
+          }).join('') || '<li class="card empty"><p class="empty__title">No stores match.</p><p class="empty__text">Check the spelling.</p></li>';
+        };
+        $('q').addEventListener('input', renderList);
+        renderList();
+        return;
+      }
+
+      // ---- One store ----
+      $('list-view').hidden = true;
+      $('detail-view').hidden = false;
+      document.title = c.store_name + ' · Centennial Sales & Inventory';
+      $('back').innerHTML = CNS.icon('chevron-left') + 'All my stores';
+      $('d-name').textContent = c.store_name;
+      $('d-contact').innerHTML = esc(c.contact_person) + ' · <a href="tel:' + esc(c.contact_no.replace(/\s/g, '')) + '">' + esc(c.contact_no) + '</a>';
+      $('d-pay').href = 'payments.html?client=' + encodeURIComponent(c.id);
+      $('d-pay').innerHTML = CNS.icon('banknotes') + 'Record payment';
+      $('d-order').href = 'new-order.html?client=' + encodeURIComponent(c.id);
+      $('d-order').innerHTML = CNS.icon('plus-circle') + 'New order';
+
+      var bal = S.clientBalance(c.id), od = S.clientOverdue(c.id), days = S.clientOverdueDays(c.id);
+      var left = c.credit_limit - bal;
+      $('d-tiles').innerHTML =
+        '<div class="tile"><dt>Balance</dt><dd>' + esc(fmt.money(bal)) + '</dd></div>' +
+        '<div class="tile"><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
+        '<div class="tile' + (left < 0 ? ' is-warn' : '') + '"><dt>' + (left < 0 ? 'Over the limit by' : 'Credit left') + '</dt><dd>' + esc(fmt.money(Math.abs(left))) + '</dd></div>' +
+        '<div class="tile' + (od ? ' is-bad' : '') + '"><dt>Overdue' + (od ? ' · ' + days + (days === 1 ? ' day' : ' days') : '') + '</dt><dd>' + esc(fmt.money(od)) + '</dd></div>';
+
+      var open = P.openItems(c.id);
+      $('d-open').innerHTML = open.map(function (x) {
+        var sub = x.due_date ? (x.overdue ? 'Was due ' : 'Due ') + fmt.date(x.due_date) : 'No installment plan';
+        return '<li class="row"><span class="row__main"><strong>' + esc(x.label) + '</strong><span class="cell-sub">' + esc(sub) + '</span>' +
+          (x.overdue ? '<span>' + CNS.ui.badge('error', 'exclamation-circle', 'Overdue') + '</span>' : '') +
+          (x.waiting ? '<span class="cell-sub">' + esc(fmt.money(x.waiting)) + ' waiting for verification</span>' : '') + '</span>' +
+          '<span class="row__amount">' + esc(fmt.money(x.remaining)) + '</span></li>';
+      }).join('') || '<li class="row"><span>Nothing to pay.</span></li>';
+
+      var pays = S.where('payments', function (p) { return p.client_id === c.id; })
+        .sort(function (a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 5);
+      $('d-pays').innerHTML = pays.map(function (p) {
+        return '<li class="row"><span class="row__main"><strong>' + esc(fmt.date(p.date)) + '</strong><span class="cell-sub">' + esc(p.method + ' · ' + p.channel) + '</span>' +
+          '<span>' + P.statusBadge(p) + '</span>' + (p.reject_reason ? '<span class="cell-sub">' + esc(p.reject_reason) + '</span>' : '') + '</span>' +
+          '<span class="row__amount">' + esc(fmt.money(p.amount)) + '</span></li>';
+      }).join('') || '<li class="row"><span>No payments yet.</span></li>';
+    })();
+  </script>
+</body>
+</html>

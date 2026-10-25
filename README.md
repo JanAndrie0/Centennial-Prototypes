@@ -15,7 +15,7 @@ Changes are saved in your browser only. Use **Reset demo data** at the bottom of
 ## What's in here
 
 - `login.html`, `dashboard.html` — login and home screen
-- `users/`, `products/`, `customers/`, `orders/`, `deliveries/`, `purchasing/` — the modules
+- `users/`, `products/`, `customers/`, `payments/`, `orders/`, `deliveries/`, `purchasing/`, `reports/` — the modules
 - `m/` — the sales agent's phone screens
 - `assets/` — shared styles, scripts, icons and the logo
 - `docs/` — module plans and the build order

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Receivables · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .table tfoot td { font-weight: 800; border-top: 1.5px solid var(--color-text); background: var(--color-bg); }
+    .zero { color: var(--color-text-secondary); }
+    .verify-list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+    .verify-card { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: var(--space-4); align-items: start; padding: var(--space-4); }
+    .verify-card__proof { width: 120px; height: 120px; object-fit: cover; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+    .verify-card__noproof { display: grid; place-items: center; width: 120px; height: 120px; font-size: var(--text-small); color: var(--color-text-secondary); text-align: center; background: var(--color-bg); border: 1px dashed var(--color-input-border); border-radius: var(--radius-md); }
+    .verify-card__top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); }
+    .verify-card__store { margin: 0; font-size: 18px; font-weight: 700; }
+    .verify-card__amount { margin: 0; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .verify-card .details { grid-template-columns: max-content 1fr; gap: 4px var(--space-4); margin-top: var(--space-2); font-size: var(--text-small); }
+    .verify-card__actions { display: grid; gap: var(--space-2); min-width: 160px; }
+    .proof-big { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: var(--radius-md); }
+    .proof-btn { padding: 0; background: none; border: 0; cursor: zoom-in; border-radius: var(--radius-md); }
+    .proof-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    @media (max-width: 760px) { .verify-card { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <!-- 5.5 Monitor Receivables: aging, overdue alerts, due-date reminders; 5.3 verify field payments (Office Manager) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="../customers/list.html">Customer Accounts &amp; Payments</a></li><li><span aria-current="page">Receivables</span></li></ol>
+    </nav>
+    <nav id="module-tabs"></nav>
+
+    <h1 class="page-title">Receivables</h1>
+    <p class="page-desc" id="desc">What customers still owe, what is late, and field payments to verify.</p>
+
+    <section class="stats" aria-label="Receivables summary" id="stats"></section>
+
+    <div class="tabs" role="tablist" aria-label="Receivables" id="tablist">
+      <button type="button" role="tab" id="tab-verify" aria-controls="panel-verify"></button>
+      <button type="button" role="tab" id="tab-overdue" aria-controls="panel-overdue"></button>
+      <button type="button" role="tab" id="tab-due" aria-controls="panel-due"></button>
+      <button type="button" role="tab" id="tab-aging" aria-controls="panel-aging"></button>
+    </div>
+
+    <section class="tab-panel" role="tabpanel" id="panel-verify" aria-labelledby="tab-verify" tabindex="0" hidden><div id="verify"></div></section>
+    <section class="tab-panel" role="tabpanel" id="panel-overdue" aria-labelledby="tab-overdue" tabindex="0" hidden><div class="table-wrap" id="overdue"></div></section>
+    <section class="tab-panel" role="tabpanel" id="panel-due" aria-labelledby="tab-due" tabindex="0" hidden><div class="table-wrap" id="due"></div></section>
+    <section class="tab-panel" role="tabpanel" id="panel-aging" aria-labelledby="tab-aging" tabindex="0" hidden><div class="table-wrap" id="aging"></div></section>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/payment-actions.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      var session = CNS.layout.desktop({ active: 'customers' });
+      if (!session) return;
+      var S = CNS.store, P = CNS.payActions, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var staff = me.role === R.STAFF;   // staff get the due-date reminders only (05 plan access table)
+
+      function scope() { return CNS.auth.canSwitchBranch(me) ? session.branchView : me.branch_id; }
+      // Each branch's own Office Manager verifies that branch's field payments
+      function canVerify(p) { var c = S.get('clients', p.client_id); return me.role === R.OM && c && c.branch_id === me.branch_id; }
+      function userName(uid) { var u = uid && S.get('users', uid); return u ? u.full_name : '—'; }
+      function emptyLine(t) { return '<p class="empty-line">' + esc(t) + '</p>'; }
+      function money(n) { return n ? esc(fmt.money(n)) : '<span class="zero">—</span>'; }
+      function clientLink(c) { return '<a class="row-link" href="../customers/detail.html?id=' + encodeURIComponent(c.id) + '">' + esc(c.store_name) + '</a>'; }
+      function payLink(c, s) {
+        return '<a class="btn-link nowrap" href="record.html?client=' + encodeURIComponent(c.id) + (s ? '&item=' + encodeURIComponent('s:' + s.id) : '') + '">' +
+          CNS.icon('banknotes') + 'Record payment</a>';
+      }
+      function rowNo(x) {
+        var rows = P.schedules(x.plan.id), i = rows.map(function (r) { return r.id; }).indexOf(x.schedule.id);
+        return x.plan.down_payment && i === 0 ? 'Down payment' : 'Payment ' + (x.plan.down_payment ? i : i + 1) + ' of ' + x.plan.no_of_payments;
+      }
+
+      if (staff) {
+        $('desc').textContent = 'Installments due in the next 7 days. Remind the customer or the agent.';
+        ['verify', 'overdue', 'aging'].forEach(function (t) { $('tab-' + t).remove(); $('panel-' + t).remove(); });
+      }
+
+      function clients() {
+        var sc = scope();
+        return S.where('clients', function (c) { return sc === 'all' || c.branch_id === sc; })
+          .sort(function (a, b) { return a.store_name.localeCompare(b.store_name); });
+      }
+
+      function render() {
+        CNS.layout.moduleTabs('customers', 'receivables', session);
+        var sc = scope();
+        var due = P.dueSoon(7, sc);
+        var dueTotal = due.reduce(function (t, x) { return t + x.schedule.amount_due - x.schedule.amount_paid; }, 0);
+
+        if (staff) {
+          $('stats').innerHTML = '<div class="stat"><p class="stat__label">Due in the next 7 days</p><p class="stat__value">' + esc(fmt.money(dueTotal)) + '</p>' +
+            '<p class="stat__sub">' + due.length + (due.length === 1 ? ' installment' : ' installments') + '</p></div>';
+          $('stats').style.gridTemplateColumns = 'minmax(0, 320px)';
+        } else {
+          var overdue = P.overdueRows(sc);
+          var verify = P.toVerify(sc);
+          var ages = clients().map(function (c) { return { c: c, a: P.aging(c.id) }; });
+          var totalRec = ages.reduce(function (t, x) { return t + x.a.total; }, 0);
+          var overdueTotal = overdue.reduce(function (t, x) { return t + x.schedule.amount_due - x.schedule.amount_paid; }, 0);
+          var verifyTotal = verify.reduce(function (t, p) { return t + p.amount; }, 0);
+          $('stats').innerHTML =
+            '<div class="stat"><p class="stat__label">Total receivables</p><p class="stat__value">' + esc(fmt.money(totalRec)) + '</p><p class="stat__sub">' + esc(S.branchName(sc)) + '</p></div>' +
+            '<div class="stat' + (overdueTotal ? ' stat--error' : '') + '"><p class="stat__label">Overdue</p><p class="stat__value">' + esc(fmt.money(overdueTotal)) + '</p><p class="stat__sub">' + overdue.length + (overdue.length === 1 ? ' late installment' : ' late installments') + '</p></div>' +
+            '<div class="stat"><p class="stat__label">Due in the next 7 days</p><p class="stat__value">' + esc(fmt.money(dueTotal)) + '</p><p class="stat__sub">' + due.length + (due.length === 1 ? ' installment' : ' installments') + '</p></div>' +
+            '<div class="stat' + (verify.length ? ' stat--warning' : '') + '"><p class="stat__label">Field payments to verify</p><p class="stat__value">' + esc(fmt.money(verifyTotal)) + '</p><p class="stat__sub">' + verify.length + (verify.length === 1 ? ' payment' : ' payments') + '</p></div>';
+
+          $('tab-verify').innerHTML = CNS.icon('check-circle') + 'To verify <span class="tab-count">' + verify.length + '</span>';
+          $('tab-overdue').innerHTML = CNS.icon('exclamation-circle') + 'Overdue <span class="tab-count">' + overdue.length + '</span>';
+          $('tab-aging').innerHTML = CNS.icon('chart-bar') + 'Aging';
+          renderVerify(verify);
+          renderOverdue(overdue);
+          renderAging(ages);
+        }
+        $('tab-due').innerHTML = CNS.icon('bell') + 'Due soon <span class="tab-count">' + due.length + '</span>';
+        renderDue(due);
+      }
+
+      // ---- 5.3: field payments waiting for the Office Manager ----
+      function renderVerify(list) {
+        $('verify').innerHTML = list.length ? (me.role === R.OM ? '' : '<p class="notice notice--info">' + CNS.icon('information-circle') + '<span>The Office Manager of the customer\'s branch verifies these. View only.</span></p>') +
+          '<ul class="verify-list">' + list.map(function (p) {
+            var c = S.get('clients', p.client_id);
+            var o = p.order_id && S.get('sales_orders', p.order_id);
+            var s = p.schedule_id && S.get('installment_schedules', p.schedule_id);
+            var mine = canVerify(p);
+            return '<li class="card verify-card">' +
+              (p.proof_photo ? '<button type="button" class="proof-btn" data-proof="' + esc(p.id) + '"><img class="verify-card__proof" src="' + esc(p.proof_photo) + '" alt="Proof of payment, ' + esc(P.receiptNo(p)) + '. Open larger."></button>'
+                : '<div class="verify-card__noproof">No photo attached</div>') +
+              '<div><div class="verify-card__top"><p class="verify-card__store">' + esc(c.store_name) + '</p><p class="verify-card__amount">' + esc(fmt.money(p.amount)) + '</p></div>' +
+                '<dl class="details"><dt>Receipt</dt><dd>' + esc(P.receiptNo(p)) + ' · ' + esc(fmt.date(p.date)) + '</dd>' +
+                '<dt>Method</dt><dd>' + esc(p.method + (p.reference_no ? ' · ' + p.reference_no : '')) + '</dd>' +
+                '<dt>For</dt><dd>' + esc((o ? o.order_no : 'Account') + (s ? ' · installment due ' + fmt.date(s.due_date) : '')) + '</dd>' +
+                '<dt>Collected by</dt><dd>' + esc(userName(p.received_by) + ' (' + p.channel + ')') + (scope() === 'all' ? ' · ' + esc(S.branchName(c.branch_id)) : '') + '</dd></dl></div>' +
+              (mine ? '<div class="verify-card__actions"><button type="button" class="btn btn--secondary" data-verify="' + esc(p.id) + '">' + CNS.icon('check') + 'Verify</button>' +
+                '<button type="button" class="btn-link" data-reject="' + esc(p.id) + '">' + CNS.icon('x-mark') + 'Reject</button></div>'
+                : '<div>' + P.statusBadge(p) + '</div>') +
+              '</li>';
+          }).join('') + '</ul>'
+          : '<div class="card empty"><p class="empty__title">No field payments to verify.</p><p class="empty__text">Payments that agents collect show up here.</p></div>';
+      }
+
+      function renderOverdue(list) {
+        $('overdue').innerHTML = list.length
+          ? '<table class="table"><thead><tr><th scope="col">Customer</th><th scope="col">Order</th><th scope="col">Due date</th><th scope="col">Late</th>' +
+              '<th scope="col" class="num-col">Remaining</th><th scope="col">Agent and contact</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead><tbody>' +
+            list.map(function (x) {
+              return '<tr><td>' + clientLink(x.client) + '</td><td class="nowrap">' + esc(x.order.order_no) + '<span class="cell-sub">' + esc(rowNo(x)) + '</span></td>' +
+                '<td class="nowrap">' + esc(fmt.date(x.schedule.due_date)) + '</td>' +
+                '<td>' + CNS.ui.badge('error', 'exclamation-circle', x.days + (x.days === 1 ? ' day' : ' days')) + '</td>' +
+                '<td class="num-col cell-main">' + esc(fmt.money(x.schedule.amount_due - x.schedule.amount_paid)) + '</td>' +
+                '<td class="nowrap">' + esc(userName(x.client.agent_id)) + '<span class="cell-sub">' + esc(x.client.contact_person + ' · ' + x.client.contact_no) + '</span></td>' +
+                '<td>' + payLink(x.client, x.schedule) + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          : emptyLine('Nothing overdue. Every installment is paid on time.');
+      }
+
+      function renderDue(list) {
+        var today = S.today();
+        $('due').innerHTML = list.length
+          ? '<table class="table"><thead><tr><th scope="col">Due</th><th scope="col">Customer</th><th scope="col">Order</th>' +
+              '<th scope="col" class="num-col">Amount due</th><th scope="col">Agent and contact</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead><tbody>' +
+            list.map(function (x) {
+              var d = P.daysBetween(today, x.schedule.due_date);
+              var when = d === 0 ? CNS.ui.badge('warning', 'bell', 'Today') : d === 1 ? CNS.ui.badge('info', 'bell', 'Tomorrow') : CNS.ui.badge('neutral', 'bell', 'In ' + d + ' days');
+              return '<tr><td class="nowrap">' + when + '<span class="cell-sub">' + esc(fmt.date(x.schedule.due_date)) + '</span></td>' +
+                '<td>' + clientLink(x.client) + '</td><td class="nowrap">' + esc(x.order.order_no) + '<span class="cell-sub">' + esc(rowNo(x)) + '</span></td>' +
+                '<td class="num-col cell-main">' + esc(fmt.money(x.schedule.amount_due - x.schedule.amount_paid)) + '</td>' +
+                '<td class="nowrap">' + esc(userName(x.client.agent_id)) + '<span class="cell-sub">' + esc(x.client.contact_person + ' · ' + x.client.contact_no) + '</span></td>' +
+                '<td>' + payLink(x.client, x.schedule) + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          : emptyLine('No installments due in the next 7 days.');
+      }
+
+      // Problem F9: receivables aging
+      function renderAging(ages) {
+        var rows = ages.filter(function (x) { return x.a.total !== 0; }).sort(function (a, b) { return b.a.total - a.a.total; });
+        var keys = ['current', 'd30', 'd60', 'd90', 'd90p', 'total'];
+        var tot = {};
+        keys.forEach(function (k) { tot[k] = rows.reduce(function (t, x) { return t + x.a[k]; }, 0); });
+        $('aging').innerHTML = rows.length
+          ? '<table class="table"><thead><tr><th scope="col">Customer</th><th scope="col" class="num-col">Current</th><th scope="col" class="num-col">1–30 days</th>' +
+              '<th scope="col" class="num-col">31–60 days</th><th scope="col" class="num-col">61–90 days</th><th scope="col" class="num-col">Over 90 days</th><th scope="col" class="num-col">Total</th></tr></thead><tbody>' +
+            rows.map(function (x) {
+              return '<tr><td>' + clientLink(x.c) + (scope() === 'all' ? '<span class="cell-sub">' + esc(S.branchName(x.c.branch_id)) + '</span>' : '') + '</td>' +
+                keys.map(function (k) { return '<td class="num-col' + (k === 'total' ? ' cell-main' : '') + '">' + money(x.a[k]) + '</td>'; }).join('') + '</tr>';
+            }).join('') + '</tbody><tfoot><tr><td>Total · ' + rows.length + (rows.length === 1 ? ' customer' : ' customers') + '</td>' +
+            keys.map(function (k) { return '<td class="num-col">' + esc(fmt.money(tot[k])) + '</td>'; }).join('') + '</tr></tfoot></table>'
+          : emptyLine('No customer owes anything.');
+      }
+
+      // ---- Verify / reject / view proof ----
+      document.addEventListener('click', function (e) {
+        var v = e.target.closest('[data-verify]'), r = e.target.closest('[data-reject]'), pr = e.target.closest('[data-proof]');
+        if (v) {
+          var p = S.get('payments', v.getAttribute('data-verify'));
+          var c = S.get('clients', p.client_id);
+          CNS.ui.confirm({ title: 'Verify ' + fmt.money(p.amount) + '?', body: 'Only verify once the money is in. The ' + c.store_name + ' balance drops by this amount.', confirm: 'Verify payment', icon: 'check-circle' })
+            .then(function (yes) {
+              if (!yes) return;
+              P.verify(p, session);
+              render();
+              CNS.ui.toast('Payment verified. ' + c.store_name + ' balance is now ' + fmt.money(S.clientBalance(c.id)) + '.');
+            });
+        }
+        if (r) openReject(S.get('payments', r.getAttribute('data-reject')));
+        if (pr) {
+          var pp = S.get('payments', pr.getAttribute('data-proof'));
+          var d = document.createElement('dialog');
+          d.className = 'modal modal--wide';
+          d.setAttribute('aria-labelledby', 'pv-title');
+          d.innerHTML = '<h2 class="modal__title" id="pv-title">Proof of payment · ' + esc(P.receiptNo(pp)) + '</h2>' +
+            '<img class="proof-big" src="' + esc(pp.proof_photo) + '" alt="Proof of payment, full size">' +
+            '<form method="dialog" class="modal__actions"><button class="btn btn--secondary" autofocus>Close</button></form>';
+          var opener = document.activeElement;
+          document.body.appendChild(d);
+          d.addEventListener('close', function () { d.remove(); if (opener) opener.focus(); });
+          d.addEventListener('click', function (ev) { if (ev.target === d) d.close(); });
+          d.showModal();
+        }
+      });
+
+      function openReject(p) {
+        var d = document.createElement('dialog');
+        d.className = 'modal modal--form';
+        d.setAttribute('aria-labelledby', 'rj-title');
+        d.innerHTML = CNS.icon('exclamation-triangle', 'modal__icon') +
+          '<h2 class="modal__title" id="rj-title">Reject this payment?</h2>' +
+          '<p class="modal__body">' + esc(fmt.money(p.amount) + ' · ' + P.receiptNo(p)) + '. It will not count toward the balance. The agent sees the reason.</p>' +
+          '<form novalidate><div class="field"><label class="label" for="rj-reason">Reason</label>' +
+            '<select class="input" id="rj-reason"><option>Money not received</option><option>Cheque bounced</option><option>Wrong amount</option><option>Proof unclear</option></select></div>' +
+          '<div class="modal__actions"><button type="button" class="btn btn--secondary" data-cancel autofocus>Cancel</button>' +
+          '<button type="submit" class="btn btn--primary">Reject payment</button></div></form>';
+        var opener = document.activeElement;
+        document.body.appendChild(d);
+        d.addEventListener('close', function () { d.remove(); if (opener && document.contains(opener)) opener.focus(); });
+        d.querySelector('[data-cancel]').addEventListener('click', function () { d.close(); });
+        d.querySelector('form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          P.reject(p, d.querySelector('#rj-reason').value, session);
+          d.close();
+          render();
+          CNS.ui.toast('Payment rejected.');
+        });
+        d.showModal();
+      }
+
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        render();
+      });
+
+      render();
+      // Office Manager lands on the verify queue when something waits; others on aging
+      if (!staff && !location.hash) {
+        var first = me.role === R.OM && P.toVerify(scope()).length ? 'verify' : 'aging';
+        history.replaceState(null, '', location.pathname + location.search + '#view=' + first);
+      }
+      CNS.ui.tabs($('tablist'));
+      if (staff) $('tablist').hidden = true;
+    })();
+  </script>
+</body>
+</html>

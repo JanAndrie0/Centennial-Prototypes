@@ -254,6 +254,18 @@
         } },
       { id: 'receive', label: 'Receive delivery', href: 'purchasing/receive.html', icon: 'arrow-down-tray' },
       { id: 'suppliers', label: 'Suppliers', href: 'purchasing/suppliers.html', icon: 'building-office-2' }
+    ],
+    customers: [
+      { id: 'list', label: 'Customers', href: 'customers/list.html', icon: 'building-storefront' },
+      // 5.2 Record Customer Payment (office payments)
+      { id: 'record', label: 'Record payment', href: 'payments/record.html', icon: 'banknotes' },
+      // 5.5 Monitor Receivables: management sees field payments to verify; staff see due-date reminders
+      { id: 'receivables', label: 'Receivables', href: 'payments/receivables.html', icon: 'bell',
+        count: function (session) {
+          var sc = CNS.auth.canSwitchBranch(session.user) ? session.branchView : session.user.branch_id;
+          if (!CNS.payActions) return 0;
+          return session.user.role === R.STAFF ? CNS.payActions.dueSoon(7, sc).length : CNS.payActions.toVerify(sc).length;
+        } }
     ]
   };
 

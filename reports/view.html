@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Report · Centennial Sales &amp; Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    .report-filters { padding: var(--space-4) var(--space-5); margin-bottom: var(--space-5); }
+    .report-filters .filters { margin: 0; }
+    .report-filters .input--compact { min-width: 160px; }
+    .report-filters input[type=date] { min-width: 170px; }
+    .as-of { display: flex; align-items: center; gap: var(--space-2); min-height: var(--tap); color: var(--color-text-secondary); font-weight: 600; }
+    .chart-card { margin-bottom: var(--space-5); }
+    .stat__value--text { font-size: 20px; line-height: 1.3; }
+    #report-table .truncate { max-width: 28ch; }
+    .table tfoot td { font-weight: 800; border-top: 1.5px solid var(--color-text); background: var(--color-bg); }
+    .report-head { margin-bottom: 12px; }
+    .report-head p { margin: 0; font-size: 12px; }
+    .report-head__company { color: var(--color-primary); font-weight: 600; }
+    .report-head__title { margin: 2px 0 4px; font-size: 20px; font-weight: 700; }
+    @media print {
+      .stats { grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+      .stat { padding: 8px 10px; box-shadow: none; }
+      .stat__value { font-size: 16px; }
+      .chart-card { padding: 8px 0; border: 0; box-shadow: none; break-inside: avoid; }
+      .table a.row-link { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 6.1 Receive Report Request (filters) → 6.2–6.4 compile data → 6.5 Produce Reports (tiles, chart, table, print, export) -->
+  <main id="main">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol><li><a href="../dashboard.html">Home</a></li><li><a href="index.html">Reports</a></li><li><span aria-current="page" id="crumb"></span></li></ol>
+    </nav>
+
+    <!-- Shows only on paper -->
+    <div class="print-only report-head">
+      <p class="report-head__company" id="print-company">Centennial Nail and Screw Construction Corporation</p>
+      <p class="report-head__title" id="print-title"></p>
+      <p id="print-filters"></p>
+      <p id="print-meta"></p>
+    </div>
+
+    <div class="page-head no-print">
+      <div>
+        <h1 class="page-title" id="title"></h1>
+        <p class="page-desc" id="desc"></p>
+      </div>
+      <div class="page-head__actions">
+        <button type="button" class="btn btn--secondary" id="export"></button>
+        <button type="button" class="btn btn--primary" id="print"></button>
+      </div>
+    </div>
+
+    <form class="card report-filters no-print" id="filters" aria-label="Report filters" onsubmit="return false">
+      <div class="filters" id="filter-row"></div>
+    </form>
+
+    <section class="stats" aria-label="Summary" id="tiles"></section>
+    <section class="card card--pad chart-card" id="chart" aria-label="Chart"></section>
+    <p class="result-count" id="count" aria-live="polite"></p>
+    <div class="table-wrap">
+      <table class="table" id="report-table"></table>
+      <div class="empty" id="empty" hidden>
+        <span id="empty-icon"></span>
+        <p class="empty__title">No records for these filters.</p>
+        <p class="empty__text">Try a wider date range or another branch.</p>
+        <button type="button" class="btn btn--secondary" id="widen"></button>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/icons.js"></script>
+  <script src="../assets/js/format.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/history.js"></script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/layout.js"></script>
+  <script src="../assets/js/po-actions.js"></script>
+  <script src="../assets/js/payment-actions.js"></script>
+  <script src="../assets/js/chart.js"></script>
+  <script src="../assets/js/reports.js"></script>
+  <script>
+    (function () {
+      var R = CNS.ROLES;
+      var session = CNS.layout.desktop({ active: 'reports' });
+      if (!session) return;
+      var S = CNS.store, fmt = CNS.format, esc = CNS.escape;
+      var $ = function (id) { return document.getElementById(id); };
+      var me = session.user;
+      var params = new URLSearchParams(location.search);
+      var report = CNS.reports.get(params.get('type'));
+      if (!report) { location.replace('index.html'); return; }
+      // CEO and Office Manager pick any branch or All branches; the Sales Supervisor and staff see their own (06 plan access)
+      var pickBranch = CNS.auth.canSwitchBranch(me);
+
+      document.title = report.name + ' · Centennial Sales & Inventory';
+      $('crumb').textContent = report.name;
+      $('title').textContent = report.name;
+      $('desc').textContent = report.desc;
+      $('print').innerHTML = CNS.icon('printer') + 'Print report';
+      $('export').innerHTML = CNS.icon('arrow-down-tray') + 'Export (CSV)';
+      $('empty-icon').outerHTML = CNS.icon('chart-bar');
+      $('widen').innerHTML = CNS.icon('arrow-path') + 'Show the last 90 days';
+
+      // ---- State: from the address, else the report's defaults (this month, the user's branch) ----
+      var f = {
+        preset: params.get('preset') || report.preset || 'month',
+        from: params.get('from'), to: params.get('to'),
+        branch: pickBranch ? (params.get('branch') || session.branchView) : me.branch_id,
+        category: params.get('category') || '', supplier: params.get('supplier') || '', agent: params.get('agent') || '',
+        view: params.get('view') || (report.views ? report.views[0][0] : ''),
+        freq: params.get('freq') || 'daily'
+      };
+      if (f.preset !== 'custom' || !f.from || !f.to) { var rg = CNS.reports.presetRange(f.preset === 'custom' ? 'month' : f.preset); f.from = rg.from; f.to = rg.to; }
+
+      function select(id, label, options, value) {
+        return '<div class="field"><label class="label" for="' + id + '">' + label + '</label><select class="input input--compact" id="' + id + '">' +
+          options.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === value ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></div>';
+      }
+
+      function buildFilters() {
+        var h = '';
+        if (report.views) h += select('f-view', 'Show', report.views, f.view);
+        if (report.dates && !(report.id === 'payments' && f.view === 'aging')) {
+          h += select('f-preset', report.periodPresets ? 'Period' : 'Dates', report.periodPresets ? CNS.reports.PERIOD_PRESETS : CNS.reports.PRESETS, f.preset) +
+            '<div class="field"><label class="label" for="f-from">From</label><input class="input input--compact" type="date" id="f-from" value="' + f.from + '" max="' + S.today() + '"></div>' +
+            '<div class="field"><label class="label" for="f-to">To</label><input class="input input--compact" type="date" id="f-to" value="' + f.to + '" max="' + S.today() + '"></div>';
+        } else {
+          h += '<p class="as-of">' + CNS.icon('information-circle') + 'As of today, ' + esc(fmt.date(S.today())) + '</p>';
+        }
+        if (report.freq && f.view === 'period') h += select('f-freq', 'Frequency', [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']], f.freq);
+        h += pickBranch
+          ? select('f-branch', 'Branch', S.all('branches').map(function (b) { return [b.id, b.short_name]; }).concat([['all', 'All branches']]), f.branch)
+          : '<div class="field"><span class="label">Branch</span><div class="static-value">' + esc(S.branchName(me.branch_id)) + '</div></div>';
+        if (report.filters.indexOf('category') >= 0) h += select('f-category', 'Category', [['', 'All categories']].concat(S.all('categories').map(function (c) { return [c.id, c.name]; })), f.category);
+        if (report.filters.indexOf('supplier') >= 0) h += select('f-supplier', 'Supplier', [['', 'All suppliers']].concat(S.all('suppliers').map(function (s) { return [s.id, s.company_name]; })), f.supplier);
+        if (report.filters.indexOf('agent') >= 0) {
+          var agents = S.where('users', function (u) { return u.role === R.AGENT && (f.branch === 'all' || u.branch_id === f.branch); });
+          if (!agents.some(function (u) { return u.id === f.agent; })) f.agent = '';
+          h += select('f-agent', 'Agent', [['', 'All agents']].concat(agents.map(function (u) { return [u.id, u.full_name]; })), f.agent);
+        }
+        $('filter-row').innerHTML = h;
+      }
+
+      function keepInAddress() {
+        var q = new URLSearchParams({ type: report.id });
+        if (report.views) q.set('view', f.view);
+        if (report.dates) { q.set('preset', f.preset); if (f.preset === 'custom') { q.set('from', f.from); q.set('to', f.to); } }
+        if (report.freq) q.set('freq', f.freq);
+        if (pickBranch) q.set('branch', f.branch);
+        ['category', 'supplier', 'agent'].forEach(function (k) { if (f[k]) q.set(k, f[k]); });
+        history.replaceState(null, '', location.pathname + '?' + q.toString());
+      }
+
+      var last = null;
+      function run() {
+        keepInAddress();
+        var out = report.run(f);
+        last = out;
+
+        $('tiles').innerHTML = out.tiles.map(function (t) {
+          var long = String(t[1]).length > 14 && !/^₱|^[\d,−]/.test(t[1]);
+          return '<div class="stat"><p class="stat__label">' + esc(t[0]) + '</p><p class="stat__value' + (long ? ' stat__value--text' : '') + '">' + esc(t[1]) + '</p>' +
+            '<p class="stat__sub">' + esc(t[2]) + '</p></div>';
+        }).join('');
+
+        var c = out.chart;
+        CNS.chart[c.kind]($('chart'), c.rows, { title: c.title, label: c.label, format: c.format || fmt.number, empty: 'Nothing to chart for these filters.' });
+
+        var has = out.rows.length > 0;
+        $('report-table').hidden = !has;
+        $('empty').hidden = has;
+        $('widen').hidden = !report.dates || f.preset === 'last90';
+        $('count').textContent = has ? out.rows.length + (out.rows.length === 1 ? ' row' : ' rows') + ' · ' + summary() : '';
+        if (!has) return;
+        var cell = function (tag, x, i) {
+          return '<' + tag + (out.columns[i].n ? ' class="num-col"' : '') + '>' + (x.h != null ? x.h : esc(x.t)) + '</' + tag + '>';
+        };
+        $('report-table').innerHTML =
+          '<thead><tr>' + out.columns.map(function (col) { return '<th scope="col"' + (col.n ? ' class="num-col"' : '') + '>' + esc(col.label) + '</th>'; }).join('') + '</tr></thead>' +
+          '<tbody>' + out.rows.map(function (r) { return '<tr>' + r.map(function (x, i) { return cell('td', x, i); }).join('') + '</tr>'; }).join('') + '</tbody>' +
+          (out.foot ? '<tfoot><tr>' + out.foot.map(function (x, i) { return cell('td', x, i); }).join('') + '</tr></tfoot>' : '');
+      }
+
+      function summary() {
+        var parts = ['Branch: ' + S.branchName(f.branch)];
+        var asOf = !report.dates || (report.id === 'payments' && f.view === 'aging');
+        parts.push(asOf ? 'As of ' + fmt.date(S.today()) : 'Dates: ' + fmt.date(f.from) + ' to ' + fmt.date(f.to));
+        if (report.views) parts.push('Show: ' + report.views.filter(function (v) { return v[0] === f.view; })[0][1]);
+        if (report.freq && f.view === 'period') parts.push('Frequency: ' + { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }[f.freq]);
+        if (f.category) parts.push('Category: ' + S.get('categories', f.category).name);
+        if (f.supplier) parts.push('Supplier: ' + S.get('suppliers', f.supplier).company_name);
+        if (f.agent) parts.push('Agent: ' + S.get('users', f.agent).full_name);
+        return parts.join(' · ');
+      }
+
+      // ---- Filter events ----
+      $('filters').addEventListener('change', function (e) {
+        var id = e.target.id;
+        if (id === 'f-preset') {
+          f.preset = e.target.value;
+          if (f.preset !== 'custom') { var r = CNS.reports.presetRange(f.preset); f.from = r.from; f.to = r.to; }
+        } else if (id === 'f-from' || id === 'f-to') {
+          var from = $('f-from').value, to = $('f-to').value;
+          if (!from || !to) return;
+          if (from > to) { var tmp = from; from = to; to = tmp; }
+          f.from = from; f.to = to; f.preset = 'custom';
+        } else if (id === 'f-view') f.view = e.target.value;
+        else if (id === 'f-freq') f.freq = e.target.value;
+        else if (id === 'f-branch') f.branch = e.target.value;
+        else if (id) f[id.replace('f-', '')] = e.target.value;
+        var focusId = id;
+        buildFilters();
+        run();
+        if (focusId && $(focusId)) $(focusId).focus();
+      });
+      $('widen').addEventListener('click', function () {
+        f.preset = 'last90';
+        var r = CNS.reports.presetRange('last90'); f.from = r.from; f.to = r.to;
+        buildFilters(); run();
+      });
+      // The header branch switcher also moves the report
+      document.addEventListener('cns:branchchange', function (e) {
+        session.branchView = e.detail.branchView;
+        f.branch = e.detail.branchView;
+        buildFilters(); run();
+      });
+
+      // ---- 6.5 Produce Reports: print and export ----
+      $('print').addEventListener('click', function () {
+        var b = f.branch === 'all' ? null : S.get('branches', f.branch);
+        $('print-company').textContent = b ? b.name : 'Centennial Nail and Screw Construction Corporation · All branches';
+        $('print-title').textContent = report.name;
+        $('print-filters').textContent = summary() + (last ? ' · ' + last.rows.length + ' rows' : '');
+        $('print-meta').textContent = 'Generated ' + fmt.dateTime(new Date()) + ' by ' + me.full_name + ' (' + me.role + ')';
+        window.print();
+      });
+
+      $('export').addEventListener('click', function () {
+        if (!last) return;
+        var q = function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; };
+        var lines = [
+          [report.name], [summary()], ['Generated ' + fmt.dateTime(new Date()) + ' by ' + me.full_name], [],
+          last.columns.map(function (c) { return c.label; })
+        ].concat(last.rows.map(function (r) { return r.map(function (x) { return x.t; }); }))
+          .concat(last.foot ? [last.foot.map(function (x) { return x.t; })] : [])
+          .map(function (cells) { return cells.map(q).join(','); });
+        var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = report.id + '-report-' + S.today() + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+        CNS.history.log({ action: 'Export', module: 'Reports', record_type: 'reports', record_id: report.id, new_value: report.name + ' · ' + summary() });
+        CNS.ui.toast(report.name + ' exported.');
+      });
+
+      buildFilters();
+      run();
+    })();
+  </script>
+</body>
+</html>
