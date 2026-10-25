@@ -364,7 +364,7 @@
   text-align: center;
 }
 
-.empty > .icon { width: 40px; height: 40px; color: var(--color-text-muted); }
+.empty > .icon { width: 56px; height: 56px; padding: 14px; color: var(--color-text-secondary); background: var(--color-border-subtle); border-radius: var(--radius-full); }
 .empty__title { margin: var(--space-2) 0 0; font-size: 18px; font-weight: 700; }
 .empty__text { max-width: 46ch; margin: 0; color: var(--color-text-secondary); text-wrap: pretty; }
 
@@ -559,6 +559,13 @@
 .stat--warning .stat__value { color: var(--color-warning); }
 .stat--error { border-color: var(--color-error); background: var(--color-error-bg); }
 .stat--error .stat__value { color: var(--color-error); }
+
+/* Depth (ADR-006): a top accent bar gives tiles a clear edge; its color repeats the tone, the label still says it in words */
+.stat { border-top: 3px solid var(--color-border); }
+.stat--info { border-top-color: var(--color-info); }
+.stat--warning { border-top-color: var(--color-warning); }
+.stat--error { border-top-color: var(--color-error); }
+a.stat:hover { border-top-color: var(--color-primary); }
 
 @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
