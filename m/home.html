@@ -15,11 +15,6 @@
     .confirm-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: var(--space-4) 0; padding: var(--space-4); text-decoration: none; color: var(--color-info); background: var(--color-info-bg); border: 1px solid var(--color-info); border-radius: var(--radius-lg); font-weight: 700; }
     .confirm-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .section-title { margin: var(--space-5) 0 var(--space-2); font-size: 18px; font-weight: 700; }
-    .order-cards { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-    .order-card { padding: var(--space-3) var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
-    .order-card__top { display: flex; justify-content: space-between; gap: var(--space-2); align-items: center; }
-    .order-card__store { margin: 4px 0 0; font-weight: 700; }
-    .order-card__meta { margin: 2px 0 0; color: var(--color-text-secondary); font-size: var(--text-small); }
   </style>
 </head>
 <body>
@@ -36,7 +31,7 @@
     </form>
     <div id="groups"></div>
     <h2 class="section-title" id="cust-title" hidden>My customers to follow up</h2>
-    <ul class="order-cards" id="customers"></ul>
+    <ul class="list-cards" id="customers"></ul>
   </main>
 
   <script src="../assets/js/core.js"></script>
@@ -78,12 +73,12 @@
         var list = mine.filter(function (o) { return g[1].indexOf(o.status) >= 0; });
         if (g[0] === 'Done recently') list = list.slice(0, 5);
         if (!list.length) return '';
-        return '<h2 class="section-title">' + esc(g[0]) + ' (' + list.length + ')</h2><ul class="order-cards">' + list.map(function (o) {
+        return '<h2 class="section-title">' + esc(g[0]) + ' (' + list.length + ')</h2><ul class="list-cards">' + list.map(function (o) {
           var c = S.get('clients', o.client_id);
-          return '<li class="order-card"><div class="order-card__top"><strong>' + esc(o.order_no) + '</strong>' + CNS.ui.orderBadge(o.status) + '</div>' +
-            '<p class="order-card__store">' + esc(c ? c.store_name : '') + '</p>' +
-            '<p class="order-card__meta">' + esc(fmt.money(S.orderTotal(o.id)) + ' · Delivery ' + fmt.date(o.delivery_date)) + '</p>' +
-            (o.internal_note && (o.status === 'Rejected' || o.status === 'Draft') ? '<p class="order-card__meta">' + esc(o.internal_note) + '</p>' : '') + '</li>';
+          // The store is what the agent remembers; the order number is reference
+          return '<li class="list-card"><div class="list-card__top"><span class="list-card__title">' + esc(c ? c.store_name : '') + '</span>' + CNS.ui.orderBadge(o.status) + '</div>' +
+            '<p class="list-card__meta">' + esc(o.order_no + ' · ' + fmt.money(S.orderTotal(o.id))) + ' · <span class="nowrap">Delivery ' + esc(fmt.date(o.delivery_date)) + '</span></p>' +
+            (o.internal_note && (o.status === 'Rejected' || o.status === 'Draft') ? '<p class="list-card__meta">' + esc(o.internal_note) + '</p>' : '') + '</li>';
         }).join('') + '</ul>';
       }).join('') || '<div class="card empty"><p class="empty__title">No orders yet.</p><p class="empty__text">Tap New order to send your first one.</p></div>';
 
@@ -94,10 +89,17 @@
         .sort(function (a, b) { return (S.clientOverdue(b.id) - S.clientOverdue(a.id)) || (S.clientBalance(b.id) - S.clientBalance(a.id)); });
       $('cust-title').hidden = !owing.length;
       $('customers').innerHTML = owing.slice(0, 5).map(function (c) {
-        var od = S.clientOverdue(c.id);
-        return '<li class="order-card"><a href="customers.html?id=' + encodeURIComponent(c.id) + '" style="color:inherit;text-decoration:none;display:block">' +
-          '<div class="order-card__top"><strong>' + esc(c.store_name) + '</strong>' + (od ? CNS.ui.badge('error', 'exclamation-circle', 'Overdue') : '') + '</div>' +
-          '<p class="order-card__meta">Balance ' + esc(fmt.money(S.clientBalance(c.id))) + (od ? ' · overdue ' + esc(fmt.money(od)) : '') + ' · limit ' + esc(fmt.money(c.credit_limit)) + '</p></a></li>';
+        var od = S.clientOverdue(c.id), bal = S.clientBalance(c.id), left = c.credit_limit - bal;
+        // Same credit meter as the New order page: balance on the credit limit, said in words
+        return '<li><a class="list-card" href="customers.html?id=' + encodeURIComponent(c.id) + '"><div>' +
+          '<div class="list-card__top"><span class="list-card__title">' + esc(c.store_name) + '</span>' + (od ? CNS.ui.badge('error', 'exclamation-circle', 'Overdue') : '') + '</div>' +
+          '<p class="list-card__meta">Balance ' + esc(fmt.money(bal)) + (od ? ' · overdue ' + esc(fmt.money(od)) : '') + '</p>' +
+          CNS.ui.meter({
+            value: bal, max: c.credit_limit, noLabels: true,
+            tone: left < 0 ? 'warning' : bal > c.credit_limit * 0.8 ? 'info' : 'success',
+            say: left < 0 ? 'Over the credit limit by ' + fmt.money(-left) : fmt.money(left) + ' credit left of ' + fmt.money(c.credit_limit),
+            aria: 'Balance ' + fmt.money(bal) + ' of a ' + fmt.money(c.credit_limit) + ' credit limit.'
+          }) + '</div>' + CNS.icon('chevron-right') + '</a></li>';
       }).join('');
     })();
   </script>

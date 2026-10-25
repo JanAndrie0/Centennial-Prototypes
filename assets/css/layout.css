@@ -296,6 +296,12 @@
 }
 
 .m-tab .icon { width: 24px; height: 24px; }
+
+/* Narrow phones (320px): 64px per tab, so "Customers" and "New Order" need a size step down to fit on one line */
+@media (max-width: 359px) {
+  .m-tabbar { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .m-tab { font-size: 12px; letter-spacing: -0.01em; }
+}
 .m-tab[aria-current="page"] { color: var(--color-primary); }
 
 .m-tab[aria-current="page"]::before {

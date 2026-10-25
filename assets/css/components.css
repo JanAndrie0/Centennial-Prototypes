@@ -675,6 +675,21 @@ a.stat:hover { border-top-color: var(--color-primary); }
 .stock-card__other strong { color: var(--color-text); }
 
 .m-app .stock-cards { grid-template-columns: 1fr; }
+
+/* ---- List cards (agent home): one order or customer per card; an <a> card ends in a chevron ---- */
+.list-cards { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.list-card { display: block; padding: var(--space-3) var(--space-4); color: inherit; text-decoration: none; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+.list-card__top { display: flex; justify-content: space-between; gap: var(--space-2); align-items: flex-start; }
+.list-card__top .badge { flex: none; }
+.list-card__title { font-weight: 700; line-height: 1.3; }
+.list-card__meta { margin: 2px 0 0; color: var(--color-text-secondary); font-size: var(--text-small); }
+.list-card__meta .nowrap { white-space: nowrap; }
+.list-card .level-meter { margin-top: var(--space-3); }
+.list-card .level-meter__say { margin-bottom: var(--space-2); font-size: var(--text-small); }
+.list-card .level-meter__track { height: 10px; }
+a.list-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
+a.list-card > .icon { color: var(--color-text-muted); }
+a.list-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .m-app .stock-card__other { font-size: var(--text-body); }
 
 /* ---- Pager under a long table ---- */
@@ -839,16 +854,16 @@ a.stat:hover { border-top-color: var(--color-primary); }
 
 /* ---- Clickable cards (KPI tiles, stock cards, queue items): a small lift on hover ----
    The shadow sits on ::after and fades with opacity, so only transform and opacity animate. */
-a.stat, .stock-card, .queue button { position: relative; transition: transform var(--dur-press) var(--ease-out); }
-a.stat::after, .stock-card::after, .queue button::after {
+a.stat, .stock-card, .queue button, a.list-card { position: relative; transition: transform var(--dur-press) var(--ease-out); }
+a.stat::after, .stock-card::after, .queue button::after, a.list-card::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   box-shadow: var(--shadow-md); opacity: 0; transition: opacity var(--dur-press) var(--ease-out);
 }
 @media (hover: hover) {
   a.stat:hover, .queue button:hover { transform: translateY(-2px); }
-  a.stat:hover::after, .stock-card:hover::after, .queue button:hover::after { opacity: 1; }
+  a.stat:hover::after, .stock-card:hover::after, .queue button:hover::after, a.list-card:hover::after { opacity: 1; }
 }
-a.stat:active, .queue button:active { transform: scale(var(--scale-press)); transition-duration: 80ms; }
+a.stat:active, .queue button:active, a.list-card:active { transform: scale(var(--scale-press)); transition-duration: 80ms; }
 
 .toast .icon { color: var(--color-success-bg); }
 
@@ -860,8 +875,8 @@ a.stat:active, .queue button:active { transform: scale(var(--scale-press)); tran
 
 @media (prefers-reduced-motion: reduce) {
   .modal[open], .modal[open]::backdrop, .toast, .toast.is-leaving { animation: none; }
-  a.stat, .stock-card, .queue button, a.stat::after, .stock-card::after, .queue button::after { transition: none; }
-  a.stat:hover, .queue button:hover, a.stat:active, .queue button:active { transform: none; }
+  a.stat, .stock-card, .queue button, a.list-card, a.stat::after, .stock-card::after, .queue button::after, a.list-card::after { transition: none; }
+  a.stat:hover, .queue button:hover, a.stat:active, .queue button:active, a.list-card:active { transform: none; }
   .btn:active:not([aria-disabled="true"]),
   .input-action:active:not(:disabled) { transform: none; }
   .spinner { animation-duration: 2.4s; }
