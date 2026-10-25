@@ -151,6 +151,21 @@
       return CNS.ui.badge(b[0], b[1], status);
     },
 
+    // Status stepper: where a record is in its flow. steps: status words in order; current: the status it is in now.
+    // o.stopped: the current step ended the flow (Rejected), shown with an x. Done steps get a check, later steps stay grey.
+    steps: function (steps, current, o) {
+      o = o || {};
+      var at = steps.indexOf(current), last = steps.length - 1;
+      return '<ol class="steps" aria-label="' + CNS.escape(o.label || 'Progress') + '">' + steps.map(function (s, i) {
+        var state = i < at || (i === at && i === last && !o.stopped) ? 'done' : i === at ? (o.stopped ? 'stopped' : 'current') : 'todo';
+        var mark = { done: CNS.icon('check'), stopped: CNS.icon('x-mark'), current: '<span class="steps__pulse"></span>', todo: '' }[state];
+        var say = { done: 'done', stopped: 'stopped here', current: 'now', todo: 'not yet' }[state];
+        return '<li class="steps__item is-' + state + '"' + (state === 'current' || state === 'stopped' ? ' aria-current="step"' : '') + '>' +
+          '<span class="steps__dot" aria-hidden="true">' + mark + '</span>' +
+          '<span class="steps__label">' + CNS.escape(s) + '<span class="sr-only">, ' + say + '</span></span></li>';
+      }).join('') + '</ol>';
+    },
+
     // In-page tabs (UX rule: tabs on detail pages). Markup: .tabs[role=tablist] > button[role=tab][aria-controls],
     // panels .tab-panel[role=tabpanel]. Arrow keys move between tabs; the open tab is kept in the URL hash.
     tabs: function (tablist) {

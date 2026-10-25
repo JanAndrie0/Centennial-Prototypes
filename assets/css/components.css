@@ -788,6 +788,22 @@ a.list-card:focus-visible { outline: 2px solid var(--color-primary); outline-off
 .timeline__title { margin: 2px 0 0; font-weight: 700; }
 .timeline__meta { margin: 0; font-size: var(--text-small); color: var(--color-text-secondary); }
 
+/* ---- Status stepper (CNS.ui.steps): one row of dots joined by a line; done = green check, now = red ring ---- */
+.steps { display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; margin: 0; padding: 0; list-style: none; }
+.steps__item { position: relative; display: grid; justify-items: center; gap: var(--space-2); text-align: center; }
+.steps__item + .steps__item::before { content: ""; position: absolute; top: 13px; right: 50%; left: -50%; height: 2px; background: var(--color-border); }
+.steps__item.is-done + .steps__item::before { background: var(--color-success); }
+.steps__item.is-done + .steps__item.is-stopped::before { background: var(--color-error); }
+.steps__dot { position: relative; z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; color: var(--color-text-muted); background: var(--color-surface); border: 2px solid var(--color-border); border-radius: 50%; }
+.steps__dot .icon { width: 16px; height: 16px; }
+.steps__label { font-size: var(--text-small); font-weight: 600; line-height: 1.25; color: var(--color-text-secondary); }
+.is-done .steps__dot { color: #fff; background: var(--color-success); border-color: var(--color-success); }
+.is-current .steps__dot { border-color: var(--color-primary); box-shadow: 0 0 0 4px var(--color-focus-ring); }
+.steps__pulse { width: 10px; height: 10px; background: var(--color-primary); border-radius: 50%; }
+.is-current .steps__label { color: var(--color-text); font-weight: 700; }
+.is-stopped .steps__dot { color: #fff; background: var(--color-error); border-color: var(--color-error); }
+.is-stopped .steps__label { color: var(--color-error); font-weight: 700; }
+
 /* ---- Bar charts (CNS.chart): grey bars, the highlighted bar (today) red, light grid ---- */
 
 .chart { margin: 0; }

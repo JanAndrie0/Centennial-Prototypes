@@ -16,6 +16,13 @@
     .title-row .page-title { margin: 0; }
     .meta { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
     .meta a { color: var(--color-primary); text-underline-offset: 3px; }
+    .meta > span { white-space: nowrap; }   /* wrap between facts, never inside one */
+    .note { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-2) 0 0; color: var(--color-text-secondary); }
+    .note .icon { flex: none; width: 20px; height: 20px; margin-top: 1px; }
+    .progress-card { margin-bottom: var(--space-4); padding: var(--space-4) var(--space-5); }
+    .progress-next { display: flex; gap: var(--space-2); align-items: center; margin: var(--space-4) 0 0; padding-top: var(--space-3); color: var(--color-text-secondary); border-top: 1px solid var(--color-border-subtle); }
+    .progress-next strong { color: var(--color-text); }
+    .progress-next .icon { flex: none; width: 20px; height: 20px; }
     .panel-card { max-width: 760px; }
     .items-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
     .items-total { font-size: 18px; }
@@ -44,9 +51,11 @@
         <div>
           <div class="title-row"><h1 class="page-title" id="o-no"></h1><span id="o-badge"></span></div>
           <p class="meta" id="o-meta"></p>
+          <p class="note" id="o-note" hidden></p>
         </div>
         <div class="page-head__actions" id="actions"></div>
       </div>
+      <div class="card progress-card" id="progress"></div>
       <div id="flags"></div>
 
       <div class="tabs" role="tablist" aria-label="Order details" id="tablist">
@@ -118,9 +127,20 @@
         $('crumb-no').textContent = o.order_no;
         $('o-no').textContent = o.order_no;
         $('o-badge').innerHTML = CNS.ui.orderBadge(o.status);
-        $('o-meta').innerHTML = (c ? '<a href="../customers/detail.html?id=' + encodeURIComponent(c.id) + '">' + esc(c.store_name) + '</a>' : '—') +
-          ' · Ordered ' + esc(fmt.date(o.order_date)) + ' · Delivery ' + esc(fmt.date(o.delivery_date)) +
-          ' · Agent: ' + esc(userName(o.agent_id)) + ' · ' + esc(S.branchName(o.branch_id));
+        $('o-meta').innerHTML = '<span>' + (c ? '<a href="../customers/detail.html?id=' + encodeURIComponent(c.id) + '">' + esc(c.store_name) + '</a>' : '—') + '</span>' +
+          ' · <span>Ordered ' + esc(fmt.date(o.order_date)) + '</span> · <span>Delivery ' + esc(fmt.date(o.delivery_date)) + '</span>' +
+          ' · <span>Agent: ' + esc(userName(o.agent_id)) + '</span>' +
+          // Others see their own branch in the top bar already
+          (CNS.auth.canSwitchBranch(me) ? ' · <span>' + esc(S.branchName(o.branch_id)) + '</span>' : '');
+        // The staff note belongs with the order's facts, not in the alert stack
+        $('o-note').hidden = !o.internal_note;
+        $('o-note').innerHTML = o.internal_note ? CNS.icon('pencil-square') + '<span><strong>Note:</strong> ' + esc(o.internal_note) + '</span>' : '';
+
+        // 2.1 → 2.6 flow; a rejected order stops at the approval step
+        $('progress').innerHTML = o.status === 'Rejected'
+          ? CNS.ui.steps(['Draft', 'For approval', 'Rejected'], 'Rejected', { stopped: true, label: 'Order progress' })
+          : CNS.ui.steps(['Draft', 'For approval', 'Approved', 'For delivery', 'Shipped', 'Completed'], o.status, { label: 'Order progress' });
+        if (nextStep()) $('progress').innerHTML += '<p class="progress-next">' + CNS.icon('arrow-path') + '<span><strong>Next:</strong> ' + esc(nextStep()) + '</span></p>';
 
         var delivery = A.deliveryFor(o.id);
         var receiptOk = ['Approved', 'For delivery', 'Shipped', 'Completed'].indexOf(o.status) >= 0;
@@ -141,8 +161,6 @@
 
         var f = S.orderFlags(o.id);
         var notes = [];
-        if (o.status === 'Shipped') notes.push(['info', 'Shipped. Waiting for the agent to confirm the delivery.']);
-        if (o.internal_note) notes.push(['info', 'Note: ' + o.internal_note]);
         if (f.overCredit) notes.push(['warning', 'Over credit limit by ' + fmt.money(f.overCredit) + '.']);
         if (f.backordered.length) notes.push(['info', f.backordered.length + (f.backordered.length === 1 ? ' line is' : ' lines are') + ' backordered. They will come from the supplier.']);
         $('flags').innerHTML = notes.map(function (n) { return '<p class="alert" data-tone="' + n[0] + '">' + esc(n[1]) + '</p>'; }).join('');
@@ -165,8 +183,10 @@
             (editing ? '<th scope="col" class="actions"><span class="sr-only">Remove</span></th>' : '') + '</tr></thead><tbody>' +
             lines.map(function (it) {
               var p = S.get('products', it.product_id);
-              var stock = short[p.id] ? CNS.ui.badge('info', 'information-circle', 'Backordered ' + fmt.number(short[p.id]))
-                : ['Shipped', 'Completed'].indexOf(o.status) >= 0 ? CNS.ui.badge('success', 'check-circle', 'Delivered from stock')
+              var stock = o.status === 'Rejected' ? CNS.ui.none()
+                : short[p.id] ? CNS.ui.badge('info', 'information-circle', 'Backordered ' + fmt.number(short[p.id]))
+                : o.status === 'Completed' ? CNS.ui.badge('success', 'check-circle', 'Delivered')
+                : o.status === 'Shipped' ? CNS.ui.badge('info', 'arrow-right-start-on-rectangle', 'Shipped')
                 : CNS.ui.badge('success', 'check-circle', 'In stock');
               return '<tr data-item="' + esc(it.id) + '"><td><span class="truncate cell-main" title="' + esc(p.name) + '">' + esc(p.name) + '</span>' +
                   (low[p.id] ? '<p class="line-warn line-warn--warning">' + CNS.icon('exclamation-triangle') + 'Below minimum (' + esc(fmt.qty(low[p.id], p.unit_id)) + ')</p>' : '') + '</td>' +
@@ -245,6 +265,13 @@
         render();
       }
 
+      // What happens next and who does it (shown under the stepper and at the end of the timeline)
+      function nextStep() {
+        var d = A.deliveryFor(o.id);
+        return { 'Draft': 'Send for approval', 'For approval': 'Office Manager approval', 'Approved': 'Schedule the delivery',
+          'For delivery': 'Ship on ' + fmt.date(d ? d.schedule_date : o.delivery_date), 'Shipped': 'Agent confirms the delivery' }[o.status];
+      }
+
       // ---- Timeline: from the History Log, filled in from the record for older orders ----
       function renderTimeline() {
         var logs = S.where('history_logs', function (h) { return h.record_type === 'sales_orders' && h.record_id === o.id && h.field === 'status'; })
@@ -263,7 +290,7 @@
         if (d && d.shipped_at && !has('Shipped')) steps.push({ when: d.shipped_at, title: 'Shipped', who: null, ok: true });
         if (d && d.completed_at && !has('Completed')) steps.push({ when: d.completed_at, title: 'Delivered and confirmed', who: d.confirmed_by, ok: true });
         steps.sort(function (a, b) { return a.when < b.when ? -1 : 1; });
-        var next = { 'Draft': 'Send for approval', 'For approval': 'Office Manager approval', 'Approved': 'Schedule the delivery', 'For delivery': 'Ship on ' + fmt.date(d ? d.schedule_date : o.delivery_date), 'Shipped': 'Agent confirms the delivery' }[o.status];
+        var next = nextStep();
         $('timeline').innerHTML = steps.map(function (s) {
           return '<li><span class="timeline__dot' + (s.ok ? '' : ' timeline__dot--bad') + '">' + CNS.icon(s.ok ? 'check' : 'x-mark') + '</span>' +
             '<div><p class="timeline__title">' + esc(s.title) + '</p><p class="timeline__meta">' + esc(fmt.dateTime(s.when)) + (s.who ? ' · ' + esc(userName(s.who)) : '') + '</p></div></li>';
