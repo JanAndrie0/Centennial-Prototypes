@@ -23,6 +23,7 @@
     .detail-total strong { display: block; font-size: 22px; text-align: right; font-variant-numeric: tabular-nums; }
     /* Same as order approvals: stays in view at the bottom on long requests */
     .detail-actions { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-5); padding: var(--space-3) 0; background: var(--color-surface); border-top: 1px solid var(--color-border-subtle); }
+    .po-product { min-width: 18ch; }
     @media (max-width: 1100px) { .approvals { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -101,16 +102,17 @@
             (po.note ? '<p class="cell-sub">Note: ' + esc(po.note) + '</p>' : '') + '</div>' +
             '<div class="detail-total"><span class="cell-sub">Total</span><strong>' + esc(fmt.money(P.total(po.id))) + '</strong></div></div>' +
           '<p class="alert" data-tone="' + (unpaid ? 'warning' : 'success') + '">' + (unpaid ? 'Still owed to ' + esc(s.company_name) + ': ' + esc(fmt.money(unpaid)) + '.' : 'Nothing owed to this supplier.') + '</p>' +
-          '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Qty</th><th scope="col">= Selling units</th>' +
+          '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Qty</th>' +
             '<th scope="col" class="num-col">Unit cost</th><th scope="col" class="num-col">Amount</th><th scope="col">Why</th></tr></thead><tbody>' +
             P.items(po.id).map(function (it) {
               var p = S.get('products', it.product_id), l = P.link(p.id, po.supplier_id);
               var conv = l ? l.conversion : 1;
-              return '<tr><td class="cell-main">' + esc(p.name) + '</td>' +
-                '<td class="num-col nowrap">' + esc(fmt.count(it.qty_ordered, l ? l.purchase_unit : '')) + '</td>' +
-                '<td class="nowrap">' + esc(fmt.qty(it.qty_ordered * conv, p.unit_id)) + '</td>' +
+              // Supplier's unit with the selling-unit amount under it (one column, so the product name has room)
+              return '<tr><td class="cell-main po-product">' + esc(p.name) + '</td>' +
+                '<td class="num-col nowrap">' + esc(fmt.count(it.qty_ordered, l ? l.purchase_unit : '')) +
+                  '<span class="cell-sub">= ' + esc(fmt.qty(it.qty_ordered * conv, p.unit_id)) + '</span></td>' +
                 '<td class="num-col">' + esc(fmt.money(it.unit_cost)) + '</td><td class="num-col">' + esc(fmt.money(it.qty_ordered * it.unit_cost)) + '</td>' +
-                '<td>' + CNS.ui.stockBadge(S.stockStatus(p.id, po.branch_id)) + '<span class="cell-sub">Available ' + esc(fmt.qty(S.available(p.id, po.branch_id), p.unit_id)) + '</span></td></tr>';
+                '<td>' + CNS.ui.stockBadge(S.stockStatus(p.id, po.branch_id)) + '<span class="cell-sub nowrap">Available ' + esc(fmt.qty(S.available(p.id, po.branch_id), p.unit_id)) + '</span></td></tr>';
             }).join('') + '</tbody></table></div>' +
           (canDecide(po)
             ? '<div class="detail-actions"><button type="button" class="btn btn--secondary" id="reject">' + CNS.icon('x-mark') + 'Reject</button>' +

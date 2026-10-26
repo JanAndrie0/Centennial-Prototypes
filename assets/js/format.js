@@ -151,6 +151,15 @@
       return CNS.ui.badge(b[0], b[1], status);
     },
 
+    // Delivery status → badge (2.6: Scheduled → Shipped → Completed)
+    deliveryBadge: function (status) {
+      var b = {
+        'Scheduled': ['neutral', 'clipboard-document-list'], 'Shipped': ['info', 'arrow-right-start-on-rectangle'],
+        'Completed': ['success', 'check-circle']
+      }[status] || ['neutral', 'information-circle'];
+      return CNS.ui.badge(b[0], b[1], status);
+    },
+
     // Status stepper: where a record is in its flow. steps: status words in order; current: the status it is in now.
     // o.stopped: the current step ended the flow (Rejected), shown with an x. Done steps get a check, later steps stay grey.
     steps: function (steps, current, o) {

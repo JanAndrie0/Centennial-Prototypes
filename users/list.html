@@ -142,12 +142,13 @@
             : '<button type="button" class="btn btn--secondary" data-edit="' + esc(u.id) + '">' + CNS.icon('pencil-square') +
                 'Edit<span class="sr-only"> ' + esc(u.full_name) + '</span></button>';
           return '<tr>' +
-            '<td><span class="cell-main">' + esc(u.full_name) + '</span>' + (sub ? '<span class="cell-sub cell-sub--icon">' + sub + '</span>' : '') + '</td>' +
+            // Names and notes stay on one line; the long role and the login time wrap instead (fits a 1280px laptop)
+            '<td class="nowrap"><span class="cell-main">' + esc(u.full_name) + '</span>' + (sub ? '<span class="cell-sub cell-sub--icon">' + sub + '</span>' : '') + '</td>' +
             '<td class="nowrap">' + esc(u.username) + '</td>' +
-            '<td class="nowrap">' + esc(u.role) + '</td>' +
+            '<td>' + esc(u.role) + '</td>' +
             '<td class="nowrap">' + esc(CNS.store.branchName(u.branch_id)) + '</td>' +
             '<td>' + statusBadge(u) + '</td>' +
-            '<td class="nowrap">' + (u.last_login ? esc(CNS.format.dateTime(u.last_login)) : 'Never') + '</td>' +
+            '<td class="nowrap">' + (u.last_login ? esc(CNS.format.date(u.last_login)) + '<span class="cell-sub">' + esc(CNS.format.time(u.last_login)) + '</span>' : 'Never') + '</td>' +
             (canManage ? '<td class="actions">' + action + '</td>' : '') +
             '</tr>';
         }).join('');

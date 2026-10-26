@@ -101,10 +101,7 @@
         document.title = 'Delivery ' + o.order_no + ' · Centennial Sales & Inventory';
         $('crumb').textContent = o.order_no;
         $('title').textContent = 'Delivery · ' + o.order_no;
-        $('badge').innerHTML = !d ? CNS.ui.badge('warning', 'exclamation-triangle', 'Not scheduled')
-          : d.status === 'Completed' ? CNS.ui.badge('success', 'check-circle', 'Completed')
-          : d.status === 'Shipped' ? CNS.ui.badge('info', 'arrow-right-start-on-rectangle', 'Shipped')
-          : CNS.ui.badge('neutral', 'clipboard-document-list', 'Scheduled');
+        $('badge').innerHTML = !d ? CNS.ui.badge('warning', 'exclamation-triangle', 'Not scheduled') : CNS.ui.deliveryBadge(d.status);
         $('meta').innerHTML = '<span><a href="../orders/detail.html?id=' + encodeURIComponent(o.id) + '">' + esc(o.order_no) + '</a></span> · ' +
           (c ? '<span>' + esc(c.store_name) + '</span> · ' + esc(c.address) + ' · ' : '') + '<span>Requested ' + esc(fmt.date(o.delivery_date)) + '</span>';
 

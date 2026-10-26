@@ -42,7 +42,8 @@
   function date(d) { return { t: d ? fmt.date(d) : '—' }; }
   function badge(tone, icon, label) { return { t: label, h: CNS.ui.badge(tone, icon, label) }; }
   function productCell(p) { return html(p.name + ' (' + p.code + ')', '<span class="truncate" title="' + esc(p.name) + '">' + esc(p.name) + '</span><span class="cell-sub">' + esc(p.code) + '</span>'); }
-  function col(label, isNum) { return { label: label, n: !!isNum }; }
+  // under: on screen, show this column as a second line in the column before it (the CSV keeps it separate)
+  function col(label, isNum, under) { return { label: label, n: !!isNum, under: !!under }; }
 
   // Period key and label for the Sales frequency (daily / weekly from Monday / monthly)
   function periodKey(day, freq) {
@@ -243,7 +244,7 @@
           ],
           chart: { kind: 'rows', title: 'Products to reorder by supplier', label: 'Products to reorder by supplier', format: function (n) { return n + (n === 1 ? ' product' : ' products'); },
             rows: ranked(bySup) },
-          columns: [col('Product'), col('Branch'), col('Status'), col('Available', true), col('Reorder point', true), col('Floor', true), col('Ceiling', true), col('On order', true), col('Suggested qty', true), col('Supplier')],
+          columns: [col('Product'), col('Branch', false, true), col('Status'), col('Available', true), col('Reorder point', true), col('Floor', true, true), col('Ceiling', true, true), col('On order', true), col('Suggested qty', true), col('Supplier')],
           rows: rows.map(function (r) {
             var u = r.p.unit_id;
             return [productCell(r.p), text(S.branchName(r.b)), { t: CNS.ui.stockBadge(r.st).replace(/<[^>]+>/g, ''), h: CNS.ui.stockBadge(r.st) },

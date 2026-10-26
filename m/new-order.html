@@ -14,7 +14,9 @@
   <style>
     .step { margin-bottom: var(--space-4); }
     .step-title { margin: 0 0 var(--space-3); font-size: 18px; font-weight: 700; }
-    .cust-card { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-3); margin: 0; padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
+    /* Same credit meter as the desktop New order, then Balance now and Overdue */
+    .cust-card { padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
+    .cust-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin: var(--space-3) 0 0; }
     .cust-card dt { font-size: var(--text-small); color: var(--color-text-secondary); }
     .cust-card dd { margin: 0; font-weight: 700; }
     .cust-card .is-bad { color: var(--color-error); }
@@ -45,7 +47,7 @@
           <select class="input" id="customer" name="customer" aria-describedby="customer-error"><option value="">Choose a store</option></select>
           <p class="field-error" id="customer-error"></p>
         </div>
-        <dl class="cust-card" id="cust-card" hidden></dl>
+        <div class="cust-card" id="cust-card" hidden></div>
       </section>
 
       <section class="card card--pad step" aria-labelledby="t2">
@@ -176,10 +178,17 @@
         if (c) {
           var bal = S.clientBalance(c.id), od = S.clientOverdue(c.id);
           over = Math.max(0, bal + total - c.credit_limit);
-          $('cust-card').innerHTML = '<div><dt>Balance</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
-            '<div><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
-            '<div><dt>Overdue</dt><dd' + (od ? ' class="is-bad"' : '') + '>' + esc(fmt.money(od)) + '</dd></div>' +
-            '<div><dt>Credit left</dt><dd' + (over ? ' class="is-warn"' : '') + '>' + esc(over ? 'Over by ' + fmt.money(over) : fmt.money(c.credit_limit - bal - total)) + '</dd></div>';
+          var after = bal + total;
+          $('cust-card').innerHTML = CNS.ui.meter({
+              value: after, max: c.credit_limit,
+              tone: over ? 'warning' : after > c.credit_limit * 0.8 ? 'info' : 'success',
+              label: 'Balance after this order: ' + fmt.money(after),
+              say: over ? 'Over the credit limit by ' + fmt.money(over) : fmt.money(c.credit_limit - after) + ' credit left',
+              aria: 'Balance after this order ' + fmt.money(after) + ' of a ' + fmt.money(c.credit_limit) + ' credit limit. Balance now ' + fmt.money(bal) + '.',
+              marks: [['Credit limit', c.credit_limit, fmt.money(c.credit_limit)]]
+            }) + '<dl>' +
+            '<div><dt>Balance now</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
+            '<div><dt>Overdue</dt><dd' + (od ? ' class="is-bad"' : '') + '>' + esc(fmt.money(od)) + '</dd></div></dl>';
         }
         var items = [];
         if (over) items.push('Over credit limit by ' + fmt.money(over) + '. The office still reviews it.');

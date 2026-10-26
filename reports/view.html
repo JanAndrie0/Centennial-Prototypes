@@ -184,13 +184,24 @@
         $('widen').hidden = !report.dates || f.preset === 'last90';
         $('count').textContent = has ? out.rows.length + (out.rows.length === 1 ? ' row' : ' rows') + ' · ' + summary() : '';
         if (!has) return;
-        var cell = function (tag, x, i) {
-          return '<' + tag + (out.columns[i].n ? ' class="num-col"' : '') + '>' + (x.h != null ? x.h : esc(x.t)) + '</' + tag + '>';
+        // A column marked `under` shows on screen as an extra line in the cell before it ("Floor 24 pcs"),
+        // so wide reports fit a 1280px laptop; the CSV export still keeps it as its own column
+        var cells = function (tag, r) {
+          var parts = [];
+          r.forEach(function (x, i) {
+            var c = out.columns[i];
+            if (c.under && parts.length) { if (x.t && x.t !== '—') parts[parts.length - 1].sub.push(esc(c.label + ' ' + x.t)); return; }
+            parts.push({ i: i, body: x.h != null ? x.h : esc(x.t), sub: [] });
+          });
+          return parts.map(function (p) {
+            return '<' + tag + (out.columns[p.i].n ? ' class="num-col"' : '') + '>' + p.body +
+              p.sub.map(function (s) { return '<span class="cell-sub nowrap">' + s + '</span>'; }).join('') + '</' + tag + '>';
+          }).join('');
         };
         $('report-table').innerHTML =
-          '<thead><tr>' + out.columns.map(function (col) { return '<th scope="col"' + (col.n ? ' class="num-col"' : '') + '>' + esc(col.label) + '</th>'; }).join('') + '</tr></thead>' +
-          '<tbody>' + out.rows.map(function (r) { return '<tr>' + r.map(function (x, i) { return cell('td', x, i); }).join('') + '</tr>'; }).join('') + '</tbody>' +
-          (out.foot ? '<tfoot><tr>' + out.foot.map(function (x, i) { return cell('td', x, i); }).join('') + '</tr></tfoot>' : '');
+          '<thead><tr>' + out.columns.filter(function (col) { return !col.under; }).map(function (col) { return '<th scope="col"' + (col.n ? ' class="num-col"' : '') + '>' + esc(col.label) + '</th>'; }).join('') + '</tr></thead>' +
+          '<tbody>' + out.rows.map(function (r) { return '<tr>' + cells('td', r) + '</tr>'; }).join('') + '</tbody>' +
+          (out.foot ? '<tfoot><tr>' + cells('td', out.foot) + '</tr></tfoot>' : '');
       }
 
       function summary() {

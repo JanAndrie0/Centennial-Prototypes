@@ -85,11 +85,7 @@
         var c = S.get('clients', o.client_id);
         return '<td><span class="truncate cell-main" title="' + esc(c ? c.store_name : '') + '">' + esc(c ? c.store_name : '—') + '</span><span class="cell-sub">' + esc(areaOf(c)) + '</span></td>';
       }
-      function statusBadge(st) {
-        return st === 'Completed' ? CNS.ui.badge('success', 'check-circle', 'Completed')
-          : st === 'Shipped' ? CNS.ui.badge('info', 'arrow-right-start-on-rectangle', 'Shipped')
-          : CNS.ui.badge('neutral', 'clipboard-document-list', 'Scheduled');
-      }
+      var statusBadge = CNS.ui.deliveryBadge;
 
       function render() {
         CNS.layout.moduleTabs('orders', 'deliveries', session);

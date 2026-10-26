@@ -23,7 +23,7 @@
     .queue button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .queue__top { display: flex; justify-content: space-between; gap: var(--space-2); font-weight: 700; }
     .queue__flags { display: flex; flex-wrap: wrap; gap: 4px; }
-    .record { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin: 0 0 var(--space-4); }
+    .record { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-4) 0; }
     .record div { padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
     .record dt { font-size: var(--text-small); color: var(--color-text-secondary); }
     .record dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -38,7 +38,7 @@
     .detail-head + .sub-title, .alert + .sub-title { margin-top: 0; }
     .sub-title { margin: var(--space-5) 0 var(--space-3); font-size: var(--text-card-title); font-weight: 700; }
     .slip-img { max-width: 320px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-    @media (max-width: 1100px) { .approvals { grid-template-columns: 1fr; } .record { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1100px) { .approvals { grid-template-columns: 1fr; } .record { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -139,8 +139,9 @@
         renderDetail();
       }
 
-      function paymentRecord(c) {
+      function paymentRecord(c, o) {
         var bal = S.clientBalance(c.id), overdue = S.clientOverdue(c.id);
+        var after = bal + S.orderTotal(o.id), over = Math.max(0, after - c.credit_limit);
         var orders = S.where('sales_orders', function (o) { return o.client_id === c.id; }).map(function (o) { return o.id; });
         var plans = S.where('installment_plans', function (p) { return orders.indexOf(p.order_id) >= 0; }).map(function (p) { return p.id; });
         var today = S.today();
@@ -150,17 +151,25 @@
         var pays = S.where('payments', function (p) { return p.client_id === c.id; }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
         var bounced = pays.filter(function (p) { return p.bounced; });
 
+        // Same credit meter as New order: the balance if this order is approved, against the credit limit
         return '<h3 class="sub-title">Customer payment record</h3>' +
+          CNS.ui.meter({
+            value: after, max: c.credit_limit,
+            tone: over ? 'warning' : after > c.credit_limit * 0.8 ? 'info' : 'success',
+            label: 'Balance if approved: ' + fmt.money(after),
+            say: over ? 'Over the credit limit by ' + fmt.money(over) : fmt.money(c.credit_limit - after) + ' credit left',
+            aria: 'Balance if approved ' + fmt.money(after) + ' of a ' + fmt.money(c.credit_limit) + ' credit limit. Balance now ' + fmt.money(bal) + '.',
+            marks: [['Credit limit', c.credit_limit, fmt.money(c.credit_limit)]]
+          }) +
           '<dl class="record">' +
-            '<div><dt>Balance</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
-            '<div><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
+            '<div><dt>Balance now</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
             '<div><dt>Overdue</dt><dd' + (overdue ? ' class="is-bad"' : '') + '>' + esc(fmt.money(overdue)) + (overdue ? ' · ' + S.clientOverdueDays(c.id) + ' days' : '') + '</dd></div>' +
             '<div><dt>Installments</dt><dd' + (late ? ' class="is-bad"' : '') + '>' + (sched.length ? open + ' open · ' + late + ' late' : 'None') + '</dd></div>' +
           '</dl>' +
           (bounced.length ? '<p class="alert" data-tone="error">' + bounced.length + (bounced.length === 1 ? ' bounced cheque' : ' bounced cheques') + ' on record: ' +
             esc(bounced.map(function (p) { return p.reference_no + ' (' + fmt.date(p.date) + ', ' + fmt.money(p.amount) + ')'; }).join(', ')) + '.</p>' : '') +
           '<div class="table-wrap">' + (pays.length
-            ? '<table class="table"><thead><tr><th scope="col">Last payments</th><th scope="col" class="num-col">Amount</th><th scope="col">Method</th><th scope="col">Status</th></tr></thead><tbody>' +
+            ? '<table class="table"><caption class="sr-only">Last 3 payments</caption><thead><tr><th scope="col">Last payment</th><th scope="col" class="num-col">Amount</th><th scope="col">Method</th><th scope="col">Status</th></tr></thead><tbody>' +
               pays.slice(0, 3).map(function (p) {
                 var st = p.bounced ? CNS.ui.badge('error', 'x-mark', 'Bounced') : p.verified_by ? CNS.ui.badge('success', 'check-circle', 'Verified') : CNS.ui.badge('warning', 'exclamation-triangle', 'For verification');
                 return '<tr><td class="nowrap">' + esc(fmt.date(p.date)) + '</td><td class="num-col">' + esc(fmt.money(p.amount)) + '</td><td>' + esc(p.method) + '</td><td>' + st + '</td></tr>';
@@ -181,8 +190,7 @@
             '<p class="cell-sub">Ordered ' + esc(fmt.date(o.order_date)) + ' · Delivery ' + esc(fmt.date(o.delivery_date)) + ' · ' + esc(S.branchName(o.branch_id)) + '</p>' +
             (o.internal_note ? '<p class="cell-sub">Note: ' + esc(o.internal_note) + '</p>' : '') + '</div>' +
             '<div class="detail-total"><span class="cell-sub">Order total</span><strong>' + esc(fmt.money(S.orderTotal(o.id))) + '</strong></div></div>' +
-          (f.overCredit ? '<p class="alert" data-tone="warning">Over credit limit by ' + esc(fmt.money(f.overCredit)) + ' if approved.</p>' : '') +
-          (c ? paymentRecord(c) : '') +
+          (c ? paymentRecord(c, o) : '') +
           '<h3 class="sub-title">Items · ' + A.items(o.id).length + ' lines</h3>' +
           '<div class="table-wrap"><table class="table"><thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Qty</th>' +
             '<th scope="col" class="num-col">Unit price</th><th scope="col" class="num-col">Amount</th><th scope="col">Stock</th></tr></thead><tbody>' +

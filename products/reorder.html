@@ -15,8 +15,9 @@
     .select-hit { display: inline-flex; padding: 0 var(--space-2); cursor: pointer; }
     #reorder-view .save-bar { margin-top: var(--space-4); max-width: none; }
     .suggest { font-weight: 700; }
-    .truncate.supplier { max-width: 22ch; }
-    #reorder-table .row-link.truncate { max-width: 32ch; }
+    /* Names wrap to a second line instead of pushing the table past a 1280px laptop */
+    .supplier { display: block; min-width: 14ch; max-width: 22ch; }
+    #reorder-table .row-link { display: block; min-width: 18ch; max-width: 32ch; }
   </style>
 </head>
 <body>
@@ -150,8 +151,7 @@
           // Company-wide: show each short branch's own stock instead of a total that would hide the shortage
           '<th scope="col">Product</th><th scope="col">Status</th>' +
           (all ? '<th scope="col">Short at</th>' : '<th scope="col" class="num-col">Available</th>') +
-          '<th scope="col" class="num-col">Reorder point</th><th scope="col" class="num-col">Floor</th>' +
-          '<th scope="col" class="num-col">Ceiling</th><th scope="col" class="num-col">Suggested</th><th scope="col">Main supplier</th>';
+          '<th scope="col" class="num-col">Reorder point</th><th scope="col" class="num-col">Suggested</th><th scope="col">Main supplier</th>';
 
         $('reorder-body').innerHTML = rows.map(function (r) {
           var p = r.p, n = r.n;
@@ -159,7 +159,7 @@
           return '<tr data-id="' + esc(p.id) + '"' + (on ? ' class="is-selected"' : '') + '>' +
             '<td class="select-col"><label class="select-hit"><input type="checkbox" data-select="' + esc(p.id) + '"' + (on ? ' checked' : '') + '>' +
               '<span class="sr-only">Select ' + esc(p.name) + '</span></label></td>' +
-            '<td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(p.id) + '" title="' + esc(p.name) + '">' + esc(p.name) + '</a></td>' +
+            '<td><a class="row-link" href="detail.html?id=' + encodeURIComponent(p.id) + '">' + esc(p.name) + '</a></td>' +
             '<td>' + CNS.ui.stockBadge(n.status) + '</td>' +
             (all
               ? '<td class="nowrap">' + n.branches.map(function (b) {
@@ -168,11 +168,10 @@
                     esc(S.branchName(b) + ': ' + fmt.qty(a, p.unit_id)) + '</span>';
                 }).join('') + '</td>'
               : '<td class="num-col' + (n.available < 0 ? ' qty-neg' : '') + '">' + esc(fmt.qty(n.available, p.unit_id)) + '</td>') +
-            '<td class="num-col">' + fmt.number(p.critical_qty) + '</td>' +
-            '<td class="num-col">' + fmt.number(p.floor_qty) + '</td>' +
-            '<td class="num-col">' + fmt.number(p.ceiling_qty) + '</td>' +
+            // Floor and ceiling under the reorder point (one column, so the table fits a 1280px laptop)
+            '<td class="num-col">' + fmt.number(p.critical_qty) + '<span class="cell-sub nowrap">Floor ' + fmt.number(p.floor_qty) + ' · Ceiling ' + fmt.number(p.ceiling_qty) + '</span></td>' +
             '<td class="num-col suggest">' + (n.suggested ? esc(fmt.qty(n.suggested, p.unit_id)) : '—') + '</td>' +
-            '<td><span class="truncate supplier" title="' + esc(supplierName(p)) + '">' + esc(supplierName(p)) + '</span></td></tr>';
+            '<td><span class="supplier">' + esc(supplierName(p)) + '</span></td></tr>';
         }).join('');
 
         $('reorder-table').hidden = !rows.length;

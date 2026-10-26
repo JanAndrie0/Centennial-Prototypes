@@ -55,8 +55,13 @@
               '<div class="chart__bar" style="height:' + Math.max(0, r.value / max * 100).toFixed(2) + '%"></div></div>';
           }).join('') + '</div>' +
           '<div class="chart__labels" aria-hidden="true">' + rows.map(function (r, i) {
-            var cls = (r.hi ? 'is-hi ' : '') + (i === 0 || i === rows.length - 1 ? 'is-edge' : '');
-            return '<span' + (cls ? ' class="' + cls.trim() + '"' : '') + '>' + (i % every === 0 || r.hi || i === rows.length - 1 ? esc(r.label) : '') + '</span>';
+            var forced = function (j) { return rows[j] && (rows[j].hi || j === rows.length - 1); };
+            var crowded = false;   // a regular label gives way to a forced one (today, the last bar) right after it
+            for (var j = i + 1; j < i + every; j++) if (forced(j)) crowded = true;
+            var shown = forced(i) || (i % every === 0 && !crowded);
+            // A shown label may spill into its empty neighbours instead of being clipped ("Oct 1" for Oct 13)
+            var cls = (r.hi ? 'is-hi ' : '') + (i === 0 || i === rows.length - 1 ? 'is-edge ' : '') + (shown && every > 1 ? 'is-shown' : '');
+            return '<span' + (cls.trim() ? ' class="' + cls.trim() + '"' : '') + '>' + (shown ? esc(r.label) : '') + '</span>';
           }).join('') + '</div>' +
         '</div>';
     },

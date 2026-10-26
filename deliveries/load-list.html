@@ -39,7 +39,7 @@
       <p class="cell-sub" id="sheet-meta"></p>
     </div>
     <div class="table-wrap" id="by-product"></div>
-    <h2 class="section-title">Orders on this load</h2>
+    <h2 class="section-title" id="by-order-title">Orders on this load</h2>
     <div class="table-wrap" id="by-order"></div>
   </main>
 
@@ -101,16 +101,19 @@
               var p = S.get('products', id), g = byProduct[id], area = A.areaFor(id, g.branch);
               return '<tr><td><span class="check-box" aria-hidden="true"></span><span class="sr-only">Not checked</span></td><td class="nowrap">' + esc(area ? area.name : '—') + '</td>' +
                 '<td class="cell-main">' + esc(p.name) + '</td><td class="num-col cell-main">' + esc(fmt.qty(g.qty, p.unit_id)) + '</td>' +
-                '<td class="cell-sub">' + esc(g.orders.join(', ')) + '</td></tr>';
+                '<td><span class="cell-sub">' + esc(g.orders.join(', ')) + '</span></td></tr>';
             }).join('') + '</tbody></table>'
           : '<p class="empty-line">No deliveries for this date and truck.</p>';
 
+        // Nothing to load: one empty message, no second empty section, nothing to print
+        $('by-order-title').hidden = $('by-order').hidden = !deliveries.length;
+        $('print').disabled = !deliveries.length;
         $('by-order').innerHTML = deliveries.length
           ? '<table class="table"><thead><tr><th scope="col">Order</th><th scope="col">Store</th><th scope="col">Address</th><th scope="col">Driver</th><th scope="col" class="num-col">Lines</th><th scope="col">Status</th></tr></thead><tbody>' +
             deliveries.map(function (d) {
               var o = S.get('sales_orders', d.order_id), c = S.get('clients', o.client_id), dr = S.get('drivers', d.driver_id);
               return '<tr><td class="nowrap cell-main">' + esc(o.order_no) + '</td><td>' + esc(c ? c.store_name : '') + '</td><td>' + esc(c ? c.address : '') + '</td>' +
-                '<td class="nowrap">' + esc(dr ? dr.full_name : '—') + '</td><td class="num-col">' + A.items(o.id).length + '</td><td>' + esc(d.status) + '</td></tr>';
+                '<td class="nowrap">' + esc(dr ? dr.full_name : '—') + '</td><td class="num-col">' + A.items(o.id).length + '</td><td>' + CNS.ui.deliveryBadge(d.status) + '</td></tr>';
             }).join('') + '</tbody></table>'
           : '<p class="empty-line">Nothing to load.</p>';
       }

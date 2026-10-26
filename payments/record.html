@@ -14,8 +14,8 @@
   <style>
     .pay-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--space-5); align-items: start; max-width: 1080px; }
     .cust-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-3) 0 0; }
-    .cust-card div { padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
-    .cust-card dt { font-size: var(--text-small); color: var(--color-text-secondary); }
+    /* Values sit on one line across the tiles even when a label wraps */
+    .cust-card div { display: flex; flex-direction: column; justify-content: space-between; padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }    .cust-card dt { font-size: var(--text-small); color: var(--color-text-secondary); }
     .cust-card dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
     .cust-card .is-bad { color: var(--color-error); }
     .items { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; }

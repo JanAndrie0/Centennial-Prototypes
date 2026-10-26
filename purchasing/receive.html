@@ -18,7 +18,8 @@
     .rcv-grid { display: grid; grid-template-columns: minmax(150px, max-content) minmax(0, 2fr) minmax(0, 1fr) auto; gap: var(--space-4); align-items: end; margin-top: var(--space-3); }
     .rcv-grid .field { margin: 0; }
     .rcv-grid .label { white-space: nowrap; }
-    .adds { display: block; font-size: 22px; font-weight: 800; color: var(--color-success); font-variant-numeric: tabular-nums; }
+    /* As tall as the inputs beside it, so its label lines up with theirs */
+    .adds { display: flex; align-items: center; min-height: var(--control-h); font-size: 22px; font-weight: 800; color: var(--color-success); font-variant-numeric: tabular-nums; }
     .adds--split { font-size: 18px; }
     .split { margin-top: var(--space-3); padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
     .split-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) 140px minmax(0, 1fr); gap: var(--space-3); align-items: end; }

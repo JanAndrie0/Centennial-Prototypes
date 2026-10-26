@@ -224,12 +224,13 @@
           var u = h.user_id && CNS.store.get('users', h.user_id);
           var label = recordLabel(h);
           return '<tr>' +
-            '<td class="nowrap">' + esc(fmt.dateTime(h.datetime)) + '</td>' +
-            '<td><span class="cell-main">' + esc(u ? u.full_name : 'Unknown user') + '</span>' +
+            // Date over time, and the name on one line, so the table fits a 1280px laptop
+            '<td class="nowrap">' + esc(fmt.date(h.datetime)) + '<span class="cell-sub">' + esc(fmt.time(h.datetime)) + '</span></td>' +
+            '<td><span class="cell-main nowrap">' + esc(u ? u.full_name : 'Unknown user') + '</span>' +
               // With All branches selected, the branch rides under the role instead of taking its own column
               (u ? '<span class="cell-sub">' + esc(u.role) + (showBranch ? ' · ' + esc(CNS.store.branchName(h.branch_id)) : '') + '</span>' : '') + '</td>' +
             '<td class="nowrap" title="' + esc(h.module) + '">' + esc(MODULE_SHORT[h.module] || h.module) + '</td>' +
-            '<td class="nowrap">' + esc(h.action) + '</td>' +
+            '<td>' + esc(h.action) + '</td>' +
             '<td><span class="truncate" title="' + esc(label) + '">' + esc(label) + '</span></td>' +
             '<td class="nowrap">' + esc(fieldLabel(h)) + '</td>' +
             '<td class="change-cell">' + changeHtml(h) + '</td>' +

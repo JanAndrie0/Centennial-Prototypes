@@ -13,7 +13,8 @@
   <link rel="stylesheet" href="../assets/css/layout.css">
   <style>
     .money-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-    #customers-table .truncate { max-width: 30ch; }
+    /* Store names and addresses wrap instead of being cut off (the town is what staff look for) */
+    #customers-table .row-link, #customers-table .store-addr { display: block; max-width: 26ch; }
   </style>
 </head>
 <body>
@@ -60,7 +61,7 @@
       <table class="table table--clickable" id="customers-table">
         <thead><tr>
           <th scope="col">Store and address</th><th scope="col">Contact</th><th scope="col">Agent</th>
-          <th scope="col" class="num-col">Credit limit</th><th scope="col" class="num-col">Balance</th><th scope="col">Overdue</th><th scope="col">Last order</th>
+          <th scope="col" class="num-col">Credit limit</th><th scope="col" class="num-col">Balance</th><th scope="col">Overdue</th>
         </tr></thead>
         <tbody id="customers-body"></tbody>
       </table>
@@ -140,15 +141,16 @@
           var agentUser = S.get('users', c.agent_id);
           var last = S.clientLastOrder(c.id);
           return '<tr data-id="' + esc(c.id) + '">' +
-            '<td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(c.id) + '" title="' + esc(c.store_name) + '">' + esc(c.store_name) + '</a>' +
-              '<span class="cell-sub truncate" title="' + esc(c.address) + '">' + esc((sc === 'all' ? S.branchName(c.branch_id) + ' · ' : '') + c.address) + '</span></td>' +
+            '<td><a class="row-link" href="detail.html?id=' + encodeURIComponent(c.id) + '">' + esc(c.store_name) + '</a>' +
+              '<span class="cell-sub store-addr">' + esc((sc === 'all' ? S.branchName(c.branch_id) + ' · ' : '') + c.address) + '</span></td>' +
             '<td class="nowrap">' + esc(c.contact_person) + '<span class="cell-sub">' + esc(c.contact_no) + '</span></td>' +
-            '<td class="nowrap">' + esc(agentUser ? agentUser.full_name : '—') + '</td>' +
+            // Last order under the agent (one column fewer, so the table fits a 1280px laptop)
+            '<td class="nowrap">' + esc(agentUser ? agentUser.full_name : '—') +
+              '<span class="cell-sub">' + (last ? 'Last order ' + esc(fmt.date(last)) : 'No orders yet') + '</span></td>' +
             '<td class="num-col">' + esc(fmt.money(c.credit_limit)) + '</td>' +
             '<td class="num-col"><div class="money-cell"><span' + (over ? ' class="cell-main"' : '') + '>' + esc(fmt.money(bal)) + '</span>' +
               (over ? CNS.ui.badge('warning', 'exclamation-triangle', 'Over limit') : '') + '</div></td>' +
-            '<td class="nowrap">' + overdueBadge(c) + '</td>' +
-            '<td class="nowrap">' + (last ? esc(fmt.date(last)) : 'No orders yet') + '</td></tr>';
+            '<td class="nowrap">' + overdueBadge(c) + '</td></tr>';
         }).join('');
 
         $('customers-table').hidden = !rows.length;

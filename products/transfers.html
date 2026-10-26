@@ -90,17 +90,19 @@
         } },
         from: { label: 'From', cell: function (t) {
           var a = S.get('storage', t.from_area);
-          return '<td class="nowrap">' + esc(S.branchName(t.from_branch) + (a ? ' · ' + a.name : '')) + '</td>';
+          // Branch on top, storage area under it (same two-line pattern as the date cells)
+          return '<td class="nowrap">' + esc(S.branchName(t.from_branch)) + (a ? '<span class="cell-sub">' + esc(a.name) + '</span>' : '') + '</td>';
         } },
         to: { label: 'To', cell: function (t) {
           var a = t.to_area && S.get('storage', t.to_area);
-          return '<td class="nowrap">' + esc(S.branchName(t.to_branch) + (a ? ' · ' + a.name : '')) + '</td>';
+          return '<td class="nowrap">' + esc(S.branchName(t.to_branch)) + (a ? '<span class="cell-sub">' + esc(a.name) + '</span>' : '') + '</td>';
         } },
         sent: { label: 'Sent', cell: function (t) {
-          return '<td class="nowrap">' + esc(fmt.dateTime(t.sent_at)) + '<span class="cell-sub">' + esc(userName(t.sent_by)) + '</span></td>';
+          // Date on top, time with the person under it, so the Received table fits a 1280px laptop
+          return '<td class="nowrap">' + esc(fmt.date(t.sent_at)) + '<span class="cell-sub">' + esc(fmt.time(t.sent_at) + ' · ' + userName(t.sent_by)) + '</span></td>';
         } },
         received: { label: 'Received', cell: function (t) {
-          return '<td class="nowrap">' + esc(fmt.dateTime(t.received_at)) + '<span class="cell-sub">' + esc(userName(t.received_by)) + '</span></td>';
+          return '<td class="nowrap">' + esc(fmt.date(t.received_at)) + '<span class="cell-sub">' + esc(fmt.time(t.received_at) + ' · ' + userName(t.received_by)) + '</span></td>';
         } },
         status: { label: 'Status', cell: function (t) {
           return '<td>' + (t.status === 'In transit' ? CNS.ui.badge('info', 'arrow-path', 'In transit') : CNS.ui.badge('success', 'check-circle', 'Received')) + '</td>';

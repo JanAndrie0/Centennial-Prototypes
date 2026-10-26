@@ -70,7 +70,7 @@
         $('done-title').hidden = !done.length;
         $('done').innerHTML = done.map(function (x) {
           var c = S.get('clients', x.o.client_id);
-          return '<li class="d-card"><h2>' + esc(c ? c.store_name : '') + '</h2><p>' + esc(x.o.order_no + ' · Confirmed ' + fmt.dateTime(x.d.completed_at)) + '</p></li>';
+          return '<li class="d-card"><h2>' + esc(c ? c.store_name : '') + '</h2><p>' + esc(x.o.order_no + ' · Confirmed ' + fmt.date(x.d.completed_at)) + '</p></li>';
         }).join('');
       }
 

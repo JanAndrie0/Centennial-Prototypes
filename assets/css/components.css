@@ -287,6 +287,9 @@
 .alert:not(:empty):has(+ .alert:not(:empty)) { margin-bottom: var(--space-2); }
 /* Last thing in a card: the card's own padding is the gap */
 .card > .alert:last-child { margin-bottom: 0; }
+/* Fields at the end of a card: the last row's bottom margin would double the card padding */
+.card > .field:not(:has(~ :not([hidden]))) { margin-bottom: 0; }   /* last visible field (later parts may be hidden until a store is picked) */
+.card > .form-grid:last-child { margin-bottom: calc(-1 * var(--space-5)); }
 
 .alert[data-tone="error"] { color: var(--color-error); background: var(--color-error-bg); --alert-icon: var(--icon-exclamation-circle); }
 .alert[data-tone="success"] { color: var(--color-success); background: var(--color-success-bg); --alert-icon: var(--icon-check-circle); }
@@ -842,6 +845,7 @@ a.list-card:focus-visible { outline: 2px solid var(--color-primary); outline-off
 .chart__col:hover .chart__bar { opacity: .85; }
 .chart__labels { grid-column: 2; display: flex; gap: 4px; font-size: var(--text-caption); color: var(--color-text-secondary); }
 .chart__labels span { flex: 1 1 0; min-width: 4px; overflow: hidden; text-align: center; white-space: nowrap; }
+.chart__labels .is-shown { overflow: visible; }   /* only every nth label is shown, so it may use its neighbours' room */
 .chart__labels .is-hi { overflow: visible; color: var(--color-primary); font-weight: 700; } /* bold label may be wider than its bar */
 /* Rows share one grid (subgrid) so every track starts and ends at the same x, whatever the label or value length */
 .chart--rows { display: grid; grid-template-columns: fit-content(40%) minmax(80px, 1fr) max-content; column-gap: var(--space-3); row-gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
