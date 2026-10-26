@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="../assets/css/components.css">
   <link rel="stylesheet" href="../assets/css/layout.css">
   <style>
-    .flags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
     .note-line { display: flex; align-items: center; gap: 4px; max-width: 20ch; }
     .note-line .icon { width: 14px; height: 14px; flex: none; }
     .note-line span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -61,7 +61,7 @@
         <thead><tr>
           <th scope="col">Order no.</th><th scope="col">Store and agent</th>
           <th scope="col">Delivery</th><th scope="col" class="num-col">Items</th><th scope="col" class="num-col">Total</th>
-          <th scope="col">Status</th><th scope="col">Warnings</th>
+          <th scope="col">Status and warnings</th>
         </tr></thead>
         <tbody id="orders-body"></tbody>
       </table>
@@ -144,7 +144,7 @@
         if (f.backordered.length) out.push(CNS.ui.badge('info', 'information-circle', 'Backordered'));
         if (f.overCredit) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Over credit'));
         if (f.belowMin.length) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Below minimum'));
-        return out.length ? '<div class="flags">' + out.join('') + '</div>' : CNS.ui.none();
+        return out.length ? '<div class="flags">' + out.join('') + '</div>' : '';
       }
 
       function renderTabs(rows) {
@@ -176,8 +176,8 @@
             '<td class="nowrap">' + esc(fmt.date(o.delivery_date)) + '<span class="cell-sub">Ordered ' + esc(fmt.date(o.order_date)) + '</span></td>' +
             '<td class="num-col">' + lines + '</td>' +
             '<td class="num-col">' + esc(fmt.money(S.orderTotal(o.id))) + '</td>' +
-            '<td>' + CNS.ui.orderBadge(o.status) + '</td>' +
-            '<td>' + flagsHtml(o) + '</td></tr>';
+            // Warnings sit under the status they qualify (one column, so the table fits a 1280px laptop)
+            '<td>' + CNS.ui.orderBadge(o.status) + flagsHtml(o) + '</td></tr>';
         }).join('');
 
         $('orders-table').hidden = !shown.length;

@@ -561,6 +561,11 @@
 .tabs button[aria-pressed]:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; border-radius: var(--radius-sm); }
 .tab-count { min-width: 24px; padding: 0 6px; font-size: var(--text-caption); line-height: 20px; text-align: center; color: var(--color-text-secondary); background: var(--color-border-subtle); border-radius: var(--radius-full); }
 .tabs button[aria-pressed="true"] .tab-count { color: #fff; background: var(--color-primary); }
+/* Office laptops (1280–1366 wide): eight status tabs fit on one line instead of scrolling; still 44px tall */
+@media (max-width: 1400px) {
+  .tabs:has(button[aria-pressed]) { gap: 0; }
+  .tabs button[aria-pressed] { padding: 0 10px; }
+}
 
 .tabs [role="tab"]:hover { color: var(--color-text); }
 .tabs [role="tab"][aria-selected="true"] { color: var(--color-primary); border-bottom-color: var(--color-primary); }
