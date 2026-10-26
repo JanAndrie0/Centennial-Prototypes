@@ -78,10 +78,81 @@
     return f;
   }
 
-  function alertsCount(branchView) {
-    var n = CNS.store.lowStock(branchView).length;
+  // ---- Alerts (header button + dropdown) ----
+  // Most urgent first, same order as the dashboard banner:
+  //   Office Manager: orders (2.3), purchase requests (4.2) and field payments (5.3) waiting in their own branch
+  //   CEO and Office Manager: overdue customers (5.5 overdue alerts)
+  //   Every desktop role: low stock (3.4)
+  var STOCK_KINDS = {
+    'backordered': ['info', 'information-circle', 'is backordered', 0],
+    'below-floor': ['error', 'exclamation-circle', 'is below the floor', 1],
+    'low': ['warning', 'exclamation-triangle', 'is low on stock', 2]
+  };
+  var ALERTS_SHOWN = 4;   // rows per section; "See all" opens the full list
+
+  function alertsData(user, branchView) {
+    var S = CNS.store, sections = [];
+    if (user.role === R.OM) {
+      var ob = user.branch_id;
+      var waiting = [
+        [S.where('sales_orders', function (o) { return o.status === 'For approval' && o.branch_id === ob; }).length, 'sales order', 'orders/approvals.html', 'clipboard-document-list', 'waiting'],
+        [S.where('purchase_orders', function (p) { return p.status === 'For approval' && p.branch_id === ob; }).length, 'purchase request', 'purchasing/approvals.html', 'shopping-cart', 'waiting'],
+        [S.where('payments', function (p) {   // same rule as the receivables "To verify" tab
+          var c = !p.verified_by && !p.bounced && S.get('clients', p.client_id);
+          return c && c.branch_id === ob;
+        }).length, 'field payment', 'payments/receivables.html#view=verify', 'banknotes', 'to verify']
+      ].filter(function (w) { return w[0]; });
+      var total = waiting.reduce(function (t, w) { return t + w[0]; }, 0);
+      // Always the Office Manager's own branch, whatever the branch switcher shows
+      if (total) sections.push({ title: 'Waiting for your approval', count: total, rows: waiting.map(function (w) {
+        return { tone: 'warning', icon: w[3], href: w[2],
+          text: '<strong>' + w[0] + ' ' + w[1] + (w[0] === 1 ? '' : 's') + '</strong> ' + w[4],
+          sub: S.branchName(ob) };
+      }) });
+    }
+    if (user.role === R.CEO || user.role === R.OM) {
+      var overdue = S.where('clients', function (c) { return (branchView === 'all' || c.branch_id === branchView) && S.clientOverdue(c.id) > 0; })
+        .sort(function (a, b) { return S.clientOverdueDays(b.id) - S.clientOverdueDays(a.id); });
+      if (overdue.length) sections.push({ title: 'Overdue customers', count: overdue.length, all: 'payments/receivables.html#view=overdue', rows: overdue.map(function (c) {
+        var days = S.clientOverdueDays(c.id);
+        return { tone: 'error', icon: 'exclamation-circle', href: 'customers/detail.html?id=' + encodeURIComponent(c.id),
+          text: '<strong>' + esc(c.store_name) + '</strong> is overdue',
+          sub: CNS.format.money(S.clientOverdue(c.id)) + ' · ' + days + (days === 1 ? ' day' : ' days') };
+      }) });
+    }
+    var low = S.lowStock(branchView).map(function (p) { return { p: p, st: S.stockStatus(p.id, branchView) }; })
+      .sort(function (a, b) { return STOCK_KINDS[a.st][3] - STOCK_KINDS[b.st][3] || a.p.name.localeCompare(b.p.name); });
+    if (low.length) sections.push({ title: 'Low stock', count: low.length, all: 'products/reorder.html', rows: low.map(function (x) {
+      var k = STOCK_KINDS[x.st];
+      return { tone: k[0], icon: k[1], href: 'products/detail.html?id=' + encodeURIComponent(x.p.id),
+        text: '<strong>' + esc(x.p.name) + '</strong> ' + k[2],
+        sub: 'Available ' + CNS.format.qty(S.available(x.p.id, branchView), x.p.unit_id) };
+    }) });
+    return sections;
+  }
+
+  function alertsCount(user, branchView) {
+    var n = alertsData(user, branchView).reduce(function (t, s) { return t + s.count; }, 0);
     return '<span class="count"' + (n ? '' : ' data-zero') + '>' + n + '</span>' +
-      '<span class="sr-only"> products low on stock</span>';
+      '<span class="sr-only">' + (n === 1 ? ' alert' : ' alerts') + '</span>';
+  }
+
+  function alertsPanel(user, branchView) {
+    var sections = alertsData(user, branchView);
+    return '<div class="alerts-panel__head"><h2 class="alerts-panel__title" id="alerts-title">Alerts</h2>' +
+        '<span class="alerts-panel__branch">' + esc(CNS.store.branchName(branchView)) + '</span></div>' +
+      (sections.length
+        ? '<div class="alerts-panel__body">' + sections.map(function (s, i) {
+            return '<section class="alerts-group" aria-labelledby="alerts-g' + i + '">' +
+              '<div class="alerts-group__head"><h3 class="alerts-group__title" id="alerts-g' + i + '">' + esc(s.title) + ' · ' + s.count + '</h3>' +
+                (s.all && s.rows.length > ALERTS_SHOWN ? '<a class="alerts-group__all" href="' + CNS.url(s.all) + '">See all<span class="sr-only"> ' + esc(s.title.toLowerCase()) + '</span></a>' : '') + '</div>' +
+              '<ul class="alerts-panel__list">' + s.rows.slice(0, ALERTS_SHOWN).map(function (r) {
+                return '<li><a class="alerts-item" href="' + CNS.url(r.href) + '">' +
+                  '<span class="alerts-item__icon alerts-item__icon--' + r.tone + '">' + CNS.icon(r.icon) + '</span>' +
+                  '<span class="alerts-item__text"><span>' + r.text + '</span><span class="alerts-item__sub">' + esc(r.sub) + '</span></span></a></li>';
+              }).join('') + '</ul></section>';
+          }).join('') + '</div>'
+        : '<p class="alerts-panel__empty">' + CNS.icon('check-circle') + 'No alerts right now.</p>');
   }
 
   // locked: the page works on the user's own branch only (e.g. the Office Manager in 1.2), so show it as fixed text
@@ -122,8 +193,11 @@
         '<a class="app-header__brand" href="' + CNS.url('dashboard.html') + '">' + LOGO + '</a>' +
         '<span class="app-header__spacer"></span>' +
         branchControl(session, (opts.lockBranch || []).indexOf(user.role) >= 0) +
-        '<a class="app-header__alerts" href="' + CNS.url('products/reorder.html') + '">' + CNS.icon('bell') +
-          '<span>Alerts</span><span data-alerts>' + alertsCount(session.branchView) + '</span></a>' +
+        '<div class="alerts-menu">' +
+          '<button type="button" class="app-header__alerts" aria-expanded="false" aria-controls="alerts-panel">' + CNS.icon('bell') +
+            '<span>Alerts</span><span data-alerts>' + alertsCount(user, session.branchView) + '</span></button>' +
+          '<div class="alerts-panel" id="alerts-panel" role="region" aria-labelledby="alerts-title" hidden></div>' +
+        '</div>' +
         '<button type="button" class="btn btn--secondary app-header__logout">' + CNS.icon('arrow-right-start-on-rectangle') + '<span>Log out</span></button>' +
       '</header>');
 
@@ -176,11 +250,34 @@
       b.addEventListener('click', CNS.auth.logout);
     });
 
+    // Alerts dropdown: the button opens the panel; Escape, a click outside or tabbing away closes it
+    var alertsBtn = header.querySelector('.app-header__alerts');
+    var alertsBox = header.querySelector('.alerts-panel');
+    var alertsMenu = header.querySelector('.alerts-menu');
+    function setAlerts(open, returnFocus) {
+      if (open) alertsBox.innerHTML = alertsPanel(user, session.branchView);   // fresh numbers every time it opens
+      alertsBox.hidden = !open;
+      alertsBtn.setAttribute('aria-expanded', String(open));
+      if (!open && returnFocus) alertsBtn.focus();
+    }
+    alertsBtn.addEventListener('click', function () { setAlerts(alertsBox.hidden, false); });
+    document.addEventListener('click', function (e) {
+      if (!alertsBox.hidden && !alertsMenu.contains(e.target)) setAlerts(false, false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !alertsBox.hidden) setAlerts(false, true);
+    });
+    alertsMenu.addEventListener('focusout', function (e) {
+      if (!alertsBox.hidden && e.relatedTarget && !alertsMenu.contains(e.relatedTarget)) setAlerts(false, false);
+    });
+
     var select = header.querySelector('#branch-select');
     if (select) {
       select.addEventListener('change', function () {
         CNS.auth.setBranchView(select.value);
-        header.querySelector('[data-alerts]').innerHTML = alertsCount(select.value);
+        session.branchView = select.value;
+        header.querySelector('[data-alerts]').innerHTML = alertsCount(user, select.value);
+        if (!alertsBox.hidden) alertsBox.innerHTML = alertsPanel(user, select.value);
       });
     }
 

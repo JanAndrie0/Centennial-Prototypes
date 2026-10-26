@@ -55,7 +55,67 @@
   border-radius: var(--radius-md);
 }
 
-.app-header__alerts:hover { background: var(--color-border-subtle); }
+.app-header__alerts:hover, .app-header__alerts[aria-expanded="true"] { background: var(--color-border-subtle); }
+button.app-header__alerts { font-family: inherit; background: none; border: 0; cursor: pointer; }
+
+/* Alerts dropdown: a card under the button with a small arrow, like a notification centre */
+.alerts-menu { position: relative; }
+.alerts-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  width: 380px;
+  max-width: calc(100vw - 2 * var(--space-4));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  transform-origin: top right;
+  animation: alerts-in var(--dur-popover) var(--ease-out);
+}
+.alerts-panel::before {   /* arrow pointing at the Alerts button */
+  content: "";
+  position: absolute;
+  top: -7px;
+  right: 54px;   /* under the middle of the Alerts button */
+  width: 12px;
+  height: 12px;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+  transform: rotate(45deg);
+}
+@keyframes alerts-in { from { opacity: 0; transform: translateY(-4px) scale(0.97); } }
+
+.alerts-panel__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--color-border); }
+.alerts-panel__title { margin: 0; font-size: var(--text-card-title); font-weight: 700; }
+.alerts-panel__branch { font-size: var(--text-small); font-weight: 600; color: var(--color-text-secondary); }
+.alerts-panel__list { margin: 0; padding: 0; list-style: none; }
+.alerts-panel__list li + li { border-top: 1px solid var(--color-border-subtle); }
+
+.alerts-item { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: var(--space-3); min-height: 64px; padding: var(--space-3) var(--space-5); color: var(--color-text); text-decoration: none; }
+.alerts-item:hover { background: var(--color-bg); }
+.alerts-item:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.alerts-item__icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-full); }
+.alerts-item__icon .icon { width: 22px; height: 22px; }
+.alerts-item__icon--info { color: var(--color-info); background: var(--color-info-bg); }
+.alerts-item__icon--warning { color: var(--color-warning); background: var(--color-warning-bg); }
+.alerts-item__icon--error { color: var(--color-error); background: var(--color-error-bg); }
+.alerts-item__text { display: grid; gap: 2px; font-size: var(--text-note); line-height: 1.35; }
+.alerts-item__sub { font-size: var(--text-small); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+
+/* Sections (approvals, overdue, low stock); a long panel scrolls inside instead of running off the screen */
+.alerts-panel__body { max-height: calc(100vh - var(--header-h) - 96px); overflow-y: auto; overscroll-behavior: contain; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.alerts-group + .alerts-group { border-top: 1px solid var(--color-border); }
+.alerts-group__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 40px; padding: var(--space-2) var(--space-5); background: var(--color-bg); border-bottom: 1px solid var(--color-border-subtle); }
+.alerts-group__title { margin: 0; font-size: var(--text-small); font-weight: 700; color: var(--color-text-secondary); }
+.alerts-group__all { display: inline-flex; align-items: center; min-height: var(--tap); margin: calc(-1 * var(--space-2)) 0; font-size: var(--text-small); font-weight: 600; color: var(--color-primary); }
+.alerts-group__all:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+.alerts-panel__empty { display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-5); color: var(--color-text-secondary); }
+.alerts-panel__empty .icon { color: var(--color-success); }
+
+@media (prefers-reduced-motion: reduce) { .alerts-panel { animation: none; } }
 .app-header__alerts:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
 .count {

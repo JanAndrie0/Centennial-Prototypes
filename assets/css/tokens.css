@@ -93,6 +93,7 @@
   --dur-press: 140ms;      /* hover lift, press feedback */
   --dur-modal: 240ms;      /* dialogs and their backdrop */
   --dur-toast: 200ms;
+  --dur-popover: 160ms;    /* dropdown panels (Alerts) */
   --dur-drawer: 300ms;     /* phone/tablet sidebar */
 
   /* Icons used as CSS masks: Heroicons v2.2.0 outline 24 (MIT), same paths as assets/icons/outline/ */
