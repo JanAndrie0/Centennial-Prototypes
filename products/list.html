@@ -11,6 +11,10 @@
   <link rel="stylesheet" href="../assets/css/base.css">
   <link rel="stylesheet" href="../assets/css/components.css">
   <link rel="stylesheet" href="../assets/css/layout.css">
+  <style>
+    /* With All branches the location lists every branch; it wraps instead of widening the table */
+    .stock-where { display: block; min-width: 10ch; max-width: 16ch; }
+  </style>
 </head>
 <body>
   <!-- 3.1 Maintain Product Records + 3.3 Check Stock Availability -->
@@ -60,8 +64,7 @@
       <table class="table table--clickable" id="products-table">
         <thead>
           <tr>
-            <th scope="col">Code</th>
-            <th scope="col">Product</th>
+            <th scope="col">Product and code</th>
             <th scope="col">Category</th>
             <th scope="col">Unit</th>
             <th scope="col" class="num-col">On hand</th>
@@ -201,15 +204,16 @@
           var cat = S.get('categories', p.category_id);
           var where = locationText(p.id);
           return '<tr data-id="' + esc(p.id) + '">' +
-            '<td class="nowrap">' + esc(p.code) + '</td>' +
-            '<td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(p.id) + '" title="' + esc(p.name) + '">' + esc(p.name) + '</a></td>' +
+            // Code under the name (one column fewer, so the table fits a 1280px laptop)
+            '<td><a class="row-link truncate" href="detail.html?id=' + encodeURIComponent(p.id) + '" title="' + esc(p.name) + '">' + esc(p.name) + '</a>' +
+              '<span class="cell-sub">' + esc(p.code) + '</span></td>' +
             '<td>' + esc(cat ? cat.name : '') + '</td>' +
             '<td class="nowrap">' + esc(fmt.unit(p.unit_id, 2)) + '</td>' +
             '<td class="num-col">' + fmt.number(hand) + '</td>' +
             '<td class="num-col">' + fmt.number(alloc) + '</td>' +
             '<td class="num-col cell-main' + (avail < 0 ? ' qty-neg' : '') + '">' + fmt.number(avail) + '</td>' +
             '<td>' + CNS.ui.stockBadge(S.stockStatus(p.id, sc)) + '</td>' +
-            '<td><span class="truncate" title="' + esc(where) + '">' + esc(where) + '</span></td>' +
+            '<td><span class="stock-where">' + esc(where) + '</span></td>' +
             '</tr>';
         }).join('');
 
