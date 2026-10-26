@@ -203,7 +203,7 @@
 
     var links = MENU.filter(function (m) { return m.roles.indexOf(user.role) >= 0; }).map(function (m) {
       return '<li><a class="nav-link" href="' + CNS.url(m.href) + '"' + (m.id === opts.active ? ' aria-current="page"' : '') + '>' +
-        CNS.icon(m.icon) + '<span>' + (m.no ? '<span class="nav-link__no">' + m.no + '</span>' : '') + esc(m.label) + '</span></a></li>';
+        CNS.icon(m.icon) + '<span>' + esc(m.label) + '</span></a></li>';   // no module numbers in the menu (user decision, Oct 26)
     }).join('');
 
     var sidebar = el(

@@ -203,14 +203,6 @@ button.app-header__alerts { font-family: inherit; background: none; border: 0; c
 .nav-link[aria-current="page"] { color: #fff; background: var(--color-primary); }
 .nav-link:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
-.nav-link__no {
-  margin-right: 6px;
-  font-size: var(--text-caption);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-sidebar-muted);
-}
-
-.nav-link[aria-current="page"] .nav-link__no { color: rgba(255, 255, 255, 0.85); }
 
 /* Log out lives in the header on wide screens and in the drawer on phones */
 .app-sidebar__logout { display: none; margin-top: var(--space-4); color: var(--color-sidebar-text); }

@@ -34,6 +34,7 @@ Dashboard notes (Oct 25): "Sales" counts an order once it is approved (2.4 Recor
 - **The Office Manager manages user accounts for their own branch** (1.2). The CEO only views accounts and is the only role with the **History Log**.
 - **The Sales Supervisor has Reports** (own branch only) but no User Accounts.
 - **Admin/Warehouse Staff still encode orders** (2.1). Sales Supervisor orders enter at 2.2.
+- **No module numbers in the sidebar menu** (user decision, Oct 26): "Sales Orders & Deliveries", not "2.0 Sales Orders & Deliveries". Process numbers stay in the docs and thesis, and in the approval labels (e.g. "Sales orders (2.3)").
 - On **User Accounts**, the Office Manager has **no branch switcher** (branch shown as fixed text via `CNS.layout.desktop({ lockBranch: [R.OM] })`). The CEO keeps it. (Oct 25)
 
 ### CEO account (Oct 25)
