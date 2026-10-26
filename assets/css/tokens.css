@@ -34,6 +34,13 @@
 
   --color-chart-bar: #64748b;
   --color-chart-grid: #e5e7eb;
+  /* Categorical slots for share charts (donut), in this fixed order; validated for colour-blind separation.
+     "Other" is always the neutral grey. Slots 3 and 4 are under 3:1 on white, so a legend with names is required. */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-other: #94a3b8;
 
   --color-scrim: rgba(17, 24, 39, 0.45);
 

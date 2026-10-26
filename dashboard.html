@@ -20,7 +20,13 @@
     .trend { font-weight: 600; }
     .trend--up { color: var(--color-success); }
     .trend--down { color: var(--color-warning); }
-    .dash-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--space-5); margin-bottom: var(--space-5); }
+    /* Management layout (user's reference, Oct 26): 2×2 key numbers beside the week's sales line,
+       then top selling products beside sales by category */
+    .dash-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-5); margin-bottom: var(--space-5); }
+    .dash-mid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--space-5); align-items: start; margin-bottom: var(--space-5); }
+    .top-products .table-wrap { margin: 0 calc(-1 * var(--space-5)) calc(-1 * var(--space-5)); border: 0; border-top: 1px solid var(--color-border); border-radius: 0 0 var(--radius-lg) var(--radius-lg); box-shadow: none; }
+    .top-products .rank { width: 2.5em; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+    .trend__arrow { font-size: 0.85em; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-5); }
     .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); }
     .card-head h2 { margin: 0; font-size: var(--text-card-title); }
@@ -44,7 +50,7 @@
     .approve-list .count { min-width: 32px; padding: 2px 8px; font-weight: 700; text-align: center; border-radius: var(--radius-full); color: var(--color-text-secondary); background: var(--color-border-subtle); }
     .approve-list .count.has { color: var(--color-surface); background: var(--color-primary); }
     .approve-list .icon { width: 18px; height: 18px; color: var(--color-text-secondary); }
-    @media (max-width: 1000px) { .dash-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1100px) { .dash-top, .dash-mid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -123,41 +129,102 @@
         else if (low.length) banner('warning', low.length + (low.length === 1 ? ' product is' : ' products are') + ' low on stock.', 'products/reorder.html', 'Open reorder list');
         else banner();
 
-        var diff = salesToday - salesYesterday;
-        var trend = !salesYesterday && !salesToday ? 'No sales yesterday either'
-          : '<span class="trend trend--' + (diff >= 0 ? 'up' : 'down') + '">' + (diff >= 0 ? '▲ ' : '▼ ') + esc(fmt.money(Math.abs(diff))) + '</span> vs yesterday';
-
-        // Last 14 days and the last 30 days by category
-        var days = [];
-        for (var i = 13; i >= 0; i--) {
-          var d = addDays(-i);
-          // Day number only under each bar (14 bars don't fit full dates); the full date is in the bar's title
-          days.push({ label: i === 0 ? 'Today' : String(fmt.toDate(d).getDate()), value: salesOn(d), hi: i === 0, title: fmt.date(d) + ': ' + fmt.money(salesOn(d)) });
+        // Change against yesterday: a pill beside the number (arrow + amount, direction in words for screen readers)
+        // and a short sub line saying what it compares with. Money as a percent; small counts as a difference.
+        function pill(up, text) {
+          return '<span class="trend-pill trend-pill--' + (up ? 'up' : 'down') + '"><span aria-hidden="true">' + (up ? '▲' : '▼') + '</span>' +
+            '<span class="sr-only">' + (up ? 'Up ' : 'Down ') + '</span>' + text + '</span>';
         }
-        var since = addDays(-30), byCat = {};
+        function moneyChange(now, before) {
+          if (!before) return now ? { pill: pill(true, 'New'), sub: 'None yesterday' } : { pill: '', sub: 'None yesterday either' };
+          var p = Math.round((now - before) / before * 100);
+          return p ? { pill: pill(p > 0, Math.abs(p) + '%'), sub: 'vs yesterday' } : { pill: '', sub: 'Same as yesterday' };
+        }
+        function countChange(now, before) {
+          var d = now - before;
+          return d ? { pill: pill(d > 0, String(Math.abs(d))), sub: (d > 0 ? 'More' : 'Fewer') + ' than yesterday' } : { pill: '', sub: 'Same as yesterday' };
+        }
+        // One icon tile: label, number (+ pill), sub line, tinted icon circle on the right
+        function tile(href, tone, label, value, chg, sub, icon, iconTone) {   // iconTone: the circle's colour when the card has no tone
+          return '<a class="stat stat--icon' + (tone ? ' stat--' + tone : '') + '" href="' + href + '">' +
+            '<p class="stat__label">' + esc(label) + '</p>' +
+            '<div class="stat__value-row"><p class="stat__value">' + esc(value) + '</p>' + (chg ? chg.pill : '') + '</div>' +
+            '<p class="stat__sub">' + esc(chg ? chg.sub : sub) + '</p>' +
+            '<span class="stat__icon stat__icon--' + (tone || iconTone || 'info') + '" aria-hidden="true">' + CNS.icon(icon) + '</span></a>';
+        }
+        var ordersYesterday = S.where('sales_orders', function (o) { return o.order_date === yesterday && o.status !== 'Draft' && inScope(o.branch_id); }).length;
+        var lowBy = { 'backordered': 0, 'below-floor': 0, 'low': 0 };
+        low.forEach(function (p) { lowBy[S.stockStatus(p.id, sc)]++; });
+        var lowSub = [[lowBy.backordered, 'backordered'], [lowBy['below-floor'], 'below floor'], [lowBy.low, 'low']]
+          .filter(function (x) { return x[0]; }).map(function (x) { return x[0] + ' ' + x[1]; }).join(' · ') || 'All above the reorder point';
+        var oldest = overdue.length ? overdue[0].days : 0;   // overdueRows is sorted oldest first
+
+        // Sales line: the last 7 days (today last) against the same days one week earlier
+        var labels = [], titles = [], cur = [], prev = [];
+        for (var i = 6; i >= 0; i--) {
+          var d = addDays(-i), dp = addDays(-i - 7);
+          labels.push(i === 0 ? 'Today' : fmt.toDate(d).toLocaleDateString('en-US', { weekday: 'short' }));
+          titles.push(fmt.toDate(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + (i === 0 ? ' (today)' : ''));
+          cur.push(salesOn(d));
+          prev.push(salesOn(dp));
+        }
+        var sum = function (a) { return a.reduce(function (t, v) { return t + v; }, 0); };
+        var curTotal = sum(cur), prevTotal = sum(prev);
+
+        // Last 30 days by category and by product
+        var since = addDays(-30), byCat = {}, byProd = {};
         S.where('sales_orders', function (o) { return o.order_date >= since && BILLED.indexOf(o.status) >= 0 && inScope(o.branch_id); }).forEach(function (o) {
           S.where('sales_order_items', function (it) { return it.order_id === o.id; }).forEach(function (it) {
-            var c = S.get('categories', S.get('products', it.product_id).category_id);
-            byCat[c.name] = (byCat[c.name] || 0) + it.qty * it.unit_price;
+            var p = S.get('products', it.product_id), c = S.get('categories', p.category_id), amt = it.qty * it.unit_price;
+            byCat[c.name] = (byCat[c.name] || 0) + amt;
+            var g = byProd[p.id] = byProd[p.id] || { p: p, cat: c.name, qty: 0, amt: 0, orders: {} };
+            g.qty += it.qty; g.amt += amt; g.orders[o.id] = true;
           });
         });
+        // Donut: the 4 biggest categories, the rest folded into "Other" (8 thin slices are hard to compare)
         var cats = Object.keys(byCat).map(function (k) { return { label: k, value: byCat[k] }; }).sort(function (a, b) { return b.value - a.value; });
+        if (cats.length > 5) cats = cats.slice(0, 4).concat([{ label: 'Other (' + (cats.length - 4) + ' categories)', value: sum(cats.slice(4).map(function (c) { return c.value; })), other: true }]);
+        var top = Object.keys(byProd).map(function (k) { return byProd[k]; }).sort(function (a, b) { return b.amt - a.amt; }).slice(0, 5);
 
         $('content').innerHTML =
-          '<section class="stats" aria-label="Key numbers">' +
-            '<a class="stat" href="orders/list.html"><p class="stat__label">Sales today</p><p class="stat__value">' + esc(fmt.money(salesToday)) + '</p><p class="stat__sub">' + trend + '</p></a>' +
-            '<a class="stat" href="orders/list.html"><p class="stat__label">Orders today</p><p class="stat__value">' + ordersToday + '</p><p class="stat__sub">Sent today, all statuses</p></a>' +
-            '<a class="stat' + (low.length ? ' stat--warning' : '') + '" href="products/reorder.html"><p class="stat__label">Low-stock items</p><p class="stat__value">' + low.length + '</p><p class="stat__sub">Open the reorder list</p></a>' +
-            '<a class="stat' + (overdueAmt ? ' stat--error' : '') + '" href="payments/receivables.html"><p class="stat__label">Overdue balances</p><p class="stat__value">' + esc(fmt.money(overdueAmt)) + '</p><p class="stat__sub">' + overdueStores + (overdueStores === 1 ? ' customer' : ' customers') + ' · open receivables</p></a>' +
-          '</section>' +
-          '<div class="dash-grid"><section class="card card--pad" id="chart-days"></section><section class="card card--pad" id="chart-cats"></section></div>' +
+          '<div class="dash-top">' +
+            '<section class="stats stats--2x2" aria-label="Key numbers">' +
+              tile('orders/list.html', '', 'Sales today', fmt.money(salesToday), moneyChange(salesToday, salesYesterday), '', 'banknotes', 'success') +   // light green, like money (user, Oct 26)
+              tile('orders/list.html', '', 'Orders today', String(ordersToday), countChange(ordersToday, ordersYesterday), '', 'clipboard-document-list') +
+              tile('products/reorder.html', low.length ? 'warning' : '', 'Low-stock items', String(low.length), null, lowSub, 'cube') +
+              tile('payments/receivables.html#view=overdue', overdueAmt ? 'error' : '', 'Overdue balances', fmt.money(overdueAmt), null,
+                overdueStores ? overdueStores + (overdueStores === 1 ? ' customer' : ' customers') + ' · oldest ' + oldest + (oldest === 1 ? ' day' : ' days') : 'No overdue customers', 'exclamation-circle') +
+            '</section>' +
+            '<section class="card card--pad" id="chart-week"></section>' +
+          '</div>' +
+          '<div class="dash-mid">' +
+            '<section class="card card--pad top-products" aria-labelledby="top-title"><div class="card-head"><h2 id="top-title">Top selling products · 30 days</h2><a href="reports/view.html?type=sales&amp;view=product&amp;preset=last30">See report</a></div>' +
+              (top.length
+                ? '<div class="table-wrap"><table class="table"><thead><tr><th scope="col" class="rank">#</th><th scope="col">Product</th><th scope="col" class="num-col">Sold</th><th scope="col" class="num-col">Orders</th><th scope="col" class="num-col">Sales</th></tr></thead><tbody>' +
+                  top.map(function (g, i) {
+                    return '<tr><td class="rank">' + (i + 1) + '</td><td><a class="row-link" href="products/detail.html?id=' + encodeURIComponent(g.p.id) + '">' + esc(g.p.name) + '</a><span class="cell-sub">' + esc(g.cat) + '</span></td>' +
+                      '<td class="num-col nowrap">' + esc(fmt.qty(g.qty, g.p.unit_id)) + '</td><td class="num-col">' + Object.keys(g.orders).length + '</td><td class="num-col cell-main">' + esc(fmt.money(g.amt)) + '</td></tr>';
+                  }).join('') + '</tbody></table></div>'
+                : '<p class="cell-sub" style="margin:0">No sales in the last 30 days.</p>') +
+            '</section>' +
+            '<section class="card card--pad" id="chart-cats"></section>' +
+          '</div>' +
           (isOM ? card('Waiting for your approval', null, '', '<ul class="mini approve-list">' +
             [['Sales orders (2.3)', q.orders, 'orders/approvals.html'], ['Purchase requests (4.2)', q.pos, 'purchasing/approvals.html'],
              ['Field payments to verify (5.3)', q.verify, 'payments/receivables.html'], ['Supplier payables to check (4.5)', q.payables, 'purchasing/list.html?payment=Unpaid']]
               .map(function (r) { return '<li><a href="' + r[2] + '"><span class="approve-list__label">' + esc(r[0]) + '</span><span class="count' + (r[1] ? ' has' : '') + '">' + r[1] + '<span class="sr-only"> waiting</span></span>' + CNS.icon('chevron-right') + '</a></li>'; }).join('') + '</ul>') : '');
 
-        CNS.chart.columns($('chart-days'), days, { title: 'Sales each day · ' + fmt.date(addDays(-13)).replace(/, \d{4}$/, '') + ' to today', label: 'Sales per day for the last 14 days', format: fmt.money, empty: 'No sales in the last 14 days.' });
-        CNS.chart.rows($('chart-cats'), cats, { title: 'Sales by category (30 days)', label: 'Sales by category for the last 30 days', format: fmt.money, empty: 'No sales in the last 30 days.' });
+        var weekChange = prevTotal ? Math.round((curTotal - prevTotal) / prevTotal * 100) : null;
+        CNS.chart.line($('chart-week'), {
+          title: 'Sales, last 7 days', label: 'Sales per day for the last 7 days and the same days one week earlier', format: fmt.money,
+          labels: labels, titles: titles, hi: 6, empty: 'No sales in the last two weeks.',
+          series: [{ label: 'Last 7 days', tipLabel: 'This day', values: cur, total: curTotal },
+                   { label: 'Week before', tipLabel: 'Same day, week before', values: prev, total: prevTotal, muted: true }],
+          note: weekChange === null || !weekChange ? '' : '<span class="trend trend--' + (weekChange > 0 ? 'up' : 'down') + '"><span class="trend__arrow" aria-hidden="true">' + (weekChange > 0 ? '▲' : '▼') + '</span>' +
+            '<span class="sr-only">' + (weekChange > 0 ? 'Up' : 'Down') + '</span> ' + Math.abs(weekChange) + '%</span> vs the week before'
+        });
+        CNS.chart.donut($('chart-cats'), cats, { title: 'Sales by category · 30 days', label: 'Sales by category for the last 30 days', format: fmt.money,
+          centerLabel: 'Total, 30 days', empty: 'No sales in the last 30 days.', link: { href: 'reports/view.html?type=sales&view=category&preset=last30', text: 'See report' } });
       }
 
       // ---------------- Admin / Warehouse Staff ----------------
