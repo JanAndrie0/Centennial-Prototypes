@@ -57,7 +57,7 @@ There are 5 roles. **Customers, suppliers and drivers never log in.**
 
 ### Branch rules in the UI
 - **Every desktop screen shows the branch in the top bar.**
-- The CEO and Office Manager get a **branch switcher**: Centennial, I-KU, ECK 888, or **All branches**.
+- Only the **CEO** gets a **branch switcher**: Centennial, I-KU, ECK 888, or **All branches**. The Office Manager sees their own branch only (Oct 27).
 - Other roles see their own branch only, as fixed text in the top bar.
 - Mobile should show the branch too (in the header).
 

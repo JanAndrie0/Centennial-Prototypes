@@ -101,7 +101,7 @@
       var params = new URLSearchParams(location.search);
       var report = CNS.reports.get(params.get('type'));
       if (!report) { location.replace('index.html'); return; }
-      // CEO and Office Manager pick any branch or All branches; the Sales Supervisor and staff see their own (06 plan access)
+      // Only the CEO picks any branch or All branches; the Office Manager, Sales Supervisor and staff see their own (06 plan access)
       var pickBranch = CNS.auth.canSwitchBranch(me);
 
       document.title = report.name + ' · Centennial Sales & Inventory';

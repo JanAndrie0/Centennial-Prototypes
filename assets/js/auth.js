@@ -36,7 +36,7 @@
   }
 
   function canSwitchBranch(user) {
-    return user.role === R.CEO || user.role === R.OM;
+    return user.role === R.CEO;
   }
 
   function current() {
