@@ -5,7 +5,7 @@
   'use strict';
 
   var KEY = 'centennial-db';
-  var VERSION = 5;                      // bump when data.js changes shape, so every browser reseeds
+  var VERSION = 6;                      // bump when data.js changes shape, so every browser reseeds
   var DRAFT_PREFIX = 'centennial-draft:';
 
   var BILLED = ['Approved', 'For delivery', 'Shipped', 'Completed']; // count toward the customer's balance

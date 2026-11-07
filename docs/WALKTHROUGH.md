@@ -13,6 +13,10 @@ Tip: say the old problem out loud before showing the screen that fixes it (the "
 
 ---
 
+Note (Nov 7): the sample data was trimmed for the panel presentation. These steps still work, but there are fewer records to show, and the epoxy mother box is 250 pcs.
+
+---
+
 ## Session 1 · Logging in, products and stock (Office Manager, Admin/Warehouse Staff)
 
 | # | Role | Do this | Point out (solves) |
