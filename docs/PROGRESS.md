@@ -2,6 +2,8 @@
 
 **Read this first, then keep it up to date.** Two people (each with their own Claude) work on this prototype. This file is the shared memory: what is built, what was decided and why, and what is still open. When you finish a step or the team decides something, update this file in the same commit.
 
+For a one-page map of the whole prototype (roles, every screen, flows, demo data, code), see `docs/PROTOTYPE-OVERVIEW.md`.
+
 Order of authority: decisions here and in the module plans (`docs/modules/`) beat the older text in `CLAUDE.md`.
 
 ---

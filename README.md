@@ -19,3 +19,4 @@ Changes are saved in your browser only. Use **Reset demo data** at the bottom of
 - `m/` — the sales agent's phone screens
 - `assets/` — shared styles, scripts, icons and the logo
 - `docs/` — module plans and the build order
+- `docs/PROTOTYPE-OVERVIEW.md` — everything in one place: roles, every screen, flows, demo data, code map, open questions
