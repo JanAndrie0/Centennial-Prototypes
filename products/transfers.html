@@ -89,12 +89,12 @@
           return '<td class="num-col">' + esc(fmt.qty(t.qty, S.get('products', t.product_id).unit_id)) + '</td>';
         } },
         from: { label: 'From', cell: function (t) {
-          var a = S.get('storage', t.from_area);
+          var a = S.get('storage_areas', t.from_area);
           // Branch on top, storage area under it (same two-line pattern as the date cells)
           return '<td class="nowrap">' + esc(S.branchName(t.from_branch)) + (a ? '<span class="cell-sub">' + esc(a.name) + '</span>' : '') + '</td>';
         } },
         to: { label: 'To', cell: function (t) {
-          var a = t.to_area && S.get('storage', t.to_area);
+          var a = t.to_area && S.get('storage_areas', t.to_area);
           return '<td class="nowrap">' + esc(S.branchName(t.to_branch)) + (a ? '<span class="cell-sub">' + esc(a.name) + '</span>' : '') + '</td>';
         } },
         sent: { label: 'Sent', cell: function (t) {

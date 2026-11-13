@@ -208,7 +208,7 @@
 
       // ---- Storage areas: management sees every branch, others only their own ----
       var seesAll = CNS.auth.canSwitchBranch(me);
-      var areas = S.where('storage', function (a) { return seesAll || a.branch_id === me.branch_id; });
+      var areas = S.where('storage_areas', function (a) { return seesAll || a.branch_id === me.branch_id; });
       var currentAreas = product ? S.where('stock_locations', function (l) { return l.product_id === product.id; }).map(function (l) { return l.area_id; }) : [];
       areas.forEach(function (a) {
         $('areas').insertAdjacentHTML('beforeend',
@@ -236,7 +236,7 @@
 
       // ---- Fill from the record, then let a saved draft take over ----
       var draftKey = 'product-' + (product ? product.id : 'new');
-      var links = product ? S.where('product_supplier', function (ps) { return ps.product_id === product.id; }) : [];
+      var links = product ? S.where('product_suppliers', function (ps) { return ps.product_id === product.id; }) : [];
       if (product) {
         $('code').value = product.code;
         $('name').value = product.name;
@@ -366,9 +366,9 @@
           return list.map(function (s) { return nameOf('suppliers', s.supplier_id, 'company_name') + ': 1 ' + s.purchase_unit + ' = ' + s.conversion; }).join('; ');
         };
         var oldLinks = describe(links);
-        S.remove('product_supplier', function (ps) { return ps.product_id === record.id; });
+        S.remove('product_suppliers', function (ps) { return ps.product_id === record.id; });
         suppliers.forEach(function (s) {
-          S.insert('product_supplier', { product_id: record.id, supplier_id: s.supplier_id, purchase_unit: s.purchase_unit, conversion: Number(s.conversion) });
+          S.insert('product_suppliers', { product_id: record.id, supplier_id: s.supplier_id, purchase_unit: s.purchase_unit, conversion: Number(s.conversion) });
         });
         var newLinks = describe(suppliers);
         if (!isNew && oldLinks !== newLinks) CNS.history.logChange(MODULE, 'products', record.id, 'supplier_units', oldLinks, newLinks);
@@ -380,7 +380,7 @@
         if (checked.slice().sort().join() !== before.slice().sort().join()) {
           S.remove('stock_locations', function (l) { return l.product_id === record.id && visible.indexOf(l.area_id) >= 0; });
           checked.forEach(function (id) { S.insert('stock_locations', { product_id: record.id, area_id: id }); });
-          var areaNames = function (ids) { return ids.map(function (id) { var a = S.get('storage', id); return S.branchName(a.branch_id) + ' · ' + a.name; }).join(', '); };
+          var areaNames = function (ids) { return ids.map(function (id) { var a = S.get('storage_areas', id); return S.branchName(a.branch_id) + ' · ' + a.name; }).join(', '); };
           if (!isNew) CNS.history.logChange(MODULE, 'products', record.id, 'storage', areaNames(before) || 'None', areaNames(checked) || 'None');
         }
 

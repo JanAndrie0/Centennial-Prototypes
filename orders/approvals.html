@@ -23,7 +23,7 @@
     .queue button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
     .queue__top { display: flex; justify-content: space-between; gap: var(--space-2); font-weight: 700; }
     .queue__flags { display: flex; flex-wrap: wrap; gap: 4px; }
-    .record { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-4) 0; }
+    .record { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-4) 0; }
     .record div { padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
     .record dt { font-size: var(--text-small); color: var(--color-text-secondary); }
     .record dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -106,7 +106,6 @@
       function flagBadges(o) {
         var f = S.orderFlags(o.id);
         var out = [];
-        if (f.overCredit) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Over credit'));
         if (S.clientOverdue(o.client_id)) out.push(CNS.ui.badge('error', 'exclamation-circle', 'Overdue'));
         if (f.backordered.length) out.push(CNS.ui.badge('info', 'information-circle', 'Backordered'));
         if (f.belowMin.length) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Below minimum'));
@@ -141,7 +140,7 @@
 
       function paymentRecord(c, o) {
         var bal = S.clientBalance(c.id), overdue = S.clientOverdue(c.id);
-        var after = bal + S.orderTotal(o.id), over = Math.max(0, after - c.credit_limit);
+        var after = bal + S.orderTotal(o.id);
         var orders = S.where('sales_orders', function (o) { return o.client_id === c.id; }).map(function (o) { return o.id; });
         var plans = S.where('installment_plans', function (p) { return orders.indexOf(p.order_id) >= 0; }).map(function (p) { return p.id; });
         var today = S.today();
@@ -149,29 +148,22 @@
         var late = sched.filter(function (s) { return s.due_date < today && s.amount_paid < s.amount_due; }).length;
         var open = sched.filter(function (s) { return s.amount_paid < s.amount_due; }).length;
         var pays = S.where('payments', function (p) { return p.client_id === c.id; }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
-        var bounced = pays.filter(function (p) { return p.bounced; });
+        var rejected = pays.filter(function (p) { return p.reject_reason; });
 
-        // Same credit meter as New order: the balance if this order is approved, against the credit limit
+        // No credit limit (Nov 11 ERD): the approver sees the balance, overdue amounts, installments and recent payments
         return '<h3 class="sub-title">Customer payment record</h3>' +
-          CNS.ui.meter({
-            value: after, max: c.credit_limit,
-            tone: over ? 'warning' : after > c.credit_limit * 0.8 ? 'info' : 'success',
-            label: 'Balance if approved: ' + fmt.money(after),
-            say: over ? 'Over the credit limit by ' + fmt.money(over) : fmt.money(c.credit_limit - after) + ' credit left',
-            aria: 'Balance if approved ' + fmt.money(after) + ' of a ' + fmt.money(c.credit_limit) + ' credit limit. Balance now ' + fmt.money(bal) + '.',
-            marks: [['Credit limit', c.credit_limit, fmt.money(c.credit_limit)]]
-          }) +
           '<dl class="record">' +
-            '<div><dt>Balance now</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
+            '<div><dt>Balance now</dt><dd>' + esc(fmt.money(bal)) + '</dd></div>' +
+            '<div><dt>Balance if approved</dt><dd>' + esc(fmt.money(after)) + '</dd></div>' +
             '<div><dt>Overdue</dt><dd' + (overdue ? ' class="is-bad"' : '') + '>' + esc(fmt.money(overdue)) + (overdue ? ' · ' + S.clientOverdueDays(c.id) + ' days' : '') + '</dd></div>' +
             '<div><dt>Installments</dt><dd' + (late ? ' class="is-bad"' : '') + '>' + (sched.length ? open + ' open · ' + late + ' late' : 'None') + '</dd></div>' +
           '</dl>' +
-          (bounced.length ? '<p class="alert" data-tone="error">' + bounced.length + (bounced.length === 1 ? ' bounced cheque' : ' bounced cheques') + ' on record: ' +
-            esc(bounced.map(function (p) { return p.reference_no + ' (' + fmt.date(p.date) + ', ' + fmt.money(p.amount) + ')'; }).join(', ')) + '.</p>' : '') +
+          (rejected.length ? '<p class="alert" data-tone="error">' + rejected.length + (rejected.length === 1 ? ' rejected payment' : ' rejected payments') + ' on record: ' +
+            esc(rejected.map(function (p) { return fmt.money(p.amount) + ' on ' + fmt.date(p.date) + ' (' + p.reject_reason + ')'; }).join(', ')) + '.</p>' : '') +
           '<div class="table-wrap">' + (pays.length
             ? '<table class="table"><caption class="sr-only">Last 3 payments</caption><thead><tr><th scope="col">Last payment</th><th scope="col" class="num-col">Amount</th><th scope="col">Method</th><th scope="col">Status</th></tr></thead><tbody>' +
               pays.slice(0, 3).map(function (p) {
-                var st = p.bounced ? CNS.ui.badge('error', 'x-mark', 'Bounced') : p.verified_by ? CNS.ui.badge('success', 'check-circle', 'Verified') : CNS.ui.badge('warning', 'exclamation-triangle', 'For verification');
+                var st = p.reject_reason ? CNS.ui.badge('error', 'x-mark', 'Rejected') : p.verified_by ? CNS.ui.badge('success', 'check-circle', 'Verified') : CNS.ui.badge('warning', 'exclamation-triangle', 'For verification');
                 return '<tr><td class="nowrap">' + esc(fmt.date(p.date)) + '</td><td class="num-col">' + esc(fmt.money(p.amount)) + '</td><td>' + esc(p.method) + '</td><td>' + st + '</td></tr>';
               }).join('') + '</tbody></table>'
             : '<p class="empty-line">No payments on record yet.</p>') + '</div>';
@@ -229,7 +221,7 @@
           '<h2 class="modal__title" id="r-title">' + (reject ? 'Reject ' : 'Send back ') + esc(o.order_no) + '?</h2>' +
           '<p class="modal__body">' + (reject ? 'The order stops here. The agent sees your reason.' : 'It goes back to the agent as a draft so they can fix it and send it again.') + '</p>' +
           '<form novalidate><div class="field"><label class="label" for="r-text">' + (reject ? 'Reason' : 'Note to the agent') + '</label>' +
-            '<input class="input" id="r-text" autocomplete="off" placeholder="' + (reject ? 'e.g. Two bounced cheques this quarter' : 'e.g. Please confirm the hinge size') + '" aria-describedby="r-text-error">' +
+            '<input class="input" id="r-text" autocomplete="off" placeholder="' + (reject ? 'e.g. Two late installments this quarter' : 'e.g. Please confirm the hinge size') + '" aria-describedby="r-text-error">' +
             '<p class="field-error" id="r-text-error"></p></div>' +
           '<div class="modal__actions"><button type="button" class="btn btn--secondary" data-cancel>Cancel</button>' +
             '<button type="submit" class="btn btn--primary">' + (reject ? 'Reject order' : 'Send back') + '</button></div></form>';

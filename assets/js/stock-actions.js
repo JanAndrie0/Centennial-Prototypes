@@ -17,7 +17,7 @@
   // Storage areas this user may act on: management follows the header branch, others their own branch
   function areasFor(session) {
     var sc = CNS.auth.canSwitchBranch(session.user) ? session.branchView : session.user.branch_id;
-    return S.where('storage', function (a) { return sc === 'all' || a.branch_id === sc; });
+    return S.where('storage_areas', function (a) { return sc === 'all' || a.branch_id === sc; });
   }
 
   function areaLabel(a) { return S.branchName(a.branch_id) + ' · ' + a.name; }
@@ -131,7 +131,7 @@
         ];
         if (ok.indexOf(false) >= 0) { d.firstInvalid(); return; }
 
-        var area = S.get('storage', areaId);
+        var area = S.get('storage_areas', areaId);
         var change = (add ? 1 : -1) * Number(qty);
         var ref = S.nextRef('ADJ');
         var why = reason + (note ? ': ' + note : '');
@@ -175,13 +175,13 @@
         d.q('#sa-from').innerHTML = options.length
           ? options.map(function (a) { return '<option value="' + esc(a.id) + '"' + (a.id === keep ? ' selected' : '') + '>' + esc(areaLabel(a)) + '</option>'; }).join('')
           : '<option value="">' + (p ? 'No stock in your areas' : 'Choose a product first') + '</option>';
-        var from = S.get('storage', d.q('#sa-from').value);
+        var from = S.get('storage_areas', d.q('#sa-from').value);
         if (from && !d.q('#sa-to-branch').dataset.touched) d.q('#sa-to-branch').value = from.branch_id;
         var sameBranch = from && d.q('#sa-to-branch').value === from.branch_id;
         d.q('#sa-to-area-wrap').hidden = !sameBranch;
         if (sameBranch) {
           var keepTo = d.q('#sa-to-area').value;
-          d.q('#sa-to-area').innerHTML = S.where('storage', function (a) { return a.branch_id === from.branch_id && a.id !== from.id; })
+          d.q('#sa-to-area').innerHTML = S.where('storage_areas', function (a) { return a.branch_id === from.branch_id && a.id !== from.id; })
             .map(function (a) { return '<option value="' + esc(a.id) + '"' + (a.id === keepTo ? ' selected' : '') + '>' + esc(a.name) + '</option>'; }).join('');
         }
         d.q('#sa-now').innerHTML = p && from
@@ -200,10 +200,10 @@
       d.q('form').addEventListener('submit', function (e) {
         e.preventDefault();
         var p = product();
-        var from = S.get('storage', d.q('#sa-from').value);
+        var from = S.get('storage_areas', d.q('#sa-from').value);
         var toBranch = d.q('#sa-to-branch').value;
         var sameBranch = from && toBranch === from.branch_id;
-        var toArea = sameBranch ? S.get('storage', d.q('#sa-to-area').value) : null;
+        var toArea = sameBranch ? S.get('storage_areas', d.q('#sa-to-area').value) : null;
         var qty = d.q('#sa-qty').value;
         var have = p && from ? S.areaOnHand(p.id, from.id) : 0;
         var ok = [
@@ -240,7 +240,7 @@
     receive: function (opts) {
       var t = opts.transfer;
       var p = S.get('products', t.product_id);
-      var areas = S.where('storage', function (a) { return a.branch_id === t.to_branch; });
+      var areas = S.where('storage_areas', function (a) { return a.branch_id === t.to_branch; });
       var preferred = areas.filter(function (a) { return stockedIn(p.id, a.id); })[0] || areas[0];
       var d = dialog({
         icon: 'arrow-down-tray', title: 'Receive transfer ' + t.ref,
@@ -252,7 +252,7 @@
       d.q('#sa-area').focus();
       d.q('form').addEventListener('submit', function (e) {
         e.preventDefault();
-        var area = S.get('storage', d.q('#sa-area').value);
+        var area = S.get('storage_areas', d.q('#sa-area').value);
         move({ product_id: p.id, branch_id: area.branch_id, area_id: area.id, type: 'Transfer in', qty_change: t.qty, ref: t.ref, user_id: opts.session.user.id, reason: 'From ' + S.branchName(t.from_branch) });
         if (!stockedIn(p.id, area.id)) S.insert('stock_locations', { product_id: p.id, area_id: area.id });
         logMove(t.ref, p.name + ' ' + signed(t.qty, p.unit_id) + ' · ' + areaLabel(area) + ' (received from ' + S.branchName(t.from_branch) + ')');

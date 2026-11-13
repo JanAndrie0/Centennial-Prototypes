@@ -98,7 +98,7 @@
         [S.where('sales_orders', function (o) { return o.status === 'For approval' && o.branch_id === ob; }).length, 'sales order', 'orders/approvals.html', 'clipboard-document-list', 'waiting'],
         [S.where('purchase_orders', function (p) { return p.status === 'For approval' && p.branch_id === ob; }).length, 'purchase request', 'purchasing/approvals.html', 'shopping-cart', 'waiting'],
         [S.where('payments', function (p) {   // same rule as the receivables "To verify" tab
-          var c = !p.verified_by && !p.bounced && S.get('clients', p.client_id);
+          var c = !p.verified_by && !p.reject_reason && S.get('clients', p.client_id);
           return c && c.branch_id === ob;
         }).length, 'field payment', 'payments/receivables.html#view=verify', 'banknotes', 'to verify']
       ].filter(function (w) { return w[0]; });

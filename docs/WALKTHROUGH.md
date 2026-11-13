@@ -42,8 +42,8 @@ Note (Nov 7): the sample data was trimmed for the panel presentation. These step
 |---|---|---|---|
 | 1 | Sales Agent (phone) | Home → **New order** → store, **take slip photo**, add products, Send | Orders from the field without Viber photos and retyping |
 | 2 | Admin/Warehouse | 2.0 → **New order** for Bagong Pag-asa → **Read slip with AI** → confirm 3 lines | AI reads the slip but staff confirm every line |
-| 3 | Admin/Warehouse | Watch the warnings: over credit, overdue, backordered, below minimum | Warnings, never blocks; the Office Manager decides |
-| 4 | Office Manager | **Approvals** → read the customer's payment record → **Approve** one, **Reject** one (with a reason) | Credit and payment history before approving (bad payers, bounced cheques) |
+| 3 | Admin/Warehouse | Watch the warnings: overdue, backordered, below minimum | Warnings, never blocks; the Office Manager decides |
+| 4 | Office Manager | **Approvals** → read the customer's payment record → **Approve** one, **Reject** one (with a reason) | Balance and payment history before approving (overdue installments, rejected payments) |
 | 5 | Office Manager | Products → Pioneer Epoxy A: Allocated went up | Approved stock is reserved for that customer, so it can't be sold twice |
 | 6 | Admin/Warehouse | Order → **Receipt** (print preview) | Receipt shows payments and remaining balance |
 | 7 | Admin/Warehouse | **Deliveries** → Schedule (truck, driver) → **Truck load list** → **Mark as shipped** | Load list by storage area; stock deducted when it leaves |
@@ -61,7 +61,7 @@ Note (Nov 7): the sample data was trimmed for the panel presentation. These step
 | 1 | Office Manager | 4.0 **Approvals** → approve the purchase request from Session 1 → **Issue purchase order** | Purchases need approval; printable PO |
 | 2 | Admin/Warehouse | **Receive delivery** → epoxy mother box → **Split** 125 A + 125 B → Post | Mother-box conversion done by the system (old: by hand) |
 | 3 | Office Manager | Purchase orders → Payment: Unpaid → **Mark paid** | Supplier payables, paid or unpaid |
-| 4 | Admin/Warehouse | 5.0 **Record payment** (cheque + proof photo) → receipt | Proof of payment kept with the record |
+| 4 | Admin/Warehouse | 5.0 **Record payment** (cheque or e-wallet + payment photo) → receipt | Proof of payment kept with the record |
 | 5 | Sales Agent (phone) | **Payments** → record a field payment with a photo | Field payments without paper notes |
 | 6 | Office Manager | **Receivables → To verify** → verify the agent's payment; look at the aging table | Overdue alerts and aging (old: no reminders) |
 | 7 | Office Manager | A customer → **Installments** → set up a plan | Installment plans and due dates |
@@ -81,7 +81,7 @@ Note (Nov 7): the sample data was trimmed for the panel presentation. These step
 | Individual logins and roles; History Log with old and new values | 1·1, 1·3, 3·10 |
 | Branch shown everywhere, branch switcher, stock transfer between branches | 1·6–7, 3·8 |
 | Order slip photo + AI reading with confirm step | 2·1–2 |
-| Minimum order warning; credit limit check; payment record before approval | 2·3–4 |
+| Minimum order warning; payment record before approval (no credit limit since Nov 11) | 2·3–4 |
 | Office Manager order approval and purchase approval | 2·4, 3·1 |
 | Backordered orders still go through; On hand / Reserved / Available | 1·4, 2·3, 2·5 |
 | Receipt, delivery schedule, truck and driver, truck load list, Shipped, agent confirms | 2·6–8 |
@@ -89,7 +89,7 @@ Note (Nov 7): the sample data was trimmed for the panel presentation. These step
 | Reorder point, floor, ceiling, critical; low-stock alerts; reorder list; stock order request | 1·9–10 (stock order request: log in as Sales Supervisor) |
 | Over-ceiling alert; fast/slow-moving report | Reorder list "Over ceiling"; 3·9 |
 | Supplier deliveries paid/unpaid; payables verification | 3·3 |
-| Installment plans, payments with proof photo, balances, overdue alerts, due-date reminders | 3·4–7; staff dashboard "Due-date reminders" |
+| Installment plans, payments with payment photo, balances, overdue alerts, due-date reminders | 3·4–7; staff dashboard "Due-date reminders" |
 | Role dashboards | Each session starts on the dashboard |
 | Reports | 3·9 |
 | Mobile agent screens | 2·1, 2·8, 3·5; Stock and Customers tabs |

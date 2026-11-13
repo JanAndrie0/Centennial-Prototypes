@@ -17,6 +17,7 @@
     .diff-neg { font-weight: 700; color: var(--color-warning); }
     .diff-zero { color: var(--color-text-secondary); }
     #count-form .save-bar { margin-top: var(--space-4); max-width: none; }
+    .section-title { margin: var(--space-6) 0 var(--space-3); font-size: 18px; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -38,6 +39,11 @@
     </div>
 
     <div id="count-host"></div>
+
+    <section class="past-counts" aria-labelledby="past-title">
+      <h2 class="section-title" id="past-title">Past counts in this area</h2>
+      <div id="past-host"></div>
+    </section>
   </main>
 
   <script src="../assets/js/core.js"></script>
@@ -67,7 +73,7 @@
 
       function fillAreas() {
         var keep = $('area').value;
-        var areas = S.where('storage', function (a) { return scope() === 'all' || a.branch_id === scope(); });
+        var areas = S.where('storage_areas', function (a) { return scope() === 'all' || a.branch_id === scope(); });
         $('area').innerHTML = areas.map(function (a) {
           return '<option value="' + esc(a.id) + '"' + (a.id === keep ? ' selected' : '') + '>' + esc(S.branchName(a.branch_id) + ' · ' + a.name) + '</option>';
         }).join('');
@@ -89,7 +95,7 @@
       // A fresh form per area, so each area keeps its own autosaved draft
       function render() {
         CNS.layout.moduleTabs('products', 'counts', session);
-        var area = S.get('storage', $('area').value);
+        var area = S.get('storage_areas', $('area').value);
         var list = productsIn(area.id);
         $('count-host').innerHTML =
           '<form id="count-form" novalidate>' +
@@ -126,6 +132,39 @@
         });
         form.addEventListener('submit', function (e) { e.preventDefault(); post(area); });
         update();
+        renderPast(area);
+      }
+
+      // Past counts (tbl_stock_counts), one row per count: same day, same area, same person
+      function renderPast(area) {
+        var groups = {};
+        S.where('stock_counts', function (c) { return c.area_id === area.id; }).forEach(function (c) {
+          var key = c.count_date + '|' + c.counted_by;
+          (groups[key] = groups[key] || { date: c.count_date, by: c.counted_by, rows: [] }).rows.push(c);
+        });
+        var list = Object.keys(groups).map(function (k) { return groups[k]; })
+          .sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        if (!list.length) {
+          $('past-host').innerHTML = '<p class="empty-line">No counts posted for this area yet.</p>';
+          return;
+        }
+        $('past-host').innerHTML = '<div class="table-wrap"><table class="table"><thead><tr>' +
+            '<th scope="col">Date</th><th scope="col">Counted by</th><th scope="col" class="num-col">Products counted</th><th scope="col">Differences</th>' +
+          '</tr></thead><tbody>' +
+          list.map(function (g) {
+            var user = S.get('users', g.by);
+            var diffs = g.rows.filter(function (c) { return c.counted_qty !== c.system_qty; }).map(function (c) {
+              var p = S.get('products', c.product_id);
+              var d = c.counted_qty - c.system_qty;
+              return esc(p ? p.name : c.product_id) + ': <span class="' + (d > 0 ? 'diff-pos' : 'diff-neg') + '">' +
+                (d > 0 ? '+' : '') + esc(fmt.qty(d, p ? p.unit_id : '')) + '</span>';
+            });
+            return '<tr><td class="nowrap">' + esc(fmt.date(g.date)) + '</td>' +
+              '<td class="nowrap">' + esc(user ? user.full_name : g.by) + '</td>' +
+              '<td class="num-col">' + g.rows.length + '</td>' +
+              '<td>' + (diffs.length ? diffs.join('<br>') : '<span class="diff-zero">Everything matched</span>') + '</td></tr>';
+          }).join('') +
+          '</tbody></table></div>';
       }
 
       function rows() {
@@ -167,6 +206,19 @@
         }).then(function (ok) {
           if (!ok) return;
           var ref = S.nextRef('CNT');
+          var countDate = S.today();
+          // tbl_stock_counts: one record per product counted, matched or not (Nov 11 ERD)
+          all.filter(function (r) { return r.counted !== null; }).forEach(function (r) {
+            var rec = S.insert('stock_counts', {
+              product_id: r.product.id, area_id: area.id, counted_by: session.user.id,
+              system_qty: r.sys, counted_qty: r.counted, count_date: countDate
+            });
+            CNS.history.log({
+              action: 'Create', module: MODULE, record_type: 'stock_counts', record_id: rec.id, field: 'counted_qty',
+              old_value: r.product.name + ': ' + fmt.qty(r.sys, r.product.unit_id) + ' in the system',
+              new_value: fmt.qty(r.counted, r.product.unit_id) + ' counted'
+            });
+          });
           changes.forEach(function (r) {
             var change = r.counted - r.sys;
             S.insert('stock_movements', {

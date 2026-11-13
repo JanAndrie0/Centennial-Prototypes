@@ -14,9 +14,9 @@
   <style>
     .step { margin-bottom: var(--space-4); }
     .step-title { margin: 0 0 var(--space-3); font-size: 18px; font-weight: 700; }
-    /* Same credit meter as the desktop New order, then Balance now and Overdue */
+    /* Balance now, after this order and overdue (no credit limit, Nov 11 ERD) */
     .cust-card { padding: var(--space-3); background: var(--color-bg); border-radius: var(--radius-md); }
-    .cust-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin: var(--space-3) 0 0; }
+    .cust-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin: 0; }
     .cust-card dt { font-size: var(--text-small); color: var(--color-text-secondary); }
     .cust-card dd { margin: 0; font-weight: 700; }
     .cust-card .is-bad { color: var(--color-error); }
@@ -173,25 +173,16 @@
         });
         $('total').textContent = fmt.money(total);
 
-        var over = 0;
+        // Balance and overdue only: no credit limit (Nov 11 ERD)
         $('cust-card').hidden = !c;
         if (c) {
           var bal = S.clientBalance(c.id), od = S.clientOverdue(c.id);
-          over = Math.max(0, bal + total - c.credit_limit);
-          var after = bal + total;
-          $('cust-card').innerHTML = CNS.ui.meter({
-              value: after, max: c.credit_limit,
-              tone: over ? 'warning' : after > c.credit_limit * 0.8 ? 'info' : 'success',
-              label: 'Balance after this order: ' + fmt.money(after),
-              say: over ? 'Over the credit limit by ' + fmt.money(over) : fmt.money(c.credit_limit - after) + ' credit left',
-              aria: 'Balance after this order ' + fmt.money(after) + ' of a ' + fmt.money(c.credit_limit) + ' credit limit. Balance now ' + fmt.money(bal) + '.',
-              marks: [['Credit limit', c.credit_limit, fmt.money(c.credit_limit)]]
-            }) + '<dl>' +
-            '<div><dt>Balance now</dt><dd' + (bal > c.credit_limit ? ' class="is-warn"' : '') + '>' + esc(fmt.money(bal)) + '</dd></div>' +
+          $('cust-card').innerHTML = '<dl>' +
+            '<div><dt>Balance now</dt><dd>' + esc(fmt.money(bal)) + '</dd></div>' +
+            '<div><dt>After this order</dt><dd>' + esc(fmt.money(bal + total)) + '</dd></div>' +
             '<div><dt>Overdue</dt><dd' + (od ? ' class="is-bad"' : '') + '>' + esc(fmt.money(od)) + '</dd></div></dl>';
         }
         var items = [];
-        if (over) items.push('Over credit limit by ' + fmt.money(over) + '. The office still reviews it.');
         if (back) items.push(back + ' backordered. The order still goes through.');
         if (low) items.push(low + ' below the minimum order.');
         $('warnings').innerHTML = items.length ? '<ul>' + items.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : '';

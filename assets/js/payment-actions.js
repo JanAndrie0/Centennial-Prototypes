@@ -17,8 +17,8 @@
   function sum(rows, fn) { return rows.reduce(function (t, r) { return t + fn(r); }, 0); }
   function round2(n) { return Math.round(n * 100) / 100; }
 
-  function counted(p) { return !!p.verified_by && !p.bounced; }
-  function pending(p) { return !p.verified_by && !p.bounced; }
+  function counted(p) { return !!p.verified_by && !p.reject_reason; }
+  function pending(p) { return !p.verified_by && !p.reject_reason; }
 
   function planFor(orderId) {
     return S.where('installment_plans', function (pl) { return pl.order_id === orderId; })[0] || null;
@@ -150,14 +150,14 @@
     },
 
     // What remains after a payment of `amount` on the item, and on the whole account (counted payments only)
-    // p: { client_id, order_id, schedule_id, amount, method, reference_no, date, proof_photo, channel }
+    // p: { client_id, order_id, schedule_id, amount, method, reference_no, date, payment_photo, channel }
     record: function (p, session) {
       var office = p.channel === 'Office';
       var row = S.insert('payments', {
         receipt_no: nextReceiptNo(), order_id: p.order_id, client_id: p.client_id, schedule_id: p.schedule_id || null,
         amount: round2(p.amount), method: p.method, reference_no: p.reference_no || '', date: p.date,
-        proof_photo: p.proof_photo || null, received_by: session.user.id, channel: p.channel,
-        verified_by: office ? session.user.id : null, bounced: false, recorded_at: new Date().toISOString()
+        payment_photo: p.payment_photo || null, received_by: session.user.id, channel: p.channel,
+        verified_by: office ? session.user.id : null, recorded_at: new Date().toISOString()
       });
       var o = S.get('sales_orders', p.order_id);
       CNS.history.log({ action: 'Create', module: MODULE, record_type: 'payments', record_id: row.id, field: null, old_value: null,
@@ -176,27 +176,32 @@
       return S.get('payments', p.id);
     },
 
-    // The money never arrived or the cheque bounced: the payment never counts
+    // 5.3: the Office Manager rejects a field payment that is waiting for verification (the money never arrived,
+    // wrong amount). It never counts. No "bounced" status: whether a cheque bounces is between the client and
+    // the bank, not the system (ERD, Nov 12).
     reject: function (p, reason, session) {
-      var old = S.update('payments', p.id, { bounced: true, reject_reason: reason });
+      S.update('payments', p.id, { reject_reason: reason });
       CNS.history.log({ action: 'Reject', module: MODULE, record_type: 'payments', record_id: p.id, field: 'status',
-        old_value: old.verified_by ? 'Verified' : 'For verification', new_value: 'Rejected: ' + reason, user_id: session.user.id });
-      // A counted payment that bounces takes its amount back off the installment rows, newest first
-      if (old.verified_by && p.schedule_id) {
-        var first = S.get('installment_schedules', p.schedule_id);
-        var left = p.amount;
-        schedules(first.plan_id).filter(function (s) { return s.due_date >= first.due_date; }).reverse().forEach(function (s) {
-          if (left <= 0 || s.amount_paid <= 0) return;
-          var back = Math.min(left, s.amount_paid);
-          S.update('installment_schedules', s.id, { amount_paid: round2(s.amount_paid - back) });
-          left = round2(left - back);
-        });
-      }
+        old_value: 'For verification', new_value: 'Rejected: ' + reason, user_id: session.user.id });
       return S.get('payments', p.id);
     },
 
+    // Modes of payment (Nov 11 decision): COD, e-wallet, cheque and bank transfer only. Shared by the office and field forms.
+    METHODS: ['COD', 'E-wallet', 'Cheque', 'Bank transfer'],
+    refLabel: function (m) {
+      return { 'Cheque': 'Cheque no. and bank', 'Bank transfer': 'Transfer reference no.', 'E-wallet': 'E-wallet reference no.' }[m] || 'Reference no. (optional)';
+    },
+    // Error text when a required reference is missing; '' when the method needs none (COD)
+    refMissing: function (m) {
+      return { 'Cheque': 'Enter the cheque number.', 'Bank transfer': 'Enter the transfer reference.', 'E-wallet': 'Enter the e-wallet reference number.' }[m] || '';
+    },
+    // What the payment photo shows for each method
+    photoOf: function (m) {
+      return { 'Cheque': 'cheque', 'Bank transfer': 'transfer slip', 'E-wallet': 'e-wallet receipt' }[m] || 'cash count or the store\'s note';
+    },
+
     statusBadge: function (p) {
-      if (p.bounced) return CNS.ui.badge('error', 'x-mark', !p.reject_reason || p.reject_reason === 'Cheque bounced' ? 'Bounced' : 'Rejected');
+      if (p.reject_reason) return CNS.ui.badge('error', 'x-mark', 'Rejected');
       if (p.verified_by) return CNS.ui.badge('success', 'check-circle', 'Verified');
       return CNS.ui.badge('warning', 'exclamation-triangle', 'For verification');
     },

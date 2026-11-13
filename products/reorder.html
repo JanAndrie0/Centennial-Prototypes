@@ -108,7 +108,7 @@
       function branchesStocking(productId) {
         var ids = [];
         S.where('stock_locations', function (l) { return l.product_id === productId; }).forEach(function (l) {
-          var a = S.get('storage', l.area_id);
+          var a = S.get('storage_areas', l.area_id);
           if (a && ids.indexOf(a.branch_id) < 0) ids.push(a.branch_id);
         });
         return ids;

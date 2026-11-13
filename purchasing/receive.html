@@ -100,8 +100,8 @@
       }
 
       var supplier = S.get('suppliers', po.supplier_id);
-      var areas = S.where('storage', function (a) { return a.branch_id === po.branch_id; });
-      var supplierProducts = S.where('product_supplier', function (ps) { return ps.supplier_id === po.supplier_id; }).map(function (ps) { return S.get('products', ps.product_id); });
+      var areas = S.where('storage_areas', function (a) { return a.branch_id === po.branch_id; });
+      var supplierProducts = S.where('product_suppliers', function (ps) { return ps.supplier_id === po.supplier_id; }).map(function (ps) { return S.get('products', ps.product_id); });
       $('title').textContent = 'Receive ' + po.po_no;
       $('desc').textContent = supplier.company_name + ' · deliver to ' + S.branchName(po.branch_id) + '. Count what arrived; the system converts it into the units you sell.';
       $('cancel').href = 'detail.html?id=' + encodeURIComponent(po.id);

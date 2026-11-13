@@ -105,7 +105,7 @@
         : '<span class="label">Deliver to branch</span><div class="static-value">' + esc(S.branchName(me.branch_id)) + '</div>';
 
       function supplierProducts(sid) {
-        return S.where('product_supplier', function (ps) { return ps.supplier_id === sid; })
+        return S.where('product_suppliers', function (ps) { return ps.supplier_id === sid; })
           .map(function (ps) { return S.get('products', ps.product_id); }).filter(Boolean)
           .sort(function (a, b) { return a.name.localeCompare(b.name); });
       }

@@ -78,7 +78,7 @@
               <div class="field">
                 <label class="label" for="method">Method</label>
                 <select class="input" id="method" name="method">
-                  <option>Cash</option><option>Cheque</option><option>Bank transfer</option>
+                  <option>COD</option><option>E-wallet</option><option>Cheque</option><option>Bank transfer</option>
                 </select>
               </div>
               <div class="field">
@@ -94,14 +94,14 @@
             </div>
             <p class="notice notice--info" id="amount-note" hidden></p>
             <div class="field">
-              <span class="label" id="proof-label">Proof of payment photo</span>
+              <span class="label" id="proof-label">Payment photo</span>
               <div class="proof">
                 <img id="proof-img" alt="Proof of payment" hidden>
                 <input class="file-input" type="file" id="proof-file" accept="image/*" aria-labelledby="proof-label proof-btn" aria-describedby="proof-error">
                 <label class="btn btn--secondary" for="proof-file" id="proof-btn"></label>
                 <button type="button" class="btn-link" id="proof-remove" hidden>Remove photo</button>
               </div>
-              <input type="hidden" name="proof_photo" id="proof-photo">
+              <input type="hidden" name="payment_photo" id="proof-photo">
               <p class="field-error" id="proof-error"></p>
             </div>
           </section>
@@ -169,7 +169,6 @@
         var waiting = P.toVerify().filter(function (p) { return p.client_id === c.id; }).reduce(function (t, p) { return t + p.amount; }, 0);
         $('cust-card').innerHTML =
           '<div><dt>Balance</dt><dd>' + esc(fmt.money(bal)) + '</dd></div>' +
-          '<div><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
           '<div><dt>Overdue</dt><dd' + (overdue ? ' class="is-bad"' : '') + '>' + esc(fmt.money(overdue)) + '</dd></div>' +
           '<div><dt>Field payments to verify</dt><dd>' + esc(fmt.money(waiting)) + '</dd></div>';
 
@@ -216,7 +215,7 @@
 
       function renderMethod() {
         var m = $('method').value;
-        $('reference-label').textContent = m === 'Cheque' ? 'Cheque no. and bank' : m === 'Bank transfer' ? 'Transfer reference no.' : 'Reference no. (optional)';
+        $('reference-label').textContent = P.refLabel(m);
       }
 
       // ---- Proof photo ----
@@ -286,9 +285,10 @@
           setError('items', !c || it ? '' : 'Choose what the payment is for.'),
           setError('amount', !c ? '' : !(amount > 0) ? 'Enter the amount received.' : it && !it.schedule_id && amount > it.remaining + 0.001
             ? 'More than the ' + fmt.money(it.remaining) + ' left on this order.' : ''),
-          setError('reference', m !== 'Cash' && !$('reference').value.trim() ? (m === 'Cheque' ? 'Enter the cheque number.' : 'Enter the transfer reference.') : ''),
+          setError('reference', !$('reference').value.trim() ? P.refMissing(m) : ''),
           setError('date', !$('date').value ? 'Enter the date received.' : $('date').value > S.today() ? 'The date can\'t be in the future.' : ''),
-          setError('proof', c && m !== 'Cash' && !$('proof-photo').value ? 'Add a photo of the ' + (m === 'Cheque' ? 'cheque' : 'transfer slip') + '.' : '')
+          // Payment photo: required for every method except COD at the office
+          setError('proof', c && m !== 'COD' && !$('proof-photo').value ? 'Add a photo of the ' + P.photoOf(m) + '.' : '')
         ];
         if (ok.indexOf(false) >= 0) {
           var bad = document.querySelector('[aria-invalid="true"]') || $('items').querySelector('input');
@@ -297,7 +297,7 @@
         }
         var row = P.record({
           client_id: c.id, order_id: it.order_id, schedule_id: it.schedule_id, amount: amount, method: m,
-          reference_no: $('reference').value.trim(), date: $('date').value, proof_photo: $('proof-photo').value, channel: 'Office'
+          reference_no: $('reference').value.trim(), date: $('date').value, payment_photo: $('proof-photo').value, channel: 'Office'
         }, session);
         draft.clear();
         CNS.ui.flash('Payment saved. Receipt ' + P.receiptNo(row) + ' is ready to print.');

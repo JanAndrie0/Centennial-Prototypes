@@ -1,6 +1,6 @@
 /* 4.0 Supplier and Purchasing: purchase order steps in one place, each logged.
    Draft → For approval (4.2) → Approved → Ordered (4.3) → Partially received / Received (4.4); payment Unpaid / Paid (4.5).
-   Quantities on PO lines are in the supplier's unit; stock is added in the selling unit using product_supplier.conversion. */
+   Quantities on PO lines are in the supplier's unit; stock is added in the selling unit using product_suppliers.conversion. */
 (function (CNS) {
   'use strict';
 
@@ -10,7 +10,7 @@
   function items(poId) { return S.where('purchase_order_items', function (it) { return it.po_id === poId; }); }
 
   function link(productId, supplierId) {
-    return S.where('product_supplier', function (ps) { return ps.product_id === productId && ps.supplier_id === supplierId; })[0] || null;
+    return S.where('product_suppliers', function (ps) { return ps.product_id === productId && ps.supplier_id === supplierId; })[0] || null;
   }
 
   function setStatus(po, status, session, action, extra) {
@@ -59,7 +59,7 @@
         S.update('purchase_order_items', it.id, { qty_received: it.qty_received + l.received });
         l.parts.forEach(function (part) {
           if (!part.qty) return;
-          var area = S.get('storage', part.area_id);
+          var area = S.get('storage_areas', part.area_id);
           S.insert('stock_movements', {
             datetime: now, product_id: part.product_id, branch_id: area.branch_id, area_id: area.id,
             type: 'Receive', qty_change: part.qty, ref: po.po_no, user_id: session.user.id, reason: null

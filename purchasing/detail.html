@@ -114,7 +114,7 @@
         $('actions').innerHTML = a;
 
 
-        $('parties').innerHTML = '<p><span class="cell-sub">Supplier</span><strong>' + esc(s.company_name) + '</strong><br>' + esc(s.address) + '<br>' + esc(s.contact_person + ' · ' + s.contact_no) + '</p>' +
+        $('parties').innerHTML = '<p><span class="cell-sub">Supplier</span><strong>' + esc(s.company_name) + '</strong><br>' + esc(s.address) + '<br>' + esc(s.contact_person + ' · ' + s.contact_number) + '</p>' +
           '<p><span class="cell-sub">Deliver to</span><strong>' + esc(b ? b.name : '') + '</strong><br>Expected ' + esc(fmt.date(po.expected_date)) + '</p>';
         var items = P.items(po.id);
         $('lines').innerHTML = '<thead><tr><th scope="col">Product</th><th scope="col" class="num-col">Ordered</th><th scope="col">= Selling units</th>' +

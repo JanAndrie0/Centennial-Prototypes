@@ -20,11 +20,11 @@
   // Where a product is picked from in a branch: its storage area there, or the branch's first area
   function areaFor(productId, branchId) {
     var loc = S.where('stock_locations', function (l) {
-      var a = S.get('storage', l.area_id);
+      var a = S.get('storage_areas', l.area_id);
       return l.product_id === productId && a && a.branch_id === branchId;
     })[0];
-    if (loc) return S.get('storage', loc.area_id);
-    return S.where('storage', function (a) { return a.branch_id === branchId; })[0];
+    if (loc) return S.get('storage_areas', loc.area_id);
+    return S.where('storage_areas', function (a) { return a.branch_id === branchId; })[0];
   }
 
   function items(orderId) {

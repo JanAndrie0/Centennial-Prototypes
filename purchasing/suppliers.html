@@ -56,14 +56,14 @@
       var products = S.all('products').slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
       $('add').innerHTML = CNS.icon('plus-circle') + 'Add supplier';
 
-      function links(sid) { return S.where('product_supplier', function (ps) { return ps.supplier_id === sid; }); }
+      function links(sid) { return S.where('product_suppliers', function (ps) { return ps.supplier_id === sid; }); }
 
       function render() {
         CNS.layout.moduleTabs('purchasing', 'suppliers', session);
         $('rows').innerHTML = S.all('suppliers').slice().sort(function (a, b) { return a.company_name.localeCompare(b.company_name); }).map(function (s) {
           var unpaid = P.supplierUnpaid(s.id);
           return '<tr><td class="cell-main">' + esc(s.company_name) + '</td>' +
-            '<td class="nowrap">' + esc(s.contact_person) + '<span class="cell-sub">' + esc(s.contact_no) + '</span></td>' +
+            '<td class="nowrap">' + esc(s.contact_person) + '<span class="cell-sub">' + esc(s.contact_number) + '</span></td>' +
             '<td>' + esc(s.address) + '</td>' +
             '<td class="num-col">' + links(s.id).length + '</td>' +
             '<td class="num-col">' + (unpaid ? '<a class="row-link" href="list.html?payment=Unpaid">' + esc(fmt.money(unpaid)) + '</a>' : CNS.ui.none()) + '</td>' +
@@ -86,7 +86,7 @@
             field('sf-name', 'Company name', '<input class="input" id="sf-name" autocomplete="off" value="' + esc(s ? s.company_name : '') + '" aria-describedby="sf-name-error">') +
             '<div class="form-grid">' +
               field('sf-contact', 'Contact person', '<input class="input" id="sf-contact" autocomplete="off" value="' + esc(s ? s.contact_person : '') + '" aria-describedby="sf-contact-error">') +
-              field('sf-phone', 'Contact no.', '<input class="input" id="sf-phone" type="tel" autocomplete="off" value="' + esc(s ? s.contact_no : '') + '" aria-describedby="sf-phone-error">') +
+              field('sf-phone', 'Contact no.', '<input class="input" id="sf-phone" type="tel" autocomplete="off" value="' + esc(s ? s.contact_number : '') + '" aria-describedby="sf-phone-error">') +
             '</div>' +
             field('sf-address', 'Address', '<input class="input" id="sf-address" autocomplete="off" value="' + esc(s ? s.address : '') + '" aria-describedby="sf-address-error">') +
             '<fieldset class="check-list field"><legend>Products supplied</legend><div id="sf-links"></div>' +
@@ -123,7 +123,7 @@
 
         d.querySelector('form').addEventListener('submit', function (e) {
           e.preventDefault();
-          var values = { company_name: q('sf-name').value.trim(), contact_person: q('sf-contact').value.trim(), contact_no: q('sf-phone').value.trim(), address: q('sf-address').value.trim() };
+          var values = { company_name: q('sf-name').value.trim(), contact_person: q('sf-contact').value.trim(), contact_number: q('sf-phone').value.trim(), address: q('sf-address').value.trim() };
           var rows = Array.prototype.map.call(d.querySelectorAll('.link-row'), function (r) {
             return { product_id: r.querySelector('select').value, purchase_unit: r.querySelector('input').value.trim(), conversion: r.querySelector('input[type=number]').value };
           }).filter(function (r) { return r.product_id || r.purchase_unit || r.conversion; });
@@ -132,7 +132,7 @@
           var ok = [
             err('sf-name', values.company_name ? '' : 'Enter the company name.'),
             err('sf-contact', values.contact_person ? '' : 'Enter the contact person.'),
-            err('sf-phone', /^[0-9 ()+-]{7,}$/.test(values.contact_no) ? '' : 'Enter a phone number.'),
+            err('sf-phone', /^[0-9 ()+-]{7,}$/.test(values.contact_number) ? '' : 'Enter a phone number.'),
             err('sf-address', values.address ? '' : 'Enter the address.'),
             err('sf-links', badLink ? 'Each product needs its unit and how many it holds.' : dupLink ? 'A product is listed twice.' : '')
           ];
@@ -151,8 +151,8 @@
           }
           var describe = function (list) { return list.map(function (l) { return S.get('products', l.product_id).name + ': 1 ' + l.purchase_unit + ' = ' + l.conversion; }).join('; '); };
           var before = describe(links(rec.id));
-          S.remove('product_supplier', function (ps) { return ps.supplier_id === rec.id; });
-          rows.forEach(function (r) { S.insert('product_supplier', { product_id: r.product_id, supplier_id: rec.id, purchase_unit: r.purchase_unit, conversion: Number(r.conversion) }); });
+          S.remove('product_suppliers', function (ps) { return ps.supplier_id === rec.id; });
+          rows.forEach(function (r) { S.insert('product_suppliers', { product_id: r.product_id, supplier_id: rec.id, purchase_unit: r.purchase_unit, conversion: Number(r.conversion) }); });
           var after = describe(links(rec.id));
           if (!isNew && before !== after) CNS.history.logChange(P.MODULE, 'suppliers', rec.id, 'supplier_units', before || 'None', after || 'None');
           d.close();

@@ -86,7 +86,7 @@
           left = Math.max(0, s.amount_due - s.amount_paid);
         }
       }
-      var pendingNote = !p.verified_by && !p.bounced;
+      var pendingNote = !p.verified_by && !p.reject_reason;
 
       document.title = 'Receipt ' + P.receiptNo(p) + ' · Centennial Sales & Inventory';
       $('crumb-client').href = '../customers/detail.html?id=' + encodeURIComponent(c.id) + '#view=payments';
@@ -109,7 +109,7 @@
         (pendingNote ? '<p class="notice notice--warning">' + CNS.icon('exclamation-triangle') + '<span>Field payment. The balance changes once the Office Manager verifies it.</span></p>' : '') +
         '<div class="r-sign"><div>Received by: ' + esc(receiver ? receiver.full_name : '') + '</div><div>' + (verifier ? 'Verified by: ' + esc(verifier.full_name) : 'Verified by (Office Manager)') + '</div></div>' +
         '<p class="r-note">This receipt is for the payment above only. Keep it with your copy of the sales receipt.</p>' +
-        (p.proof_photo ? '<img class="proof-img no-print" src="' + esc(p.proof_photo) + '" alt="Proof of payment for ' + esc(P.receiptNo(p)) + '">' : '');
+        (p.payment_photo ? '<img class="proof-img no-print" src="' + esc(p.payment_photo) + '" alt="Proof of payment for ' + esc(P.receiptNo(p)) + '">' : '');
     })();
   </script>
 </body>

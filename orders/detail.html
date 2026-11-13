@@ -107,7 +107,7 @@
       function userName(uid) { var u = uid && S.get('users', uid); return u ? u.full_name : '—'; }
       function emptyLine(t) { return '<p class="empty-line">' + esc(t) + '</p>'; }
       function paidOnOrder() {
-        return S.where('payments', function (p) { return p.order_id === o.id && p.verified_by && !p.bounced; })
+        return S.where('payments', function (p) { return p.order_id === o.id && p.verified_by && !p.reject_reason; })
           .reduce(function (t, p) { return t + p.amount; }, 0);
       }
 
@@ -152,7 +152,6 @@
 
         var f = S.orderFlags(o.id);
         var notes = [];
-        if (f.overCredit) notes.push(['warning', 'Over credit limit by ' + fmt.money(f.overCredit) + '.']);
         if (f.backordered.length) notes.push(['info', f.backordered.length + (f.backordered.length === 1 ? ' line is' : ' lines are') + ' backordered. They will come from the supplier.']);
         $('flags').innerHTML = notes.map(function (n) { return '<p class="alert" data-tone="' + n[0] + '">' + esc(n[1]) + '</p>'; }).join('');
       }
@@ -211,7 +210,7 @@
 
       function saveItems() {
         var before = S.orderFlags(o.id);
-        var beforeCount = (before.overCredit ? 1 : 0) + before.backordered.length;
+        var beforeCount = before.backordered.length;
         var changed = 0;
         A.items(o.id).forEach(function (it) {
           var tr = $('items').querySelector('[data-item="' + it.id + '"]');
@@ -246,7 +245,7 @@
         }
         editing = false;
         var after = S.orderFlags(o.id);
-        var afterCount = (after.overCredit ? 1 : 0) + after.backordered.length;
+        var afterCount = after.backordered.length;
         if (changed && ['Approved', 'For delivery'].indexOf(o.status) >= 0 && afterCount > beforeCount) {
           o = A.sendForApproval(o, session);
           CNS.ui.toast('Items saved. New warnings appeared, so the order went back to the Office Manager.');

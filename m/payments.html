@@ -25,7 +25,7 @@
     .item input { width: 22px; height: 22px; margin: 0; accent-color: var(--color-primary); }
     .item__main { display: grid; gap: 2px; min-width: 0; }
     .item__amount { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
-    .methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); margin: 0 0 var(--space-4); padding: 0; border: 0; }
+    .methods { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); margin: 0 0 var(--space-4); padding: 0; border: 0; }
     .methods legend { margin-bottom: var(--space-2); font-weight: 600; }
     .methods label { display: grid; place-items: center; min-height: var(--tap); padding: var(--space-2); font-weight: 600; text-align: center;
       border: 1px solid var(--color-input-border); border-radius: var(--radius-md); cursor: pointer; }
@@ -82,7 +82,8 @@
           </div>
           <fieldset class="methods">
             <legend>Method</legend>
-            <label><input type="radio" name="method" value="Cash" checked>Cash</label>
+            <label><input type="radio" name="method" value="COD" checked>COD</label>
+            <label><input type="radio" name="method" value="E-wallet">E-wallet</label>
             <label><input type="radio" name="method" value="Cheque">Cheque</label>
             <label><input type="radio" name="method" value="Bank transfer">Bank transfer</label>
           </fieldset>
@@ -92,11 +93,11 @@
             <p class="field-error" id="reference-error"></p>
           </div>
           <div class="field">
-            <span class="label" id="proof-label">Proof of payment photo</span>
+            <span class="label" id="proof-label">Payment photo</span>
             <img class="proof-thumb" id="proof-img" alt="Proof of payment" hidden>
             <input class="file-input" type="file" id="proof-file" accept="image/*" capture="environment" aria-labelledby="proof-label proof-btn" aria-describedby="proof-error">
             <label class="btn btn--secondary btn--block" for="proof-file" id="proof-btn"></label>
-            <input type="hidden" name="proof_photo" id="proof-photo">
+            <input type="hidden" name="payment_photo" id="proof-photo">
             <p class="field-error" id="proof-error"></p>
           </div>
         </section>
@@ -222,7 +223,7 @@
 
       function renderMethod() {
         var m = method();
-        $('reference-label').textContent = m === 'Cheque' ? 'Cheque no. and bank' : m === 'Bank transfer' ? 'Transfer reference no.' : 'Reference no. (optional)';
+        $('reference-label').textContent = P.refLabel(m);
       }
 
       function showProof(v) {
@@ -273,8 +274,8 @@
           setError('customer', c ? '' : 'Choose the store.'),
           setError('items', !c || it ? '' : 'Choose what it pays.'),
           setError('amount', !c ? '' : !(amount > 0) ? 'Enter the amount you received.' : it && !it.schedule_id && amount > it.remaining + 0.001 ? 'More than the ' + fmt.money(it.remaining) + ' left.' : ''),
-          setError('reference', m !== 'Cash' && !$('reference').value.trim() ? (m === 'Cheque' ? 'Enter the cheque number.' : 'Enter the transfer reference.') : ''),
-          setError('proof', c && !$('proof-photo').value ? 'Take a photo of the ' + (m === 'Cash' ? 'cash count or the store\'s note' : m === 'Cheque' ? 'cheque' : 'transfer slip') + '.' : '')
+          setError('reference', !$('reference').value.trim() ? P.refMissing(m) : ''),
+          setError('proof', c && !$('proof-photo').value ? 'Take a photo of the ' + P.photoOf(m) + '.' : '')
         ];
         if (ok.indexOf(false) >= 0) {
           var bad = document.querySelector('[aria-invalid="true"]');
@@ -283,7 +284,7 @@
         }
         var row = P.record({
           client_id: c.id, order_id: it.order_id, schedule_id: it.schedule_id, amount: amount, method: m,
-          reference_no: $('reference').value.trim(), date: S.today(), proof_photo: $('proof-photo').value, channel: 'Field'
+          reference_no: $('reference').value.trim(), date: S.today(), payment_photo: $('proof-photo').value, channel: 'Field'
         }, session);
         draft.clear();
         location.href = 'payments.html?receipt=' + encodeURIComponent(row.id);

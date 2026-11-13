@@ -144,7 +144,7 @@
             var s = p.schedule_id && S.get('installment_schedules', p.schedule_id);
             var mine = canVerify(p);
             return '<li class="card verify-card">' +
-              (p.proof_photo ? '<button type="button" class="proof-btn" data-proof="' + esc(p.id) + '"><img class="verify-card__proof" src="' + esc(p.proof_photo) + '" alt="Proof of payment, ' + esc(P.receiptNo(p)) + '. Open larger."></button>'
+              (p.payment_photo ? '<button type="button" class="proof-btn" data-proof="' + esc(p.id) + '"><img class="verify-card__proof" src="' + esc(p.payment_photo) + '" alt="Proof of payment, ' + esc(P.receiptNo(p)) + '. Open larger."></button>'
                 : '<div class="verify-card__noproof">' + CNS.icon('photo') + '<span>No photo</span></div>') +
               '<div><div class="verify-card__top"><p class="verify-card__store">' + esc(c.store_name) + '</p><p class="verify-card__amount">' + esc(fmt.money(p.amount)) + '</p></div>' +
                 '<dl class="details"><dt>Receipt</dt><dd>' + esc(P.receiptNo(p)) + ' · ' + esc(fmt.date(p.date)) + '</dd>' +
@@ -168,7 +168,7 @@
                 '<td class="nowrap">' + esc(fmt.date(x.schedule.due_date)) + '</td>' +
                 '<td>' + CNS.ui.badge('error', 'exclamation-circle', x.days + (x.days === 1 ? ' day' : ' days')) + '</td>' +
                 '<td class="num-col cell-main">' + esc(fmt.money(x.schedule.amount_due - x.schedule.amount_paid)) + '</td>' +
-                '<td class="nowrap">' + esc(userName(x.client.agent_id)) + '<span class="cell-sub">' + esc(x.client.contact_person + ' · ' + x.client.contact_no) + '</span></td>' +
+                '<td class="nowrap">' + esc(userName(x.client.agent_id)) + '<span class="cell-sub">' + esc(x.client.contact_person + ' · ' + x.client.contact_number) + '</span></td>' +
                 '<td>' + payLink(x.client, x.schedule) + '</td></tr>';
             }).join('') + '</tbody></table>'
           : emptyLine('Nothing overdue. Every installment is paid on time.');
@@ -185,7 +185,7 @@
               return '<tr><td class="nowrap">' + when + '<span class="cell-sub">' + esc(fmt.date(x.schedule.due_date)) + '</span></td>' +
                 '<td>' + clientLink(x.client) + '</td><td class="nowrap">' + esc(x.order.order_no) + '<span class="cell-sub">' + esc(rowNo(x)) + '</span></td>' +
                 '<td class="num-col cell-main">' + esc(fmt.money(x.schedule.amount_due - x.schedule.amount_paid)) + '</td>' +
-                '<td class="nowrap">' + esc(userName(x.client.agent_id)) + '<span class="cell-sub">' + esc(x.client.contact_person + ' · ' + x.client.contact_no) + '</span></td>' +
+                '<td class="nowrap">' + esc(userName(x.client.agent_id)) + '<span class="cell-sub">' + esc(x.client.contact_person + ' · ' + x.client.contact_number) + '</span></td>' +
                 '<td>' + payLink(x.client, x.schedule) + '</td></tr>';
             }).join('') + '</tbody></table>'
           : emptyLine('No installments due in the next 7 days.');
@@ -229,7 +229,7 @@
           d.className = 'modal modal--wide';
           d.setAttribute('aria-labelledby', 'pv-title');
           d.innerHTML = '<h2 class="modal__title" id="pv-title">Proof of payment · ' + esc(P.receiptNo(pp)) + '</h2>' +
-            '<img class="proof-big" src="' + esc(pp.proof_photo) + '" alt="Proof of payment, full size">' +
+            '<img class="proof-big" src="' + esc(pp.payment_photo) + '" alt="Proof of payment, full size">' +
             '<form method="dialog" class="modal__actions"><button class="btn btn--secondary" autofocus>Close</button></form>';
           var opener = document.activeElement;
           document.body.appendChild(d);
@@ -247,7 +247,7 @@
           '<h2 class="modal__title" id="rj-title">Reject this payment?</h2>' +
           '<p class="modal__body">' + esc(fmt.money(p.amount) + ' · ' + P.receiptNo(p)) + '. It will not count toward the balance. The agent sees the reason.</p>' +
           '<form novalidate><div class="field"><label class="label" for="rj-reason">Reason</label>' +
-            '<select class="input" id="rj-reason"><option>Money not received</option><option>Cheque bounced</option><option>Wrong amount</option><option>Proof unclear</option></select></div>' +
+            '<select class="input" id="rj-reason"><option>Money not received</option><option>Wrong amount</option><option>Proof unclear</option></select></div>' +
           '<div class="modal__actions"><button type="button" class="btn btn--secondary" data-cancel autofocus>Cancel</button>' +
           '<button type="submit" class="btn btn--primary">Reject payment</button></div></form>';
         var opener = document.activeElement;

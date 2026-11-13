@@ -175,7 +175,7 @@
         var sc = session.branchView;
         var ids = [];
         S.where('stock_locations', function (l) { return l.product_id === p.id; }).forEach(function (l) {
-          var a = S.get('storage', l.area_id);
+          var a = S.get('storage_areas', l.area_id);
           if (a && (sc === 'all' || a.branch_id === sc) && ids.indexOf(a.branch_id) < 0) ids.push(a.branch_id);
         });
         return ids;
@@ -241,7 +241,7 @@
 
         // ---- Stock by location (on hand per storage area, from movements) ----
         var locs = S.where('stock_locations', function (l) { return l.product_id === p.id; })
-          .map(function (l) { return S.get('storage', l.area_id); })
+          .map(function (l) { return S.get('storage_areas', l.area_id); })
           .filter(function (a) { return a && (sc === 'all' || a.branch_id === sc); });
         var total = 0;
         $('locations').innerHTML = locs.map(function (a) {
@@ -259,7 +259,7 @@
         $('movements-count').textContent = moves.length + (moves.length === 1 ? ' movement' : ' movements') + ' · ' + S.branchName(sc) + ' · newest first';
         $('movements').innerHTML = moves.map(function (m) {
           var b = TYPE_BADGE[m.type] || ['neutral', 'cube'];
-          var area = S.get('storage', m.area_id);
+          var area = S.get('storage_areas', m.area_id);
           var user = S.get('users', m.user_id);
           var sign = m.qty_change > 0 ? '+' : '';
           return '<tr><td class="nowrap">' + esc(fmt.dateTime(m.datetime)) + '</td>' +
@@ -273,7 +273,7 @@
 
         // ---- Units and conversion ----
         $('unit-sell').innerHTML = '<dt>Selling unit</dt><dd>' + esc(fmt.unit(p.unit_id, 1)) + ' (one unit for all branches)</dd>';
-        $('units').innerHTML = S.where('product_supplier', function (ps) { return ps.product_id === p.id; }).map(function (ps) {
+        $('units').innerHTML = S.where('product_suppliers', function (ps) { return ps.product_id === p.id; }).map(function (ps) {
           var s = S.get('suppliers', ps.supplier_id);
           return '<tr><td>' + esc(s ? s.company_name : ps.supplier_id) + '</td><td>' + esc(ps.purchase_unit) + '</td>' +
             '<td class="nowrap">1 ' + esc(ps.purchase_unit) + ' = ' + esc(qty(ps.conversion)) + '</td></tr>';

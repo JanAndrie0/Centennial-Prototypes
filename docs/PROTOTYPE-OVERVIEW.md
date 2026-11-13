@@ -30,7 +30,7 @@ Only 5 roles log in. Customers, suppliers and drivers never do.
 | Sales Orders & Deliveries | Full | Full, **approves orders** | Full | Full (encodes orders) | Own orders, confirm delivery |
 | Products & Inventory | Full | Full, **sets stock levels** | Full | Full | Stock check only |
 | Purchasing & Suppliers | Full | Full, **approves purchases, marks paid** | Full (stock order requests) | Full | — |
-| Customer Accounts & Payments | Full | Full, **credit limits, verifies field payments** | Full | Office payments | Field payments, balances |
+| Customer Accounts & Payments | Full | Full, **verifies field payments** | Full | Office payments | Field payments, balances |
 | Reports | All branches | Own branch | Own branch | Own branch | — |
 | Branch in top bar | **Switcher** (Centennial · I-KU · ECK 888 · All) | Fixed text | Fixed text | Fixed text | In the phone header |
 
@@ -73,14 +73,14 @@ Process numbers follow the revised Chapter 3 (Oct 23). The sidebar shows module 
 | Page | Process | What it does |
 |---|---|---|
 | `orders/list.html` | — | Status tabs with counts (Draft, For approval, Approved, Rejected, Shipped, Completed, Backordered); warnings under the status |
-| `orders/new.html` | 2.1, 2.2 | Customer + credit meter, slip photo, **Read slip with AI** (mocked, confirm each line), keyboard-friendly lines, warnings (below minimum, over credit, overdue), backorder info note, autosave, "Send for approval" |
+| `orders/new.html` | 2.1, 2.2 | Customer balance card, slip photo, **Read slip with AI** (mocked, confirm each line), keyboard-friendly lines, warnings (below minimum, overdue), backorder info note, autosave, "Send for approval" |
 | `orders/approvals.html` | 2.3 | OM queue with the customer's payment record and "Balance if approved" meter; Approve or Reject with reason |
 | `orders/detail.html` | 2.4 | Status stepper + "Next:" line; tabs for items, timeline, slip, payments, delivery |
 | `orders/receipt.html` | 2.5 | Printable receipt with payments and remaining balance |
 | `deliveries/list.html` | 2.6 | Scheduled date, order, customer, truck, driver, status |
 | `deliveries/detail.html` | 2.6 | Schedule, truck and driver, pick list by storage area, **Mark as shipped** (stock deducted) |
 | `deliveries/load-list.html` | 2.6 | Printable truck load list |
-| `m/new-order.html` | 2.1 | Agent order with slip photo and credit meter |
+| `m/new-order.html` | 2.1 | Agent order with slip photo and balance card |
 | `m/deliveries.html` | 2.6 | Agent confirms delivery (one big **Delivered** button per card) |
 
 ### 3.0 Products & Inventory
@@ -91,7 +91,7 @@ Process numbers follow the revised Chapter 3 (Oct 23). The sidebar shows module 
 | `products/form.html` | 3.1 | Code, name, category, supplier, selling unit, price, minimum order, floor / reorder point / ceiling (OM only), units and conversion |
 | `products/stock-check.html`, `m/stock.html` | 3.3 | Quick view-only availability search (desktop and phone) |
 | `products/transfers.html` | 3.2 | Moves between storage areas (instant) and branches (Sent → Received by the other branch) |
-| `products/counts.html` | 3.2 | Physical stock count per area, posts the differences |
+| `products/counts.html` | 3.2 | Physical stock count per area: saves a count record per product (`stock_counts`), corrects the differences, shows past counts |
 | `products/reorder.html` | 3.4 | Reorder list → Create purchase request / Stock order request |
 
 ### 4.0 Purchasing & Suppliers
@@ -107,13 +107,13 @@ Process numbers follow the revised Chapter 3 (Oct 23). The sidebar shows module 
 ### 5.0 Customer Accounts & Payments
 | Page | Process | What it does |
 |---|---|---|
-| `customers/list.html` | 5.1 | Stores, credit limit, balance, overdue badge |
-| `customers/detail.html` | 5.1, 5.4 | Tabs Overview (payment record card), Orders, Payments, Installments; installment plan modal; OM changes credit limit, marks a cheque bounced |
-| `payments/record.html` | 5.2 | Amount, method, reference, date, proof photo |
+| `customers/list.html` | 5.1 | Stores, balance, overdue badge |
+| `customers/detail.html` | 5.1, 5.4 | Tabs Overview (payment record card), Orders, Payments, Installments; installment plan modal |
+| `payments/record.html` | 5.2 | Amount, method (COD, E-wallet, Cheque, Bank transfer), reference, date, payment photo |
 | `payments/receipt.html` | 5.2 | Payment receipt (PR-0001…) |
 | `payments/receivables.html` | 5.3, 5.5 | **To verify** queue (field payments), aging table, overdue list |
-| `m/customers.html` | 5.4 | Agent's stores with balance and credit meter |
-| `m/payments.html` | 5.2 | Field payment with proof photo |
+| `m/customers.html` | 5.4 | Agent's stores with balance and overdue |
+| `m/payments.html` | 5.2 | Field payment with payment photo |
 | `m/home.html` | — | Agent home: New order, deliveries to confirm, quick stock check, orders by status, customers to follow up |
 
 ### 6.0 Reports
@@ -145,7 +145,7 @@ Process numbers follow the revised Chapter 3 (Oct 23). The sidebar shows module 
 `Reorder list / Stock order request` → `4.2 Purchase request` → `OM approves` → `4.3 Ordered` → `4.4 Received` (or Partially received; stock added in the selling unit) → `4.5 OM marks Paid`
 
 **Customer payment**
-Office payment → counts right away. Field payment → `For verification` → OM verifies (or rejects with a reason) → balance and installments update. A verified cheque can later be marked **bounced**.
+Office payment → counts right away. Field payment → `For verification` → OM verifies (or rejects with a reason) → balance and installments update. There is no "bounced" status (Nov 12).
 
 **Stock transfer between branches**
 `Transfer out (Sent)` → the other branch's OM clicks `Receive` → `Transfer in`
@@ -158,7 +158,7 @@ Office payment → counts right away. Field payment → `For verification` → O
 - **Available can go negative.** It shows as an info badge "Backordered −19", never an error, and the order still goes through.
 - Stock badges: **Low** (available ≤ reorder point), **Below floor**, **Over ceiling** (on hand > ceiling), **Levels not set** (ceiling 0, off the reorder list), **Backordered** (wins over the others).
 - Suggested reorder qty = ceiling − (available + on order).
-- Warnings never block: below minimum order, over credit limit, overdue balance.
+- Warnings never block: below minimum order, overdue balance. There is no credit limit (Nov 11).
 - One selling unit per product; purchase units convert via `product_supplier.conversion`.
 - Shipping deducts the full quantity, even on backordered lines (no partial shipping).
 - A payment applies to one installment row or one whole order; extra on an installment spills into the next rows.
@@ -183,7 +183,7 @@ Office payment → counts right away. Field payment → `For verification` → O
 | Sales orders (10) | SO-2026-0101 to 0110: 7 Completed, 2 Approved, 1 For approval |
 | Deliveries (7) | All Completed; trucks Isuzu Elf, Mitsubishi Fuso Canter; drivers Rodel Santos, Benjie Ocampo |
 | Purchase orders (2) | PO-2026-0038 (epoxy mother box, Ordered, Unpaid) · PO-2026-0039 (wire nails, Received, Paid) |
-| Payments (5) | Cheque, bank transfer, cash, one field cheque, one **bounced** cheque |
+| Payments (4) | Cheque, bank transfer, COD, one field e-wallet payment |
 | Installment plan (1) | On Bagong Pag-asa's order: 3 payments every 15 days, one overdue |
 
 ### The demo story (one case each)
@@ -193,12 +193,12 @@ Office payment → counts right away. Field payment → `For verification` → O
 | **Below floor** | Concrete nail 3" |
 | **Low** | Teflon tape |
 | **Over ceiling** | Cable ties 8" |
-| **Bad payer** | Bagong Pag-asa Hardware: over its ₱80,000 credit limit, overdue installment, bounced cheque |
+| **Overdue payer** | Bagong Pag-asa Hardware: overdue installment |
 | **Good payer** | Golden Star Hardware: balance ₱0 |
 | **Mother-box split** | PO-2026-0038: one 250-pc box → 125 Epoxy A + 125 Epoxy B |
 | **Waiting for approval** | SO-2026-0110 (Bagong Pag-asa) |
 
-Dates are relative to today, so overdue items and this week's deliveries always look current. If `data.js` changes, bump `VERSION` in `store.js` (now 6).
+Dates are relative to today, so overdue items and this week's deliveries always look current. If `data.js` changes, bump `VERSION` in `store.js` (now 7).
 
 ---
 
@@ -242,7 +242,7 @@ Every page loads `core, icons, format, data, store, history, auth, layout` and c
 - **Font:** Archivo. Page title 28, card title 16, key number 26, body 14–16 desktop / 16 phone.
 - **Colors:** background #f8fafc, cards white, text #111827, brand red #b91c1c (hover #991b1b), dark sidebar #111827 with red active item. Success green, warning amber, error red, info blue, each on a light tint.
 - **Layout:** desktop header 64px, sidebar 248px, content padding 32px, breadcrumb above the title. Phone header 60px, bottom tab bar 72px (Home, New Order, Stock, Customers, Payments).
-- **Shared pieces:** buttons (incl. quiet), badges with icon + word, KPI tiles with icon and change pill, credit meter, stock-level meter, status stepper, list cards, filter tabs with counts, modals, toasts, empty states, alerts panel.
+- **Shared pieces:** buttons (incl. quiet), badges with icon + word, KPI tiles with icon and change pill, stock-level meter, status stepper, list cards, filter tabs with counts, modals, toasts, empty states, alerts panel.
 - **Motion:** CSS only, ease-out, under 300ms (modals up to 350ms), transform/opacity only, none with reduced motion.
 - **UX rules:** one red button per screen, 44–48px targets, icons always with labels, plain words, warnings not blocks, destructive actions confirm in a modal. Every page checked at 1280px (desktop) and 390 / 320px (phone).
 

@@ -148,7 +148,7 @@
       function locationText(productId) {
         var sc = scope();
         var areas = S.where('stock_locations', function (l) { return l.product_id === productId; })
-          .map(function (l) { return S.get('storage', l.area_id); })
+          .map(function (l) { return S.get('storage_areas', l.area_id); })
           .filter(function (a) { return a && (sc === 'all' || a.branch_id === sc); });
         if (sc === 'all') {
           // Company-wide: name the branches that keep it

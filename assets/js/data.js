@@ -6,7 +6,7 @@
    Demo cases the plan requires (foundation.md 0.5):
    - Pioneer Epoxy A at Centennial: on hand 6, allocated 25 → available −19 (Backordered)
    - Teflon tape: Low · Concrete nail 3": Below floor · Cable ties: Over ceiling
-   - Bagong Pag-asa Hardware: over its credit limit, with an overdue installment and a bounced cheque
+   - Bagong Pag-asa Hardware: an overdue installment (no credit limits and no bounced status since the Nov 11 ERD)
    - Golden Star Hardware: a clean payment record, to contrast with Bagong Pag-asa
    Kept small on purpose (panel demo): one user per role, 12 products, 6 customers, 10 orders. */
 (function (CNS) {
@@ -71,12 +71,12 @@
     ];
 
     var suppliers = [
-      { id: 's1', company_name: 'Pacific Pipe Supply Co.', contact_person: 'Arturo Lim', contact_no: '(02) 8555 0201', address: 'Edsa, Caloocan City' },
-      { id: 's2', company_name: 'Luzon Steel Wire Products', contact_person: 'Belen Navarro', contact_no: '(02) 8555 0202', address: 'Km. 18 MacArthur Hwy., Valenzuela City' },
-      { id: 's3', company_name: 'Metro Fastener Distributors', contact_person: 'Henry Co', contact_no: '(02) 8555 0203', address: 'Soler St., Binondo, Manila' },
-      { id: 's4', company_name: 'Bonding Solutions Trading', contact_person: 'Gina Ferrer', contact_no: '(02) 8555 0204', address: 'Mercedes Ave., Pasig City' },
-      { id: 's5', company_name: 'Rainbow Paints Wholesale', contact_person: 'Oscar Bello', contact_no: '(02) 8555 0205', address: 'Del Monte Ave., Quezon City' },
-      { id: 's6', company_name: 'Mabuhay Hardware & Electrical Supply', contact_person: 'Lito Manalastas', contact_no: '(02) 8555 0206', address: 'Rizal Ave., Sta. Cruz, Manila' }
+      { id: 's1', company_name: 'Pacific Pipe Supply Co.', contact_person: 'Arturo Lim', contact_number: '(02) 8555 0201', address: 'Edsa, Caloocan City' },
+      { id: 's2', company_name: 'Luzon Steel Wire Products', contact_person: 'Belen Navarro', contact_number: '(02) 8555 0202', address: 'Km. 18 MacArthur Hwy., Valenzuela City' },
+      { id: 's3', company_name: 'Metro Fastener Distributors', contact_person: 'Henry Co', contact_number: '(02) 8555 0203', address: 'Soler St., Binondo, Manila' },
+      { id: 's4', company_name: 'Bonding Solutions Trading', contact_person: 'Gina Ferrer', contact_number: '(02) 8555 0204', address: 'Mercedes Ave., Pasig City' },
+      { id: 's5', company_name: 'Rainbow Paints Wholesale', contact_person: 'Oscar Bello', contact_number: '(02) 8555 0205', address: 'Del Monte Ave., Quezon City' },
+      { id: 's6', company_name: 'Mabuhay Hardware & Electrical Supply', contact_person: 'Lito Manalastas', contact_number: '(02) 8555 0206', address: 'Rizal Ave., Sta. Cruz, Manila' }
     ];
 
     // [id, code, name, category, unit, price, min order, floor, critical (= reorder point), ceiling, supplier, purchase unit, conversion]
@@ -157,14 +157,14 @@
     });
 
     var clients = [
-      ['k1', 'Golden Star Hardware', 'Ernesto Lim', '0917 555 0101', '128 A. Mabini St., Caloocan City', 150000, 'b1', 'u8'],
-      ['k2', 'RJ Construction Supply', 'Rodel Javier', '0918 555 0102', '45 Commonwealth Ave., Quezon City', 250000, 'b1', 'u8'],
-      ['k3', 'Bagong Pag-asa Hardware', 'Lorna Dizon', '0919 555 0103', '12 J.P. Rizal St., Marikina City', 80000, 'b1', 'u8'],
-      ['k4', 'Sto. Niño Builders Depot', 'Fernando Cruz', '0920 555 0104', '88 Gov. Pascual Ave., Malabon City', 120000, 'b1', 'u8'],
-      ['k9', 'Bayanihan Builders Supply', 'Rogelio Santos', '0926 555 0109', 'Ortigas Ave. Ext., Cainta, Rizal', 120000, 'b2', 'u10'],
-      ['k11', 'Evergreen Construction Supply', 'Marvin Tolentino', '0928 555 0111', 'Aguinaldo Hwy., Bacoor, Cavite', 180000, 'b3', 'u15']
+      ['k1', 'Golden Star Hardware', 'Ernesto Lim', '0917 555 0101', '128 A. Mabini St., Caloocan City', 'b1', 'u8'],
+      ['k2', 'RJ Construction Supply', 'Rodel Javier', '0918 555 0102', '45 Commonwealth Ave., Quezon City', 'b1', 'u8'],
+      ['k3', 'Bagong Pag-asa Hardware', 'Lorna Dizon', '0919 555 0103', '12 J.P. Rizal St., Marikina City', 'b1', 'u8'],
+      ['k4', 'Sto. Niño Builders Depot', 'Fernando Cruz', '0920 555 0104', '88 Gov. Pascual Ave., Malabon City', 'b1', 'u8'],
+      ['k9', 'Bayanihan Builders Supply', 'Rogelio Santos', '0926 555 0109', 'Ortigas Ave. Ext., Cainta, Rizal', 'b2', 'u10'],
+      ['k11', 'Evergreen Construction Supply', 'Marvin Tolentino', '0928 555 0111', 'Aguinaldo Hwy., Bacoor, Cavite', 'b3', 'u15']
     ].map(function (c) {
-      return { id: c[0], store_name: c[1], contact_person: c[2], contact_no: c[3], address: c[4], credit_limit: c[5], branch_id: c[6], agent_id: c[7] };
+      return { id: c[0], store_name: c[1], contact_person: c[2], contact_number: c[3], address: c[4], branch_id: c[5], agent_id: c[6] };
     });
 
     // [id, client, agent, encoded_by, branch, order day, status, delivery day, approved_by, note, lines [[product, qty]]]
@@ -211,8 +211,8 @@
     ];
 
     var drivers = [
-      { id: 'd1', full_name: 'Rodel Santos', contact_no: '0917 555 0301' },
-      { id: 'd2', full_name: 'Benjie Ocampo', contact_no: '0918 555 0302' }
+      { id: 'd1', full_name: 'Rodel Santos', contact_number: '0917 555 0301' },
+      { id: 'd2', full_name: 'Benjie Ocampo', contact_number: '0918 555 0302' }
     ];
 
     // [id, order, schedule day, truck, driver, status, confirmed_by]
@@ -249,17 +249,16 @@
       });
     });
 
-    // [id, order, client, schedule, amount, method, reference, day, received_by, channel, verified_by, bounced]
+    // [id, order, client, schedule, amount, method (COD, E-wallet, Cheque, Bank transfer), reference, day, received_by, channel, verified_by]
     var payments = [
-      ['pay1', 'o1', 'k3', 'is1', 22800, 'Cheque', 'BDO 004512', -20, 'u4', 'Office', 'u2', false],
-      ['pay2', 'o3', 'k1', null, 15350, 'Bank transfer', 'BPI-TRF-88213', -5, 'u4', 'Office', 'u2', false],
-      ['pay3', 'o5', 'k4', null, 10090, 'Cash', '', -1, 'u4', 'Office', 'u2', false],
-      ['pay4', 'o6', 'k1', null, 6290, 'Cheque', 'Metrobank 117820', -1, 'u8', 'Field', 'u2', false],
-      ['pay5', null, 'k3', null, 8000, 'Cheque', 'BDO 009931', -30, 'u4', 'Office', null, true]
+      ['pay1', 'o1', 'k3', 'is1', 22800, 'Cheque', 'BDO 004512', -20, 'u4', 'Office', 'u2'],
+      ['pay2', 'o3', 'k1', null, 15350, 'Bank transfer', 'BPI-TRF-88213', -5, 'u4', 'Office', 'u2'],
+      ['pay3', 'o5', 'k4', null, 10090, 'COD', '', -1, 'u4', 'Office', 'u2'],
+      ['pay4', 'o6', 'k1', null, 6290, 'E-wallet', 'GCash 8821 4410', -1, 'u8', 'Field', 'u2']
     ].map(function (p) {
       return {
         id: p[0], order_id: p[1], client_id: p[2], schedule_id: p[3], amount: p[4], method: p[5], reference_no: p[6],
-        date: day(p[7]), proof_photo: null, received_by: p[8], channel: p[9], verified_by: p[10], bounced: p[11]
+        date: day(p[7]), payment_photo: null, received_by: p[8], channel: p[9], verified_by: p[10]
       };
     });
 
@@ -288,12 +287,20 @@
     move(-4, 'p7', 'b1', 'a1', 'Transfer out', -10, 'TR-0001', 'u4', 'To I-KU');
     move(-3, 'p7', 'b2', 'a4', 'Transfer in', 10, 'TR-0001', 'u4', 'From Centennial');
 
+    // tbl_stock_counts (Nov 11 ERD): one past count of the Centennial Stockroom. Cable ties were 2 packs short,
+    // so the count also wrote a Count movement; the other two matched and changed nothing.
+    var stockCounts = [
+      ['sc1', 'p31', 144, 144], ['sc2', 'p35', 870, 868], ['sc3', 'p37', 45, 45]
+    ].map(function (r) {
+      return { id: r[0], product_id: r[1], area_id: 'a3', counted_by: 'u4', system_qty: r[2], counted_qty: r[3], count_date: day(-6) };
+    });
+    move(-6, 'p35', 'b1', 'a3', 'Count', -2, 'CNT-0001', 'u4', 'Physical count');
+
     var historyLogs = [
       { id: 'h1', datetime: at(-2, 9, 14), user_id: 'u2', branch_id: 'b1', action: 'Edit', module: 'Products & Inventory', record_type: 'products', record_id: 'p11', field: 'ceiling_qty', old_value: '50', new_value: '60' },
       { id: 'h2', datetime: at(-3, 10, 2), user_id: 'u2', branch_id: 'b1', action: 'Approve', module: 'Sales Orders & Deliveries', record_type: 'sales_orders', record_id: 'o2', field: 'status', old_value: 'For approval', new_value: 'Approved' },
       { id: 'h3', datetime: at(-5, 15, 40), user_id: 'u4', branch_id: 'b1', action: 'Stock change', module: 'Products & Inventory', record_type: 'stock_movements', record_id: 'ADJ-0001', field: 'qty_change', old_value: null, new_value: '-3 (Damaged)' },
       { id: 'h7', datetime: at(-4, 14, 0), user_id: 'u4', branch_id: 'b1', action: 'Stock change', module: 'Products & Inventory', record_type: 'stock_movements', record_id: 'TR-0001', field: 'qty_change', old_value: null, new_value: '-10 (To I-KU)' },
-      { id: 'h8', datetime: at(-4, 16, 45), user_id: 'u2', branch_id: 'b1', action: 'Edit', module: 'Customer Accounts & Payments', record_type: 'clients', record_id: 'k3', field: 'credit_limit', old_value: '60000', new_value: '80000' },
       { id: 'h9', datetime: at(-3, 13, 15), user_id: 'u2', branch_id: 'b1', action: 'Approve', module: 'Customer Accounts & Payments', record_type: 'payments', record_id: 'pay4', field: 'verified_by', old_value: null, new_value: 'Maricel Santos' },
       { id: 'h10', datetime: at(-2, 8, 2), user_id: 'u2', branch_id: 'b1', action: 'Approve', module: 'Purchasing & Suppliers', record_type: 'purchase_orders', record_id: 'po1', field: 'status', old_value: 'For approval', new_value: 'Approved' },
       { id: 'h11', datetime: at(-1, 7, 58), user_id: 'u4', branch_id: 'b1', action: 'Login', module: 'User Accounts & History Log', record_type: 'users', record_id: 'u4', field: null, old_value: null, new_value: null },
@@ -310,10 +317,11 @@
       units: units,
       suppliers: suppliers,
       products: products,
-      product_supplier: productSupplier,
-      storage: storage,
+      product_suppliers: productSupplier,
+      storage_areas: storage,
       stock_locations: stockLocations,
       stock_movements: movements,
+      stock_counts: stockCounts,
       clients: clients,
       sales_orders: salesOrders,
       sales_order_items: salesOrderItems,

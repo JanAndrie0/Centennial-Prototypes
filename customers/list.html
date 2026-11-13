@@ -28,7 +28,7 @@
     <div class="page-head">
       <div>
         <h1 class="page-title">Customer Accounts</h1>
-        <p class="page-desc">Hardware stores, their balance and credit. One account per store for all branches.</p>
+        <p class="page-desc">Hardware stores and their balance. One account per store for all branches.</p>
       </div>
       <div class="page-head__actions"><button type="button" class="btn btn--primary" id="add-customer"></button></div>
     </div>
@@ -49,7 +49,6 @@
           <select class="input input--compact" id="f-status">
             <option value="">All customers</option>
             <option value="overdue">Overdue</option>
-            <option value="over-limit">Over credit limit</option>
           </select>
         </div>
         <button type="button" class="btn-link" id="clear">Clear filters</button>
@@ -61,7 +60,7 @@
       <table class="table table--clickable" id="customers-table">
         <thead><tr>
           <th scope="col">Store and address</th><th scope="col">Contact</th><th scope="col">Agent</th>
-          <th scope="col" class="num-col">Credit limit</th><th scope="col" class="num-col">Balance</th><th scope="col">Overdue</th>
+          <th scope="col" class="num-col">Balance</th><th scope="col">Overdue</th>
         </tr></thead>
         <tbody id="customers-body"></tbody>
       </table>
@@ -96,7 +95,6 @@
       var $ = function (id) { return document.getElementById(id); };
       var MODULE = 'Customer Accounts & Payments';
       var me = session.user;
-      var canSetCredit = me.role === R.OM;   // 5.1: the Office Manager sets credit limits
 
       $('search-icon').outerHTML = CNS.icon('magnifying-glass');
       $('empty-icon').outerHTML = CNS.icon('building-storefront');
@@ -131,25 +129,21 @@
           if (sc !== 'all' && c.branch_id !== sc) return false;
           if (agent && c.agent_id !== agent) return false;
           if (status === 'overdue' && !S.clientOverdue(c.id)) return false;
-          if (status === 'over-limit' && S.clientBalance(c.id) <= c.credit_limit) return false;
           return true;
         }).sort(function (a, b) { return a.store_name.localeCompare(b.store_name); });
 
         $('customers-body').innerHTML = rows.map(function (c) {
           var bal = S.clientBalance(c.id);
-          var over = bal > c.credit_limit;
           var agentUser = S.get('users', c.agent_id);
           var last = S.clientLastOrder(c.id);
           return '<tr data-id="' + esc(c.id) + '">' +
             '<td><a class="row-link" href="detail.html?id=' + encodeURIComponent(c.id) + '">' + esc(c.store_name) + '</a>' +
               '<span class="cell-sub store-addr">' + esc((sc === 'all' ? S.branchName(c.branch_id) + ' · ' : '') + c.address) + '</span></td>' +
-            '<td class="nowrap">' + esc(c.contact_person) + '<span class="cell-sub">' + esc(c.contact_no) + '</span></td>' +
+            '<td class="nowrap">' + esc(c.contact_person) + '<span class="cell-sub">' + esc(c.contact_number) + '</span></td>' +
             // Last order under the agent (one column fewer, so the table fits a 1280px laptop)
             '<td class="nowrap">' + esc(agentUser ? agentUser.full_name : '—') +
               '<span class="cell-sub">' + (last ? 'Last order ' + esc(fmt.date(last)) : 'No orders yet') + '</span></td>' +
-            '<td class="num-col">' + esc(fmt.money(c.credit_limit)) + '</td>' +
-            '<td class="num-col"><div class="money-cell"><span' + (over ? ' class="cell-main"' : '') + '>' + esc(fmt.money(bal)) + '</span>' +
-              (over ? CNS.ui.badge('warning', 'exclamation-triangle', 'Over limit') : '') + '</div></td>' +
+            '<td class="num-col">' + esc(fmt.money(bal)) + '</td>' +
             '<td class="nowrap">' + overdueBadge(c) + '</td></tr>';
         }).join('');
 
@@ -194,7 +188,7 @@
             field('ac-name', 'Store name', '<input class="input" id="ac-name" name="store_name" autocomplete="off" aria-describedby="ac-name-error">') +
             '<div class="form-grid">' +
               field('ac-contact', 'Contact person', '<input class="input" id="ac-contact" name="contact_person" autocomplete="off" aria-describedby="ac-contact-error">') +
-              field('ac-phone', 'Contact no.', '<input class="input" id="ac-phone" name="contact_no" type="tel" inputmode="tel" autocomplete="off" aria-describedby="ac-phone-error">') +
+              field('ac-phone', 'Contact no.', '<input class="input" id="ac-phone" name="contact_number" type="tel" inputmode="tel" autocomplete="off" aria-describedby="ac-phone-error">') +
             '</div>' +
             field('ac-address', 'Address', '<input class="input" id="ac-address" name="address" autocomplete="off" aria-describedby="ac-address-error">') +
             '<div class="form-grid">' +
@@ -204,9 +198,6 @@
                 : '<div class="field"><span class="label">Branch</span><div class="static-value">' + esc(S.branchName(me.branch_id)) + '</div></div>') +
               field('ac-agent', 'Sales agent', '<select class="input" id="ac-agent" name="agent_id" aria-describedby="ac-agent-error"></select>') +
             '</div>' +
-            (canSetCredit
-              ? field('ac-credit', 'Credit limit (₱)', '<input class="input" id="ac-credit" name="credit_limit" type="number" inputmode="numeric" min="0" step="1000" aria-describedby="ac-credit-error">')
-              : '<div class="field"><span class="label">Credit limit</span><div class="static-value">' + CNS.icon('lock-closed') + 'Set by the Office Manager</div></div>') +
             '<div class="modal__actions modal__actions--split"><span id="ac-autosave" role="status"></span>' +
               '<div><button type="button" class="btn btn--secondary" data-cancel>Cancel</button>' +
               '<button type="submit" class="btn btn--primary">Add customer</button></div></div>' +
@@ -242,26 +233,24 @@
           e.preventDefault();
           var name = q('ac-name').value.trim().replace(/\s+/g, ' ');
           var dup = S.where('clients', function (c) { return c.store_name.toLowerCase() === name.toLowerCase(); })[0];
-          var credit = canSetCredit ? q('ac-credit').value : '0';
           var ok = [
             setError('ac-name', !name ? 'Enter the store name.' : dup ? 'This store is already a customer (' + S.branchName(dup.branch_id) + ').' : ''),
             setError('ac-contact', q('ac-contact').value.trim() ? '' : 'Enter the contact person.'),
             setError('ac-phone', /^[0-9 ()+-]{7,}$/.test(q('ac-phone').value.trim()) ? '' : 'Enter a phone number, e.g. 0917 555 0101.'),
             setError('ac-address', q('ac-address').value.trim() ? '' : 'Enter the address.'),
-            setError('ac-agent', q('ac-agent').value ? '' : 'Choose the agent who visits this store.'),
-            canSetCredit ? setError('ac-credit', /^\d+$/.test(credit) ? '' : 'Enter the credit limit in pesos, 0 or more.') : true
+            setError('ac-agent', q('ac-agent').value ? '' : 'Choose the agent who visits this store.')
           ];
           if (ok.indexOf(false) >= 0) { form.querySelector('[aria-invalid="true"]').focus(); return; }
 
           var c = S.insert('clients', {
-            store_name: name, contact_person: q('ac-contact').value.trim(), contact_no: q('ac-phone').value.trim(),
-            address: q('ac-address').value.trim(), credit_limit: Number(credit), branch_id: branchId(), agent_id: q('ac-agent').value
+            store_name: name, contact_person: q('ac-contact').value.trim(), contact_number: q('ac-phone').value.trim(),
+            address: q('ac-address').value.trim(), branch_id: branchId(), agent_id: q('ac-agent').value
           });
-          CNS.history.log({ action: 'Create', module: MODULE, record_type: 'clients', record_id: c.id, new_value: name + ' · credit limit ' + fmt.money(c.credit_limit) });
+          CNS.history.log({ action: 'Create', module: MODULE, record_type: 'clients', record_id: c.id, new_value: name });
           draft.clear();
           d.close();
           render();
-          CNS.ui.toast(name + ' added.' + (canSetCredit ? '' : ' Ask the Office Manager to set the credit limit.'));
+          CNS.ui.toast(name + ' added.');
         });
 
         d.showModal();

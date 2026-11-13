@@ -5,7 +5,7 @@
   'use strict';
 
   var KEY = 'centennial-db';
-  var VERSION = 6;                      // bump when data.js changes shape, so every browser reseeds
+  var VERSION = 7;                     // bump when data.js changes shape, so every browser reseeds
   var DRAFT_PREFIX = 'centennial-draft:';
 
   var BILLED = ['Approved', 'For delivery', 'Shipped', 'Completed']; // count toward the customer's balance
@@ -72,7 +72,7 @@
   }
 
   function areaBranch(areaId) {
-    var area = get('storage', areaId);
+    var area = get('storage_areas', areaId);
     return area ? area.branch_id : null;
   }
 
@@ -95,7 +95,7 @@
     return sum(table('purchase_orders').filter(function (po) {
       return ON_ORDER.indexOf(po.status) >= 0 && inBranch(po, branchId);
     }), function (po) {
-      var link = table('product_supplier').filter(function (ps) {
+      var link = table('product_suppliers').filter(function (ps) {
         return ps.product_id === productId && ps.supplier_id === po.supplier_id;
       })[0];
       var conversion = link ? link.conversion : 1;
@@ -152,7 +152,7 @@
   function orderFlags(orderId) {
     var o = get('sales_orders', orderId);
     var open = PENDING.indexOf(o.status) >= 0;
-    var flags = { backordered: [], belowMin: [], overCredit: 0 };
+    var flags = { backordered: [], belowMin: [] };
     if (['Shipped', 'Completed', 'Rejected', 'Cancelled'].indexOf(o.status) >= 0) return flags;
     table('sales_order_items').filter(function (it) { return it.order_id === orderId; }).forEach(function (it) {
       var p = get('products', it.product_id);
@@ -160,11 +160,7 @@
       if (after < 0) flags.backordered.push({ product_id: it.product_id, short: Math.min(it.qty, -after) });
       if (p && it.qty < p.min_order_qty) flags.belowMin.push({ product_id: it.product_id, min: p.min_order_qty });
     });
-    var c = get('clients', o.client_id);
-    if (c) {
-      var exposure = CNS.store.clientBalance(c.id) + (open ? orderTotal(orderId) : 0);
-      flags.overCredit = Math.max(0, exposure - c.credit_limit);
-    }
+    // No credit limit check: the company has no "pay later"; credit is arranged with the CEO outside the system (ERD, Nov 11)
     return flags;
   }
 
@@ -307,7 +303,7 @@
         return o.client_id === clientId && BILLED.indexOf(o.status) >= 0;
       }), function (o) { return orderTotal(o.id); });
       var paid = sum(table('payments').filter(function (p) {
-        return p.client_id === clientId && p.verified_by && !p.bounced;
+        return p.client_id === clientId && p.verified_by;
       }), function (p) { return p.amount; });
       return billed - paid;
     },

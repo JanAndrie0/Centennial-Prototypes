@@ -142,7 +142,6 @@
         var f = S.orderFlags(o.id);
         var out = [];
         if (f.backordered.length) out.push(CNS.ui.badge('info', 'information-circle', 'Backordered'));
-        if (f.overCredit) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Over credit'));
         if (f.belowMin.length) out.push(CNS.ui.badge('warning', 'exclamation-triangle', 'Below minimum'));
         return out.length ? '<div class="flags">' + out.join('') + '</div>' : '';
       }

@@ -38,7 +38,7 @@
   </style>
 </head>
 <body>
-  <!-- 5.4 Provide Customer Balance: the agent's stores with balance, credit limit, overdue and last payments (Problem F6) -->
+  <!-- 5.4 Provide Customer Balance: the agent's stores with balance, overdue and last payments (Problem F6) -->
   <main id="main">
     <div id="list-view">
       <h1 class="page-title">My stores</h1>
@@ -106,7 +106,7 @@
             return '<li><a class="store-card" href="customers.html?id=' + encodeURIComponent(x.id) + '">' +
               '<span><p class="store-card__name">' + esc(x.store_name) + '</p><p class="store-card__meta">' + esc(x.address) + '</p></span>' +
               '<span class="store-card__right">' + esc(fmt.money(bal)) +
-                (od ? CNS.ui.badge('error', 'exclamation-circle', 'Overdue') : bal > x.credit_limit ? CNS.ui.badge('warning', 'exclamation-triangle', 'Over limit') : '') +
+                (od ? CNS.ui.badge('error', 'exclamation-circle', 'Overdue') : '') +
               '</span></a></li>';
           }).join('') || '<li class="card empty"><p class="empty__title">No stores match.</p><p class="empty__text">Check the spelling.</p></li>';
         };
@@ -121,18 +121,15 @@
       document.title = c.store_name + ' · Centennial Sales & Inventory';
       $('back').innerHTML = CNS.icon('chevron-left') + 'All my stores';
       $('d-name').textContent = c.store_name;
-      $('d-contact').innerHTML = esc(c.contact_person) + ' · <a href="tel:' + esc(c.contact_no.replace(/\s/g, '')) + '">' + esc(c.contact_no) + '</a>';
+      $('d-contact').innerHTML = esc(c.contact_person) + ' · <a href="tel:' + esc(c.contact_number.replace(/\s/g, '')) + '">' + esc(c.contact_number) + '</a>';
       $('d-pay').href = 'payments.html?client=' + encodeURIComponent(c.id);
       $('d-pay').innerHTML = CNS.icon('banknotes') + 'Record payment';
       $('d-order').href = 'new-order.html?client=' + encodeURIComponent(c.id);
       $('d-order').innerHTML = CNS.icon('plus-circle') + 'New order';
 
       var bal = S.clientBalance(c.id), od = S.clientOverdue(c.id), days = S.clientOverdueDays(c.id);
-      var left = c.credit_limit - bal;
       $('d-tiles').innerHTML =
         '<div class="tile"><dt>Balance</dt><dd>' + esc(fmt.money(bal)) + '</dd></div>' +
-        '<div class="tile"><dt>Credit limit</dt><dd>' + esc(fmt.money(c.credit_limit)) + '</dd></div>' +
-        '<div class="tile' + (left < 0 ? ' is-warn' : '') + '"><dt>' + (left < 0 ? 'Over the limit by' : 'Credit left') + '</dt><dd>' + esc(fmt.money(Math.abs(left))) + '</dd></div>' +
         '<div class="tile' + (od ? ' is-bad' : '') + '"><dt>Overdue' + (od ? ' · ' + days + (days === 1 ? ' day' : ' days') : '') + '</dt><dd>' + esc(fmt.money(od)) + '</dd></div>';
 
       var open = P.openItems(c.id);

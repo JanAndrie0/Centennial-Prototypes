@@ -72,7 +72,7 @@
       var encoder = S.get('users', o.encoded_by);
       var lines = CNS.orderActions.items(o.id);
       var total = S.orderTotal(o.id);
-      var pays = S.where('payments', function (p) { return p.order_id === o.id && p.verified_by && !p.bounced; });
+      var pays = S.where('payments', function (p) { return p.order_id === o.id && p.verified_by && !p.reject_reason; });
       var paid = pays.reduce(function (t, p) { return t + p.amount; }, 0);
 
       document.title = 'Receipt ' + o.order_no + ' · Centennial Sales & Inventory';
@@ -85,7 +85,7 @@
         '<header class="r-head"><div><img src="../assets/img/logo.jpg" alt="Centennial N&amp;S Construction Corporation">' +
           '<p class="r-company">' + esc(branch ? branch.name : '') + '</p></div>' +
           '<div><p class="r-title">SALES RECEIPT</p><p class="r-meta">No. ' + esc(o.order_no) + '</p><p class="r-meta">Date: ' + esc(fmt.date(o.order_date)) + '</p></div></header>' +
-        '<section class="r-parties"><p><span class="cell-sub">Sold to</span><strong>' + esc(c ? c.store_name : '') + '</strong>' + esc(c ? c.address : '') + '<br>' + esc(c ? c.contact_person + ' · ' + c.contact_no : '') + '</p>' +
+        '<section class="r-parties"><p><span class="cell-sub">Sold to</span><strong>' + esc(c ? c.store_name : '') + '</strong>' + esc(c ? c.address : '') + '<br>' + esc(c ? c.contact_person + ' · ' + c.contact_number : '') + '</p>' +
           '<p><span class="cell-sub">Agent</span><strong>' + esc(agent ? agent.full_name : '—') + '</strong>Delivery: ' + esc(fmt.date(o.delivery_date)) + '</p></section>' +
         '<table class="r-table"><thead><tr><th scope="col" class="n">Qty</th><th scope="col">Unit</th><th scope="col">Description</th><th scope="col" class="n">Unit price</th><th scope="col" class="n">Amount</th></tr></thead><tbody>' +
           lines.map(function (it) {

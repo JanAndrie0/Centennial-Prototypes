@@ -27,7 +27,7 @@
   function stocks(productId, branchId) {
     return S.where('stock_locations', function (l) {
       if (l.product_id !== productId) return false;
-      var a = S.get('storage', l.area_id);
+      var a = S.get('storage_areas', l.area_id);
       return a && a.branch_id === branchId;
     }).length > 0;
   }
@@ -375,7 +375,7 @@
           chart: { kind: 'rows', title: 'Entries by reason', label: 'Adjustments by reason', format: function (n) { return n + (n === 1 ? ' entry' : ' entries'); }, rows: ranked(byReason) },
           columns: [col('Date'), col('Ref'), col('Product'), col('Branch and area'), col('Type'), col('Change', true), col('Reason'), col('Recorded by')],
           rows: list.map(function (m) {
-            var p = product(m.product_id), a = S.get('storage', m.area_id);
+            var p = product(m.product_id), a = S.get('storage_areas', m.area_id);
             return [text(fmt.dateTime(m.datetime)), text(m.ref), productCell(p), text(S.branchName(m.branch_id) + (a ? ' · ' + a.name : '')),
               text(m.type), signed(m.qty_change, p.unit_id), text(m.reason || '—'), text(userName(m.user_id))];
           }),
@@ -501,7 +501,7 @@
 
         var list = S.where('payments', function (p) { return ids.indexOf(p.client_id) >= 0 && inRange(p.date, f); })
           .sort(function (a, b) { return a.date < b.date ? 1 : -1; });
-        var counted = list.filter(P.counted), waiting = list.filter(P.pending), bad = list.filter(function (p) { return p.bounced; });
+        var counted = list.filter(P.counted), waiting = list.filter(P.pending), bad = list.filter(function (p) { return !!p.reject_reason; });
         var collected = sum(counted, function (p) { return p.amount; });
         var days = periods(f, 'daily'), per = {};
         days.forEach(function (k) { per[k] = 0; });
@@ -512,7 +512,7 @@
           tiles: [
             ['Collected', fmt.money(collected), counted.length + ' payments · ' + fmt.money(field) + ' from the field'],
             ['Waiting for verification', fmt.money(sum(waiting, function (p) { return p.amount; })), waiting.length + (waiting.length === 1 ? ' field payment' : ' field payments')],
-            ['Bounced or rejected', fmt.money(sum(bad, function (p) { return p.amount; })), bad.length + (bad.length === 1 ? ' payment' : ' payments')],
+            ['Rejected', fmt.money(sum(bad, function (p) { return p.amount; })), bad.length + (bad.length === 1 ? ' payment' : ' payments')],
             ['Overdue receivables', fmt.money(overdue), 'Of ' + fmt.money(receivable) + ' owed today']
           ],
           chart: { kind: 'columns', title: 'Collections per day', label: 'Verified collections per day', format: fmt.money,
@@ -522,7 +522,7 @@
             var c = S.get('clients', p.client_id), o = p.order_id && S.get('sales_orders', p.order_id);
             return [date(p.date), html(P.receiptNo(p), '<a class="row-link nowrap" href="../payments/receipt.html?id=' + encodeURIComponent(p.id) + '">' + esc(P.receiptNo(p)) + '</a>'),
               text(c ? c.store_name : '—'), text(o ? o.order_no : '—'), text(p.method + (p.reference_no ? ' · ' + p.reference_no : '')), text(p.channel),
-              html(p.bounced ? 'Bounced' : p.verified_by ? 'Verified' : 'For verification', P.statusBadge(p)), money(p.amount)];
+              html(p.reject_reason ? 'Rejected' : p.verified_by ? 'Verified' : 'For verification', P.statusBadge(p)), money(p.amount)];
           }),
           foot: [text('Collected (verified)'), text(''), text(''), text(''), text(''), text(''), text(''), money(collected)]
         };
